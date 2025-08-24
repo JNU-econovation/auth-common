@@ -1,0 +1,79 @@
+package com.econo.common.auth.core.passport;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+/** Passport 관련 예외 HTTP 상태 코드와 함께 예외 정보를 전달 */
+@Getter
+public class PassportException extends RuntimeException {
+
+	private static final long serialVersionUID = 1L;
+
+	private final HttpStatus httpStatus;
+	private final String errorCode;
+
+	public PassportException(HttpStatus httpStatus, String message) {
+		super(message);
+		this.httpStatus = httpStatus;
+		this.errorCode = generateErrorCode(httpStatus);
+	}
+
+	public PassportException(HttpStatus httpStatus, String message, Throwable cause) {
+		super(message, cause);
+		this.httpStatus = httpStatus;
+		this.errorCode = generateErrorCode(httpStatus);
+	}
+
+	public PassportException(HttpStatus httpStatus, String errorCode, String message) {
+		super(message);
+		this.httpStatus = httpStatus;
+		this.errorCode = errorCode;
+	}
+
+	public PassportException(
+			HttpStatus httpStatus, String errorCode, String message, Throwable cause) {
+		super(message, cause);
+		this.httpStatus = httpStatus;
+		this.errorCode = errorCode;
+	}
+
+	private String generateErrorCode(HttpStatus httpStatus) {
+		switch (httpStatus) {
+			case UNAUTHORIZED:
+				return "AUTH_UNAUTHORIZED";
+			case FORBIDDEN:
+				return "AUTH_FORBIDDEN";
+			case BAD_REQUEST:
+				return "AUTH_BAD_REQUEST";
+			default:
+				return "AUTH_ERROR";
+		}
+	}
+
+	/** 인증 실패 예외 */
+	public static PassportException unauthorized(String message) {
+		return new PassportException(HttpStatus.UNAUTHORIZED, message);
+	}
+
+	/** 권한 부족 예외 */
+	public static PassportException forbidden(String message) {
+		return new PassportException(HttpStatus.FORBIDDEN, message);
+	}
+
+	/** 잘못된 요청 예외 */
+	public static PassportException badRequest(String message) {
+		return new PassportException(HttpStatus.BAD_REQUEST, message);
+	}
+
+	/** 만료된 Passport 예외 */
+	public static PassportException expired(Long memberId) {
+		return new PassportException(
+				HttpStatus.UNAUTHORIZED, "AUTH_TOKEN_EXPIRED", "Expired passport : " + memberId);
+	}
+
+	/** 유효하지 않은 Passport 예외 */
+	public static PassportException invalid(String reason) {
+		return new PassportException(
+				HttpStatus.UNAUTHORIZED, "AUTH_PASSPORT_INVALID", "Invalid passport: " + reason);
+	}
+}
