@@ -1,6 +1,6 @@
 # ECONO Auth Common Library
 
-[![JitPack](https://jitpack.io/v/JNU-econovation/eeos-common.svg)](https://jitpack.io/#JNU-econovation/eeos-common)
+[![JitPack](https://jitpack.io/v/JNU-econovation/auth-common.svg)](https://jitpack.io/#JNU-econovation/auth-common)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
 Spring Boot 기반 마이크로서비스에서 `@PassportAuth` 어노테이션을 통해 인증/인가를 간편하게 처리할 수 있는 라이브러리입니다.
@@ -24,7 +24,7 @@ Spring Boot 기반 마이크로서비스에서 `@PassportAuth` 어노테이션�
 
 ```kotlin
 dependencies {
-    implementation("com.github.JNU-econovation:eeos-common:1.0.0")
+    implementation("com.github.JNU-econovation:auth-common:1.0.0")
 }
 ```
 
