@@ -26,6 +26,16 @@ public class Passport {
 
 	@NotNull private final LocalDateTime expiresAt;
 
+	/**
+	 * Passport 생성자
+	 *
+	 * @param memberId 회원 ID
+	 * @param email 이메일
+	 * @param name 이름
+	 * @param roles 권한 목록
+	 * @param issuedAt 발급 시간
+	 * @param expiresAt 만료 시간
+	 */
 	@JsonCreator
 	public Passport(
 			@JsonProperty("memberId") Long memberId,
@@ -42,25 +52,43 @@ public class Passport {
 		this.expiresAt = expiresAt;
 	}
 
-	/** 관리자 권한 여부 확인 */
+	/**
+	 * 관리자 권한 여부 확인
+	 *
+	 * @return 관리자 권한이 있으면 true
+	 */
 	@JsonIgnore
 	public boolean isAdmin() {
 		return roles.contains("ADMIN");
 	}
 
-	/** 매니저 권한 여부 확인 */
+	/**
+	 * 매니저 권한 여부 확인
+	 *
+	 * @return 매니저 권한이 있으면 true
+	 */
 	@JsonIgnore
 	public boolean isManager() {
 		return roles.contains("MANAGER");
 	}
 
-	/** 특정 권한 보유 여부 확인 */
+	/**
+	 * 특정 권한 보유 여부 확인
+	 *
+	 * @param role 확인할 권한
+	 * @return 해당 권한을 보유하고 있으면 true
+	 */
 	@JsonIgnore
 	public boolean hasRole(String role) {
 		return roles.contains(role);
 	}
 
-	/** 여러 권한 중 하나라도 보유하는지 확인 */
+	/**
+	 * 여러 권한 중 하나라도 보유하는지 확인
+	 *
+	 * @param roles 확인할 권한들
+	 * @return 하나라도 보유하고 있으면 true
+	 */
 	@JsonIgnore
 	public boolean hasAnyRole(String... roles) {
 		for (String role : roles) {
@@ -71,7 +99,12 @@ public class Passport {
 		return false;
 	}
 
-	/** 모든 권한을 보유하는지 확인 */
+	/**
+	 * 모든 권한을 보유하는지 확인
+	 *
+	 * @param roles 확인할 권한들
+	 * @return 모든 권한을 보유하고 있으면 true
+	 */
 	@JsonIgnore
 	public boolean hasAllRoles(String... roles) {
 		for (String role : roles) {
@@ -124,13 +157,23 @@ public class Passport {
 		return isValid() && !isExpired();
 	}
 
-	/** 특정 사용자인지 확인 */
+	/**
+	 * 특정 사용자인지 확인
+	 *
+	 * @param memberId 비교할 회원 ID
+	 * @return 동일한 회원이면 true
+	 */
 	@JsonIgnore
 	public boolean isMember(Long memberId) {
 		return Objects.equals(this.memberId, memberId);
 	}
 
-	/** 자신 또는 관리자인지 확인 (권한 체크용) */
+	/**
+	 * 자신 또는 관리자인지 확인 (권한 체크용)
+	 *
+	 * @param targetMemberId 접근하려는 대상 회원 ID
+	 * @return 자신이거나 관리자 권한이 있으면 true
+	 */
 	@JsonIgnore
 	public boolean canAccessMember(Long targetMemberId) {
 		return isMember(targetMemberId) || isAdmin();

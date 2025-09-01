@@ -17,6 +17,11 @@ public class AuthAutoConfiguration implements WebMvcConfigurer {
 
 	private final PassportArgumentResolver passportArgumentResolver;
 
+	/**
+	 * AuthAutoConfiguration 생성자
+	 *
+	 * @param objectMapper JSON 직렬화/역직렬화를 위한 ObjectMapper
+	 */
 	public AuthAutoConfiguration(ObjectMapper objectMapper) {
 		this.passportArgumentResolver = new PassportArgumentResolver(objectMapper);
 	}

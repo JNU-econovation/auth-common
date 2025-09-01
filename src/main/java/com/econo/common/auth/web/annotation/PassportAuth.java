@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  *
  * <p>Spring Security의 패러다임을 따라 String 기반 권한 체계를 사용합니다. 이는 동적 권한 생성, 외부 시스템 연동, 미래 확장성을 고려한 설계입니다.
  *
- * <h3>기본 사용법:</h3>
+ * <h2>기본 사용법</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/programs")
@@ -20,7 +20,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>권한 검증:</h3>
+ * <h2>권한 검증</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/admin/users")
@@ -30,7 +30,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>다중 권한 (OR 조건):</h3>
+ * <h2>다중 권한 (OR 조건)</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/manage")
@@ -40,7 +40,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>모든 권한 필요 (AND 조건):</h3>
+ * <h2>모든 권한 필요 (AND 조건)</h2>
  *
  * <pre>{@code
  * @DeleteMapping("/api/system/reset")
@@ -54,7 +54,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>권한 계층 지원:</h3>
+ * <h2>권한 계층 지원</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/manage")
@@ -68,7 +68,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>조건부 권한 (SpEL):</h3>
+ * <h2>조건부 권한 (SpEL)</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/users/{userId}")
@@ -82,7 +82,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>선택적 인증:</h3>
+ * <h2>선택적 인증</h2>
  *
  * <pre>{@code
  * @GetMapping("/api/public/programs")

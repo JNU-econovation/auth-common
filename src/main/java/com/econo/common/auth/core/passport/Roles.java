@@ -7,7 +7,7 @@ package com.econo.common.auth.core.passport;
  *
  * <p>동적 권한 생성을 위한 헬퍼 메서드도 제공합니다.
  *
- * <h3>사용법:</h3>
+ * <h2>사용법</h2>
  *
  * <pre>{@code
  * @PassportAuth(requiredRoles = Roles.ADMIN)

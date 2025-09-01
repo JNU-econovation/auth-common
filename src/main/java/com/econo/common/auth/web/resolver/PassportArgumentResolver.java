@@ -29,7 +29,7 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>Gateway에서 전달된 X-User-Passport 헤더를 디코딩하여 Passport 객체로 변환하고, 권한 검증, 권한 계층, SpEL 조건 등을 처리합니다.
  *
- * <h3>지원 기능:</h3>
+ * <h2>지원 기능</h2>
  *
  * <ul>
  *   <li>기본 권한 검증 (String 기반)
@@ -39,6 +39,9 @@ import org.springframework.web.servlet.HandlerMapping;
  *   <li>만료 검증 (validateExpiry)
  *   <li>복합 권한 조건 (requireAllRoles, includeHigherRoles)
  * </ul>
+ *
+ * @author Kim Sumin
+ * @since 1.0.0
  */
 @Slf4j
 @RequiredArgsConstructor
