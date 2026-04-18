@@ -28,11 +28,6 @@ auth-common 프로젝트의 코드 컨벤션.
   - [5.3 테스트 유형별 도구](#53-테스트-유형별-도구)
 - [6. 빌드](#6-빌드)
 - [7. 의존성 선언](#7-의존성-선언)
-- [8. 스킬 참조](#8-스킬-참조)
-  - [8.1 아키텍처/패턴](#81-아키텍처패턴)
-  - [8.2 테스트/검증](#82-테스트검증)
-  - [8.3 보안](#83-보안)
-  - [8.4 주의사항: 스킬과 본 문서의 차이](#84-주의사항-스킬과-본-문서의-차이)
 
 ---
 
@@ -320,42 +315,3 @@ api("org.springframework.boot:spring-boot-starter-web")         // 전이 의존
 compileOnly("org.projectlombok:lombok")                         // 컴파일 전용
 testImplementation("org.springframework.boot:spring-boot-starter-test") // 테스트 전용
 ```
-
-## 8. 스킬 참조
-
-본 문서는 auth-common 라이브러리 자체의 코드 컨벤션을 다룬다. 이 라이브러리를 사용하는 서비스 개발 시 아래 스킬을 함께 참조한다.
-
-스킬 파일 위치: `.claude/skills/{스킬명}/SKILL.md`
-
-### 8.1 아키텍처/패턴
-
-| 스킬 | 경로 | 다루는 내용 |
-|------|------|-------------|
-| **springboot-patterns** | `springboot-patterns/SKILL.md` | Controller → Service → Repository 계층 구조, DTO(`record`) 설계, `@ControllerAdvice` 중앙 예외 처리, 캐싱, 비동기 처리, 구조화 로깅, Rate Limiting, 생성자 주입 필수, `@Transactional(readOnly = true)` |
-| **jpa-patterns** | `jpa-patterns/SKILL.md` | Entity 설계(`@Table`, `@Index`), 관계 매핑, N+1 방지(`JOIN FETCH`, DTO projection), Repository 커스텀 쿼리, 트랜잭션 전략, 인덱싱/성능 최적화, HikariCP 설정, Flyway/Liquibase 마이그레이션 |
-| **hexagonal-architecture** | `hexagonal-architecture/SKILL.md` | 헥사고날 아키텍처 패턴, 포트/어댑터 분리 |
-
-### 8.2 테스트/검증
-
-| 스킬 | 경로 | 다루는 내용 |
-|------|------|-------------|
-| **springboot-tdd** | `springboot-tdd/SKILL.md` | TDD 워크플로우(Red-Green-Refactor), `@WebMvcTest`/`@DataJpaTest` 슬라이스 테스트, Testcontainers, JaCoCo 80%+ 커버리지, Test Data Builder, `@ParameterizedTest` |
-| **springboot-verification** | `springboot-verification/SKILL.md` | PR/배포 전 6단계 검증 루프: Build → Static Analysis → Test + Coverage → Security Scan → Lint → Diff Review |
-
-### 8.3 보안
-
-| 스킬 | 경로 | 다루는 내용 |
-|------|------|-------------|
-| **springboot-security** | `springboot-security/SKILL.md` | JWT 필터, `@PreAuthorize` 메서드 보안, Bean Validation, SQL Injection 방지, CORS/CSRF 설정, Secrets 관리(환경변수/Vault), PII 로깅 금지, 릴리스 전 보안 체크리스트 |
-| **security-review** | `security-review/SKILL.md` | 보안 취약점 리뷰, PR 보안 점검 템플릿 |
-
-### 8.4 주의사항: 스킬과 본 문서의 차이
-
-스킬의 코드 예시는 본 문서의 컨벤션에 맞게 수정되었다. 다만 아래 항목은 auth-common 라이브러리 특성상 차이가 남아 있다.
-
-| 항목 | 본 문서 (auth-common) | 스킬 |
-|------|----------------------|------|
-| DTO | 클래스 + `@JsonCreator` (JSON 직렬화 제어 필요) | `record` 사용 (서비스 애플리케이션 기준) |
-| 모듈 성격 | 라이브러리 (UseCase/Controller 없음) | 서비스 애플리케이션 (전체 계층 포함) |
-
-**원칙**: auth-common 내부 코드는 본 문서를 우선 적용한다. 스킬은 이 라이브러리를 사용하는 서비스 개발 시 참조한다.
