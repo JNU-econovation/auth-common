@@ -1,144 +1,144 @@
 ---
 name: github-ops
-description: GitHub repository operations, automation, and management. Issue triage, PR management, CI/CD operations, release management, and security monitoring using the gh CLI. Use when the user wants to manage GitHub issues, PRs, CI status, releases, contributors, stale items, or any GitHub operational task beyond simple git commands.
+description: GitHub 저장소 운영·자동화·관리. gh CLI를 활용한 이슈 분류, PR 관리, CI/CD 운영, 릴리스 관리, 보안 모니터링. 단순 git 명령을 넘어 GitHub 이슈·PR·CI 상태·릴리스·기여자·stale 항목 관리 등 GitHub 운영 작업을 수행할 때 사용한다.
 origin: ECC
 ---
 
 # GitHub Operations
 
-Manage GitHub repositories with a focus on community health, CI reliability, and contributor experience.
+커뮤니티 건전성, CI 신뢰성, 기여자 경험을 중심으로 GitHub 저장소를 관리한다.
 
-## When to Activate
+## 호출 시점
 
-- Triaging issues (classifying, labeling, responding, deduplicating)
-- Managing PRs (review status, CI checks, stale PRs, merge readiness)
-- Debugging CI/CD failures
-- Preparing releases and changelogs
-- Monitoring Dependabot and security alerts
-- Managing contributor experience on open-source projects
-- User says "check GitHub", "triage issues", "review PRs", "merge", "release", "CI is broken"
+- 이슈 분류 (분류, 라벨링, 응답, 중복 제거)
+- PR 관리 (리뷰 상태, CI 체크, stale PR, 머지 가능성)
+- CI/CD 실패 디버깅
+- 릴리스 및 changelog 준비
+- Dependabot 및 보안 알림 모니터링
+- 오픈소스 프로젝트 기여자 경험 관리
+- 사용자가 "GitHub 확인", "이슈 분류", "PR 리뷰", "머지", "릴리스", "CI 깨졌어" 등을 언급할 때
 
-## Tool Requirements
+## 도구 요구사항
 
-- **gh CLI** for all GitHub API operations
-- Repository access configured via `gh auth login`
+- 모든 GitHub API 작업에 **gh CLI** 사용
+- `gh auth login`으로 저장소 접근 권한 설정 필요
 
-## Issue Triage
+## 이슈 분류
 
-Classify each issue by type and priority:
+각 이슈를 타입과 우선순위로 분류한다:
 
-**Types:** bug, feature-request, question, documentation, enhancement, duplicate, invalid, good-first-issue
+**타입:** bug, feature-request, question, documentation, enhancement, duplicate, invalid, good-first-issue
 
-**Priority:** critical (breaking/security), high (significant impact), medium (nice to have), low (cosmetic)
+**우선순위:** critical (장애/보안), high (영향 큼), medium (있으면 좋음), low (사소한 문제)
 
-### Triage Workflow
+### 분류 워크플로
 
-1. Read the issue title, body, and comments
-2. Check if it duplicates an existing issue (search by keywords)
-3. Apply appropriate labels via `gh issue edit --add-label`
-4. For questions: draft and post a helpful response
-5. For bugs needing more info: ask for reproduction steps
-6. For good first issues: add `good-first-issue` label
-7. For duplicates: comment with link to original, add `duplicate` label
+1. 이슈 제목, 본문, 댓글을 읽는다
+2. 기존 이슈와 중복인지 확인한다 (키워드로 검색)
+3. `gh issue edit --add-label`로 적절한 라벨을 적용한다
+4. 질문 이슈는 도움이 되는 응답을 작성해 게시한다
+5. 정보가 부족한 버그 이슈는 재현 절차를 요청한다
+6. good first issue에 해당하면 `good-first-issue` 라벨을 추가한다
+7. 중복 이슈는 원본 링크를 댓글로 남기고 `duplicate` 라벨을 추가한다
 
 ```bash
-# Search for potential duplicates
+# 잠재적 중복 검색
 gh issue list --search "keyword" --state all --limit 20
 
-# Add labels
+# 라벨 추가
 gh issue edit <number> --add-label "bug,high-priority"
 
-# Comment on issue
+# 이슈에 댓글 작성
 gh issue comment <number> --body "Thanks for reporting. Could you share reproduction steps?"
 ```
 
-## PR Management
+## PR 관리
 
-### Review Checklist
+### 리뷰 체크리스트
 
-1. Check CI status: `gh pr checks <number>`
-2. Check if mergeable: `gh pr view <number> --json mergeable`
-3. Check age and last activity
-4. Flag PRs >5 days with no review
-5. For community PRs: ensure they have tests and follow conventions
+1. CI 상태 확인: `gh pr checks <number>`
+2. 머지 가능 여부 확인: `gh pr view <number> --json mergeable`
+3. PR 생성 후 경과 시간 및 마지막 활동 확인
+4. 5일 이상 리뷰가 없는 PR을 표시
+5. 커뮤니티 PR은 테스트와 컨벤션 준수 여부 확인
 
-### Stale Policy
+### Stale 정책
 
-- Issues with no activity in 14+ days: add `stale` label, comment asking for update
-- PRs with no activity in 7+ days: comment asking if still active
-- Auto-close stale issues after 30 days with no response (add `closed-stale` label)
+- 14일 이상 활동이 없는 이슈: `stale` 라벨 추가, 업데이트 요청 댓글
+- 7일 이상 활동이 없는 PR: 진행 여부를 묻는 댓글
+- 30일간 응답이 없는 stale 이슈는 자동 종료 (`closed-stale` 라벨 추가)
 
 ```bash
-# Find stale issues (no activity in 14+ days)
+# stale 이슈 조회 (14일 이상 비활성)
 gh issue list --label "stale" --state open
 
-# Find PRs with no recent activity
+# 최근 활동이 없는 PR 조회
 gh pr list --json number,title,updatedAt --jq '.[] | select(.updatedAt < "2026-03-01")'
 ```
 
-## CI/CD Operations
+## CI/CD 운영
 
-When CI fails:
+CI 실패 시:
 
-1. Check the workflow run: `gh run view <run-id> --log-failed`
-2. Identify the failing step
-3. Check if it is a flaky test vs real failure
-4. For real failures: identify the root cause and suggest a fix
-5. For flaky tests: note the pattern for future investigation
+1. 워크플로 실행 확인: `gh run view <run-id> --log-failed`
+2. 실패한 단계 식별
+3. 일시적인(flaky) 테스트인지 실제 실패인지 판단
+4. 실제 실패: 근본 원인을 식별하고 수정 방안 제안
+5. flaky 테스트: 향후 조사를 위해 패턴을 기록
 
 ```bash
-# List recent failed runs
+# 최근 실패한 실행 조회
 gh run list --status failure --limit 10
 
-# View failed run logs
+# 실패한 실행 로그 조회
 gh run view <run-id> --log-failed
 
-# Re-run a failed workflow
+# 실패한 워크플로 재실행
 gh run rerun <run-id> --failed
 ```
 
-## Release Management
+## 릴리스 관리
 
-When preparing a release:
+릴리스 준비 시:
 
-1. Check all CI is green on main
-2. Review unreleased changes: `gh pr list --state merged --base main`
-3. Generate changelog from PR titles
-4. Create release: `gh release create`
+1. main 브랜치의 모든 CI가 그린인지 확인
+2. 미릴리스 변경사항 검토: `gh pr list --state merged --base main`
+3. PR 제목으로 changelog 생성
+4. 릴리스 생성: `gh release create`
 
 ```bash
-# List merged PRs since last release
+# 마지막 릴리스 이후 머지된 PR 조회
 gh pr list --state merged --base main --search "merged:>2026-03-01"
 
-# Create a release
+# 릴리스 생성
 gh release create v1.2.0 --title "v1.2.0" --generate-notes
 
-# Create a pre-release
+# 사전 릴리스(pre-release) 생성
 gh release create v1.3.0-rc1 --prerelease --title "v1.3.0 Release Candidate 1"
 ```
 
-## Security Monitoring
+## 보안 모니터링
 
 ```bash
-# Check Dependabot alerts
+# Dependabot 알림 확인
 gh api repos/{owner}/{repo}/dependabot/alerts --jq '.[].security_advisory.summary'
 
-# Check secret scanning alerts
+# 시크릿 스캐닝 알림 확인
 gh api repos/{owner}/{repo}/secret-scanning/alerts --jq '.[].state'
 
-# Review and auto-merge safe dependency bumps
+# 안전한 의존성 업데이트 검토 및 자동 머지
 gh pr list --label "dependencies" --json number,title
 ```
 
-- Review and auto-merge safe dependency bumps
-- Flag any critical/high severity alerts immediately
-- Check for new Dependabot alerts weekly at minimum
+- 안전한 의존성 업데이트는 검토 후 자동 머지
+- critical/high 등급 알림은 즉시 표시
+- 최소 주 1회 신규 Dependabot 알림 확인
 
-## Quality Gate
+## 품질 게이트
 
-Before completing any GitHub operations task:
-- all issues triaged have appropriate labels
-- no PRs older than 7 days without a review or comment
-- CI failures have been investigated (not just re-run)
-- releases include accurate changelogs
-- security alerts are acknowledged and tracked
+GitHub 운영 작업을 완료하기 전에 다음을 확인한다:
+- 분류한 모든 이슈에 적절한 라벨이 부여되어 있다
+- 7일 이상 리뷰·코멘트가 없는 PR이 없다
+- CI 실패는 단순 재실행이 아닌 원인 조사가 이뤄졌다
+- 릴리스에는 정확한 changelog가 포함되어 있다
+- 보안 알림은 인지·추적되고 있다

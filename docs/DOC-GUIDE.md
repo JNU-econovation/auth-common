@@ -1,7 +1,7 @@
 # Documentation Guide
 
 auth-common 프로젝트의 문서화 규칙을 정의한다.
-문서 작성·갱신·리뷰 관련 Claude Code 스킬·커맨드(`update-docs`, `doc-updater` 등)가 이 파일을 자동 감지하여 적용한다.
+문서 작성·갱신·리뷰 관련 Claude Code 에이전트(`docs-writer`, `doc-reviewer`)가 이 파일을 자동 감지하여 적용한다. `/develop` 커맨드의 docs·doc-review 단계에서 호출된다.
 
 > **부분 오버라이드:** 각 섹션에 작성한 내용이 해당 하네스 기본값을 대체한다.
 > 명시하지 않은 섹션은 기본값이 적용된다.
