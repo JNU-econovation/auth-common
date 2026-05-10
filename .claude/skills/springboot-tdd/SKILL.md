@@ -1,27 +1,27 @@
 ---
 name: springboot-tdd
-description: Test-driven development for Spring Boot using JUnit 5, Mockito, MockMvc, Testcontainers, and JaCoCo. Use when adding features, fixing bugs, or refactoring.
+description: JUnit 5, Mockito, MockMvc, Testcontainers, JaCoCo를 사용한 Spring Boot 테스트 주도 개발. 기능 추가, 버그 수정, 리팩터링에 사용한다.
 origin: ECC
 ---
 
-# Spring Boot TDD Workflow
+# Spring Boot TDD 워크플로
 
-TDD guidance for Spring Boot services with 80%+ coverage (unit + integration).
+80% 이상 커버리지(단위 + 통합)를 갖춘 Spring Boot 서비스를 위한 TDD 가이드.
 
-## When to Use
+## 사용 시점
 
-- New features or endpoints
-- Bug fixes or refactors
-- Adding data access logic or security rules
+- 새 기능 또는 엔드포인트 추가
+- 버그 수정 또는 리팩터링
+- 데이터 접근 로직이나 보안 규칙 추가
 
-## Workflow
+## 워크플로
 
-1) Write tests first (they should fail)
-2) Implement minimal code to pass
-3) Refactor with tests green
-4) Enforce coverage (JaCoCo)
+1) 테스트를 먼저 작성한다 (실패해야 한다)
+2) 통과시킬 최소한의 코드를 구현한다
+3) 테스트가 그린 상태에서 리팩터링한다
+4) 커버리지를 강제한다 (JaCoCo)
 
-## Unit Tests (JUnit 5 + Mockito)
+## 단위 테스트 (JUnit 5 + Mockito)
 
 ```java
 @ExtendWith(MockitoExtension.class)
@@ -51,14 +51,14 @@ class MarketServiceTest {
 }
 ```
 
-Patterns:
+패턴:
 - Given-When-Then (주석으로 구분)
-- `@Nested` + `@DisplayName` 한글로 테스트 그룹화
+- `@Nested` + `@DisplayName`으로 테스트를 한글로 그룹화
 - 메서드명은 영문 camelCase, `@DisplayName`은 한글
-- Avoid partial mocks; prefer explicit stubbing
-- Use `@ParameterizedTest` for variants
+- 부분 mock 사용을 피하고 명시적 stubbing을 선호한다
+- 변형이 많을 때는 `@ParameterizedTest`를 사용한다
 
-## Web Layer Tests (MockMvc)
+## 웹 계층 테스트 (MockMvc)
 
 ```java
 @WebMvcTest(MarketController.class)
@@ -85,7 +85,7 @@ class MarketControllerTest {
 }
 ```
 
-## Integration Tests (SpringBootTest)
+## 통합 테스트 (SpringBootTest)
 
 ```java
 @SpringBootTest
@@ -116,7 +116,7 @@ class MarketIntegrationTest {
 }
 ```
 
-## Persistence Tests (DataJpaTest)
+## 영속성 테스트 (DataJpaTest)
 
 ```java
 @DataJpaTest
@@ -149,12 +149,12 @@ class MarketRepositoryTest {
 
 ## Testcontainers
 
-- Use reusable containers for Postgres/Redis to mirror production
-- Wire via `@DynamicPropertySource` to inject JDBC URLs into Spring context
+- 운영 환경을 모사하기 위해 Postgres/Redis 등에 재사용 컨테이너를 사용한다
+- `@DynamicPropertySource`로 JDBC URL을 Spring 컨텍스트에 주입한다
 
-## Coverage (JaCoCo)
+## 커버리지 (JaCoCo)
 
-Maven snippet:
+Maven 예시:
 ```xml
 <plugin>
   <groupId>org.jacoco</groupId>
@@ -173,13 +173,13 @@ Maven snippet:
 </plugin>
 ```
 
-## Assertions
+## 단언
 
-- Prefer AssertJ (`assertThat`) for readability
-- For JSON responses, use `jsonPath`
-- For exceptions: `assertThatThrownBy(...)`
+- 가독성을 위해 AssertJ(`assertThat`)를 선호한다
+- JSON 응답에는 `jsonPath`를 사용한다
+- 예외 검증에는 `assertThatThrownBy(...)`를 사용한다
 
-## Test Data Builders
+## 테스트 데이터 빌더
 
 ```java
 class MarketBuilder {
@@ -189,9 +189,9 @@ class MarketBuilder {
 }
 ```
 
-## CI Commands
+## CI 명령
 
-- Maven: `mvn -T 4 test` or `mvn verify`
+- Maven: `mvn -T 4 test` 또는 `mvn verify`
 - Gradle: `./gradlew test jacocoTestReport`
 
-**Remember**: Keep tests fast, isolated, and deterministic. Test behavior, not implementation details.
+**기억할 점**: 테스트는 빠르고, 격리되어 있으며, 결정적이어야 한다. 구현 세부가 아닌 동작을 테스트한다.

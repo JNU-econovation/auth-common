@@ -1,28 +1,28 @@
 ---
 name: springboot-security
-description: Spring Security best practices for authn/authz, validation, CSRF, secrets, headers, rate limiting, and dependency security in Java Spring Boot services.
+description: Java Spring Boot 서비스의 인증·인가, 검증, CSRF, 시크릿, 헤더, 속도 제한, 의존성 보안에 대한 Spring Security 모범 사례.
 origin: ECC
 ---
 
-# Spring Boot Security Review
+# Spring Boot 보안 리뷰
 
-Use when adding auth, handling input, creating endpoints, or dealing with secrets.
+인증을 추가하거나, 입력을 처리하거나, 엔드포인트를 만들거나, 시크릿을 다룰 때 사용한다.
 
-## When to Activate
+## 호출 시점
 
-- Adding authentication (JWT, OAuth2, session-based)
-- Implementing authorization (@PreAuthorize, role-based access)
-- Validating user input (Bean Validation, custom validators)
-- Configuring CORS, CSRF, or security headers
-- Managing secrets (Vault, environment variables)
-- Adding rate limiting or brute-force protection
-- Scanning dependencies for CVEs
+- 인증 추가 (JWT, OAuth2, 세션 기반)
+- 인가 구현 (@PreAuthorize, 역할 기반 접근 제어)
+- 사용자 입력 검증 (Bean Validation, 커스텀 검증기)
+- CORS, CSRF, 보안 헤더 구성
+- 시크릿 관리 (Vault, 환경 변수)
+- 속도 제한 또는 무차별 대입 방어 추가
+- 의존성의 CVE 스캔
 
-## Authentication
+## 인증
 
-- Prefer stateless JWT or opaque tokens with revocation list
-- Use `httpOnly`, `Secure`, `SameSite=Strict` cookies for sessions
-- Validate tokens with `OncePerRequestFilter` or resource server
+- 가능하면 stateless JWT 또는 폐기 목록을 갖춘 opaque 토큰을 사용한다
+- 세션에는 `httpOnly`, `Secure`, `SameSite=Strict` 쿠키를 사용한다
+- `OncePerRequestFilter` 또는 리소스 서버로 토큰을 검증한다
 
 ```java
 @Slf4j
@@ -45,11 +45,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 }
 ```
 
-## Authorization
+## 인가
 
-- Enable method security: `@EnableMethodSecurity`
-- Use `@PreAuthorize("hasRole('ADMIN')")` or `@PreAuthorize("@authz.canEdit(#id)")`
-- Deny by default; expose only required scopes
+- 메서드 시큐리티 활성화: `@EnableMethodSecurity`
+- `@PreAuthorize("hasRole('ADMIN')")` 또는 `@PreAuthorize("@authz.canEdit(#id)")`를 사용한다
+- 기본은 거부, 필요한 스코프만 노출한다
 
 ```java
 @RestController
@@ -71,20 +71,20 @@ public class AdminController {
 }
 ```
 
-## Input Validation
+## 입력 검증
 
-- Use Bean Validation with `@Valid` on controllers
-- Apply constraints on DTOs: `@NotBlank`, `@Email`, `@Size`, custom validators
-- Sanitize any HTML with a whitelist before rendering
+- 컨트롤러에 `@Valid`로 Bean Validation을 적용한다
+- DTO에 제약 조건을 둔다: `@NotBlank`, `@Email`, `@Size`, 커스텀 검증기
+- HTML은 렌더링 전에 화이트리스트로 정제한다
 
 ```java
-// BAD: No validation
+// 나쁜 예: 검증 없음
 @PostMapping("/users")
 public User createUser(@RequestBody UserDto dto) {
   return userService.create(dto);
 }
 
-// GOOD: Validated DTO
+// 좋은 예: 검증된 DTO
 public record CreateUserDto(
     @NotBlank @Size(max = 100) String name,
     @NotBlank @Email String email,
@@ -98,45 +98,45 @@ public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserDto dto)
 }
 ```
 
-## SQL Injection Prevention
+## SQL 인젝션 방어
 
-- Use Spring Data repositories or parameterized queries
-- For native queries, use `:param` bindings; never concatenate strings
+- Spring Data 리포지토리 또는 파라미터 바인딩 쿼리를 사용한다
+- 네이티브 쿼리에는 `:param` 바인딩을 사용하고, 절대 문자열을 연결하지 않는다
 
 ```java
-// BAD: String concatenation in native query
+// 나쁜 예: 네이티브 쿼리에서 문자열 연결
 @Query(value = "SELECT * FROM users WHERE name = '" + name + "'", nativeQuery = true)
 
-// GOOD: Parameterized native query
+// 좋은 예: 파라미터 바인딩 네이티브 쿼리
 @Query(value = "SELECT * FROM users WHERE name = :name", nativeQuery = true)
 List<User> findByName(@Param("name") String name);
 
-// GOOD: Spring Data derived query (auto-parameterized)
+// 좋은 예: Spring Data 파생 쿼리 (자동 파라미터화)
 List<User> findByEmailAndActiveTrue(String email);
 ```
 
-## Password Encoding
+## 비밀번호 인코딩
 
-- Always hash passwords with BCrypt or Argon2 — never store plaintext
-- Use `PasswordEncoder` bean, not manual hashing
+- 비밀번호는 항상 BCrypt 또는 Argon2로 해싱한다 — 평문 저장 금지
+- 직접 해싱하지 말고 `PasswordEncoder` 빈을 사용한다
 
 ```java
 @Bean
 public PasswordEncoder passwordEncoder() {
-  return new BCryptPasswordEncoder(12); // cost factor 12
+  return new BCryptPasswordEncoder(12); // 비용 인자 12
 }
 
-// In service
+// 서비스에서
 public User register(CreateUserDto dto) {
   String hashedPassword = passwordEncoder.encode(dto.password());
   return userRepository.save(new User(dto.email(), hashedPassword));
 }
 ```
 
-## CSRF Protection
+## CSRF 방어
 
-- For browser session apps, keep CSRF enabled; include token in forms/headers
-- For pure APIs with Bearer tokens, disable CSRF and rely on stateless auth
+- 브라우저 세션 앱은 CSRF를 활성화한 채 폼/헤더에 토큰을 포함한다
+- Bearer 토큰을 사용하는 순수 API는 CSRF를 비활성화하고 stateless 인증에 의존한다
 
 ```java
 http
@@ -144,24 +144,24 @@ http
   .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 ```
 
-## Secrets Management
+## 시크릿 관리
 
-- No secrets in source; load from env or vault
-- Keep `application.yml` free of credentials; use placeholders
-- Rotate tokens and DB credentials regularly
+- 시크릿은 소스에 두지 않고 환경 변수나 vault에서 로드한다
+- `application.yml`에 자격 증명을 두지 않고 플레이스홀더를 사용한다
+- 토큰과 DB 자격 증명을 주기적으로 교체한다
 
 ```yaml
-# BAD: Hardcoded in application.yml
+# 나쁜 예: application.yml에 하드코딩
 spring:
   datasource:
     password: mySecretPassword123
 
-# GOOD: Environment variable placeholder
+# 좋은 예: 환경 변수 플레이스홀더
 spring:
   datasource:
     password: ${DB_PASSWORD}
 
-# GOOD: Spring Cloud Vault integration
+# 좋은 예: Spring Cloud Vault 통합
 spring:
   cloud:
     vault:
@@ -169,7 +169,7 @@ spring:
       token: ${VAULT_TOKEN}
 ```
 
-## Security Headers
+## 보안 헤더
 
 ```java
 http
@@ -181,10 +181,10 @@ http
     .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)));
 ```
 
-## CORS Configuration
+## CORS 구성
 
-- Configure CORS at the security filter level, not per-controller
-- Restrict allowed origins — never use `*` in production
+- CORS는 컨트롤러별이 아닌 보안 필터 수준에서 구성한다
+- 허용 오리진을 제한한다 — 운영 환경에서 `*` 사용 금지
 
 ```java
 @Bean
@@ -201,17 +201,17 @@ public CorsConfigurationSource corsConfigurationSource() {
   return source;
 }
 
-// In SecurityFilterChain:
+// SecurityFilterChain에서:
 http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
 ```
 
-## Rate Limiting
+## 속도 제한
 
-- Apply Bucket4j or gateway-level limits on expensive endpoints
-- Log and alert on bursts; return 429 with retry hints
+- 비용이 큰 엔드포인트에는 Bucket4j 또는 게이트웨이 수준의 제한을 적용한다
+- 급증을 로깅·알림하고 재시도 힌트와 함께 429를 반환한다
 
 ```java
-// Using Bucket4j for per-endpoint rate limiting
+// Bucket4j를 사용한 엔드포인트별 속도 제한
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
   private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
@@ -238,33 +238,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
 }
 ```
 
-## Dependency Security
+## 의존성 보안
 
-- Run OWASP Dependency Check / Snyk in CI
-- Keep Spring Boot and Spring Security on supported versions
-- Fail builds on known CVEs
+- CI에서 OWASP Dependency Check / Snyk를 실행한다
+- Spring Boot와 Spring Security를 지원되는 버전으로 유지한다
+- 알려진 CVE가 있으면 빌드를 실패시킨다
 
-## Logging and PII
+## 로깅과 PII
 
-- Never log secrets, tokens, passwords, or full PAN data
-- Redact sensitive fields; use structured JSON logging
+- 시크릿, 토큰, 비밀번호, 카드번호 전체를 로깅하지 않는다
+- 민감 필드를 마스킹하고 구조화된 JSON 로깅을 사용한다
 
-## File Uploads
+## 파일 업로드
 
-- Validate size, content type, and extension
-- Store outside web root; scan if required
+- 크기, 콘텐츠 타입, 확장자를 검증한다
+- 웹 루트 외부에 저장하고 필요 시 스캔한다
 
-## Checklist Before Release
+## 릴리스 전 체크리스트
 
-- [ ] Auth tokens validated and expired correctly
-- [ ] Authorization guards on every sensitive path
-- [ ] All inputs validated and sanitized
-- [ ] No string-concatenated SQL
-- [ ] CSRF posture correct for app type
-- [ ] Secrets externalized; none committed
-- [ ] Security headers configured
-- [ ] Rate limiting on APIs
-- [ ] Dependencies scanned and up to date
-- [ ] Logs free of sensitive data
+- [ ] 인증 토큰이 올바르게 검증되고 만료된다
+- [ ] 모든 민감 경로에 인가 가드가 적용되어 있다
+- [ ] 모든 입력이 검증·정제된다
+- [ ] 문자열 연결로 작성된 SQL이 없다
+- [ ] 앱 유형에 맞는 CSRF 정책이 설정되어 있다
+- [ ] 시크릿이 외부화되어 있고 커밋되지 않았다
+- [ ] 보안 헤더가 구성되어 있다
+- [ ] API에 속도 제한이 적용되어 있다
+- [ ] 의존성을 스캔했고 최신 상태이다
+- [ ] 로그에 민감 데이터가 없다
 
-**Remember**: Deny by default, validate inputs, least privilege, and secure-by-configuration first.
+**기억할 점**: 기본은 거부, 입력은 검증, 최소 권한, 그리고 안전한 기본 구성을 우선한다.

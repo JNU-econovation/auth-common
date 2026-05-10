@@ -1,73 +1,73 @@
 ---
 name: agent-harness-construction
-description: Design and optimize AI agent action spaces, tool definitions, and observation formatting for higher completion rates.
+description: AI 에이전트의 액션 스페이스, 도구 정의, 관측(Observation) 포맷을 설계·최적화해 작업 완수율을 높일 때 사용한다.
 origin: ECC
 ---
 
 # Agent Harness Construction
 
-Use this skill when you are improving how an agent plans, calls tools, recovers from errors, and converges on completion.
+에이전트가 어떻게 계획하고, 도구를 호출하고, 오류에서 복구하고, 완료에 수렴하는지를 개선할 때 이 스킬을 사용한다.
 
-## Core Model
+## 핵심 모델
 
-Agent output quality is constrained by:
-1. Action space quality
-2. Observation quality
-3. Recovery quality
-4. Context budget quality
+에이전트 출력 품질은 다음 네 요소에 의해 제약된다:
+1. 액션 스페이스 품질
+2. 관측(Observation) 품질
+3. 복구(Recovery) 품질
+4. 컨텍스트 예산 품질
 
-## Action Space Design
+## 액션 스페이스 설계
 
-1. Use stable, explicit tool names.
-2. Keep inputs schema-first and narrow.
-3. Return deterministic output shapes.
-4. Avoid catch-all tools unless isolation is impossible.
+1. 안정적이고 명시적인 도구 이름을 사용한다.
+2. 입력은 스키마 우선으로, 좁게 정의한다.
+3. 결정적인 출력 형태를 반환한다.
+4. 분리가 불가능한 경우가 아니라면 만능형(catch-all) 도구를 피한다.
 
-## Granularity Rules
+## 입자도(Granularity) 규칙
 
-- Use micro-tools for high-risk operations (deploy, migration, permissions).
-- Use medium tools for common edit/read/search loops.
-- Use macro-tools only when round-trip overhead is the dominant cost.
+- 고위험 작업(배포, 마이그레이션, 권한 변경)에는 마이크로 도구를 사용한다.
+- 일반적인 편집·읽기·검색 루프에는 중간 입자도 도구를 사용한다.
+- 왕복(round-trip) 비용이 지배적인 비용일 때만 매크로 도구를 사용한다.
 
-## Observation Design
+## 관측(Observation) 설계
 
-Every tool response should include:
+모든 도구 응답에는 다음을 포함해야 한다:
 - `status`: success|warning|error
-- `summary`: one-line result
-- `next_actions`: actionable follow-ups
-- `artifacts`: file paths / IDs
+- `summary`: 한 줄 결과 요약
+- `next_actions`: 실행 가능한 후속 조치
+- `artifacts`: 파일 경로 / ID
 
-## Error Recovery Contract
+## 오류 복구 계약(Contract)
 
-For every error path, include:
-- root cause hint
-- safe retry instruction
-- explicit stop condition
+모든 오류 경로마다 다음을 포함한다:
+- 근본 원인 힌트
+- 안전한 재시도 지침
+- 명시적 중단 조건
 
-## Context Budgeting
+## 컨텍스트 예산 관리
 
-1. Keep system prompt minimal and invariant.
-2. Move large guidance into skills loaded on demand.
-3. Prefer references to files over inlining long documents.
-4. Compact at phase boundaries, not arbitrary token thresholds.
+1. 시스템 프롬프트는 최소한·불변으로 유지한다.
+2. 큰 가이드는 스킬로 분리해 필요할 때만 로드한다.
+3. 긴 문서를 인라인으로 넣기보다 파일 참조를 우선한다.
+4. 임의의 토큰 임계치가 아니라 작업 단계 경계에서 컴팩션한다.
 
-## Architecture Pattern Guidance
+## 아키텍처 패턴 가이드
 
-- ReAct: best for exploratory tasks with uncertain path.
-- Function-calling: best for structured deterministic flows.
-- Hybrid (recommended): ReAct planning + typed tool execution.
+- ReAct: 경로가 불확실한 탐색적 작업에 적합.
+- Function-calling: 구조화된 결정적 흐름에 적합.
+- 하이브리드(권장): ReAct 기반 계획 + 타입화된 도구 실행.
 
-## Benchmarking
+## 벤치마킹
 
-Track:
-- completion rate
-- retries per task
-- pass@1 and pass@3
-- cost per successful task
+다음 지표를 추적한다:
+- 작업 완수율(completion rate)
+- 작업당 재시도 수
+- pass@1, pass@3
+- 성공 작업당 비용
 
-## Anti-Patterns
+## 안티패턴
 
-- Too many tools with overlapping semantics.
-- Opaque tool output with no recovery hints.
-- Error-only output without next steps.
-- Context overloading with irrelevant references.
+- 의미가 겹치는 도구가 너무 많은 경우.
+- 복구 힌트가 없는 불투명한 도구 출력.
+- 후속 조치 없이 오류만 내뱉는 출력.
+- 관련 없는 참조로 컨텍스트를 과부하시키는 경우.
