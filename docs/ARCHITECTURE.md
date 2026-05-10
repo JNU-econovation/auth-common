@@ -37,7 +37,7 @@ auth-common/                          # 루트 프로젝트
 │       ├── auth-core/                # 도메인 엔티티, 비즈니스 로직
 │       ├── auth-infra/               # JPA Repository, 토큰 저장소, 외부 연동
 │       └── auth-common-lib/          # Passport, @PassportAuth (외부 서비스용)
-├── docs/                             # 문서 (ARCHITECTURE.md, CONVENTION.md, DOC-GUIDE.md, README-GUIDE.md)
+├── docs/                             # 문서 (ARCHITECTURE.md, CONVENTION.md, DOC-GUIDE.md, README-GUIDE.md, INFRASTRUCTURE.md)
 └── .claude/                          # Claude Code harness (agents, skills, commands)
 ```
 
