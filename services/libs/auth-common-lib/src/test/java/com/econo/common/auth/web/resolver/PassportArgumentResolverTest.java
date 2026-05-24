@@ -143,12 +143,13 @@ class PassportArgumentResolverTest {
 		}
 
 		@Test
-		@DisplayName("정상적인 Passport 해결")
+		@DisplayName("정상적인 Passport 해결 — loginId 필드 포함")
 		void resolveValidPassport() throws Exception {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(true, new String[] {}, false, false, "");
@@ -164,8 +165,10 @@ class PassportArgumentResolverTest {
 			assertThat(result).isInstanceOf(Passport.class);
 			Passport resolvedPassport = (Passport) result;
 			assertThat(resolvedPassport.getMemberId()).isEqualTo(123L);
-			assertThat(resolvedPassport.getEmail()).isEqualTo("test@eeos.com");
+			assertThat(resolvedPassport.getLoginId()).isEqualTo("econo_user01");
 			assertThat(resolvedPassport.getName()).isEqualTo("테스터");
+			assertThat(resolvedPassport.getGeneration()).isEqualTo(32);
+			assertThat(resolvedPassport.getStatus()).isEqualTo("AM");
 		}
 
 		@Test
@@ -224,7 +227,14 @@ class PassportArgumentResolverTest {
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
 					new Passport(
-							123L, "test@eeos.com", "테스터", List.of("USER"), now.minusHours(2), now.minusHours(1));
+							123L,
+							"econo_user01",
+							"테스터",
+							32,
+							"AM",
+							List.of("USER"),
+							now.minusHours(2),
+							now.minusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(true, new String[] {}, false, false, "");
@@ -290,7 +300,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("ADMIN"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("ADMIN"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(new String[] {"ADMIN"}, false, false);
@@ -312,7 +323,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(new String[] {"ADMIN"}, false, false);
@@ -333,7 +345,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("ADMIN"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("ADMIN"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(new String[] {"MANAGER"}, false, true);
@@ -356,7 +369,14 @@ class PassportArgumentResolverTest {
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
 					new Passport(
-							123L, "test@eeos.com", "테스터", List.of("USER", "ACTIVE"), now, now.plusHours(1));
+							123L,
+							"econo_user01",
+							"테스터",
+							32,
+							"AM",
+							List.of("USER", "ACTIVE"),
+							now,
+							now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuth(new String[] {"USER", "ACTIVE"}, true, false);
@@ -427,7 +447,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuthWithCondition("#passport.memberId == 123");
@@ -451,7 +472,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuthWithCondition("#passport.memberId == 456");
@@ -474,7 +496,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuthWithCondition("#passport.memberId == #userId");
@@ -500,7 +523,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("ADMIN"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("ADMIN"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuthWithCondition("#passport.isAdmin()");
@@ -524,7 +548,8 @@ class PassportArgumentResolverTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			String encodedPassport = createEncodedPassport(passport);
 
 			PassportAuth annotation = createPassportAuthWithCondition("invalid.spel.expression");

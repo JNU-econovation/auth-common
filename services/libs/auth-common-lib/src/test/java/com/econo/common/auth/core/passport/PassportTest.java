@@ -19,19 +19,24 @@ class PassportTest {
 		void createValidPassport() {
 			// given
 			Long memberId = 123L;
-			String email = "test@eeos.com";
+			String loginId = "econo_user01";
 			String name = "테스터";
+			Integer generation = 32;
+			String status = "AM";
 			List<String> roles = List.of("USER", "MANAGER");
 			LocalDateTime issuedAt = LocalDateTime.now();
 			LocalDateTime expiresAt = LocalDateTime.now().plusHours(1);
 
 			// when
-			Passport passport = new Passport(memberId, email, name, roles, issuedAt, expiresAt);
+			Passport passport =
+					new Passport(memberId, loginId, name, generation, status, roles, issuedAt, expiresAt);
 
 			// then
 			assertThat(passport.getMemberId()).isEqualTo(memberId);
-			assertThat(passport.getEmail()).isEqualTo(email);
+			assertThat(passport.getLoginId()).isEqualTo(loginId);
 			assertThat(passport.getName()).isEqualTo(name);
+			assertThat(passport.getGeneration()).isEqualTo(generation);
+			assertThat(passport.getStatus()).isEqualTo(status);
 			assertThat(passport.getRoles()).containsExactlyElementsOf(roles);
 			assertThat(passport.getIssuedAt()).isEqualTo(issuedAt);
 			assertThat(passport.getExpiresAt()).isEqualTo(expiresAt);
@@ -44,7 +49,8 @@ class PassportTest {
 			LocalDateTime now = LocalDateTime.now();
 
 			// when
-			Passport passport = new Passport(123L, "test@eeos.com", "테스터", null, now, now.plusHours(1));
+			Passport passport =
+					new Passport(123L, "econo_user01", "테스터", 32, "AM", null, now, now.plusHours(1));
 
 			// then
 			assertThat(passport.getRoles()).isEmpty();
@@ -56,11 +62,50 @@ class PassportTest {
 			// given
 			List<String> roles = List.of("USER");
 			LocalDateTime now = LocalDateTime.now();
-			Passport passport = new Passport(123L, "test@eeos.com", "테스터", roles, now, now.plusHours(1));
+			Passport passport =
+					new Passport(123L, "econo_user01", "테스터", 32, "AM", roles, now, now.plusHours(1));
 
 			// when & then
 			assertThatThrownBy(() -> passport.getRoles().add("ADMIN"))
 					.isInstanceOf(UnsupportedOperationException.class);
+		}
+
+		@Test
+		@DisplayName("getLoginId()가 loginId를 반환한다")
+		void getLoginIdReturnsLoginId() {
+			// given
+			LocalDateTime now = LocalDateTime.now();
+			Passport passport =
+					new Passport(123L, "my_login_id", "테스터", 5, "RM", List.of("USER"), now, now.plusHours(1));
+
+			// when & then
+			assertThat(passport.getLoginId()).isEqualTo("my_login_id");
+		}
+
+		@Test
+		@DisplayName("getGeneration()이 generation을 반환한다")
+		void getGenerationReturnsGeneration() {
+			// given
+			LocalDateTime now = LocalDateTime.now();
+			Passport passport =
+					new Passport(
+							123L, "econo_user01", "테스터", 42, "CM", List.of("USER"), now, now.plusHours(1));
+
+			// when & then
+			assertThat(passport.getGeneration()).isEqualTo(42);
+		}
+
+		@Test
+		@DisplayName("getStatus()가 status를 반환한다")
+		void getStatusReturnsStatus() {
+			// given
+			LocalDateTime now = LocalDateTime.now();
+			Passport passport =
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "OB", List.of("USER"), now, now.plusHours(1));
+
+			// when & then
+			assertThat(passport.getStatus()).isEqualTo("OB");
 		}
 	}
 
@@ -70,7 +115,8 @@ class PassportTest {
 
 		private Passport createTestPassport(String... roles) {
 			LocalDateTime now = LocalDateTime.now();
-			return new Passport(123L, "test@eeos.com", "테스터", List.of(roles), now, now.plusHours(1));
+			return new Passport(
+					123L, "econo_user01", "테스터", 32, "AM", List.of(roles), now, now.plusHours(1));
 		}
 
 		@Test
@@ -144,7 +190,8 @@ class PassportTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 
 			// when & then
 			assertThat(passport.isValid()).isTrue();
@@ -159,7 +206,14 @@ class PassportTest {
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
 					new Passport(
-							123L, "test@eeos.com", "테스터", List.of("USER"), now.minusHours(2), now.minusHours(1));
+							123L,
+							"econo_user01",
+							"테스터",
+							32,
+							"AM",
+							List.of("USER"),
+							now.minusHours(2),
+							now.minusHours(1));
 
 			// when & then
 			assertThat(passport.isExpired()).isTrue();
@@ -173,7 +227,8 @@ class PassportTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
-					new Passport(null, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							null, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 
 			// when & then
 			assertThat(passport.isValid()).isFalse();
@@ -184,7 +239,8 @@ class PassportTest {
 		void nullExpiresAt() {
 			// given
 			LocalDateTime now = LocalDateTime.now();
-			Passport passport = new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, null);
+			Passport passport =
+					new Passport(123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, null);
 
 			// when & then
 			assertThat(passport.isExpired()).isFalse(); // null이면 만료되지 않음
@@ -203,8 +259,10 @@ class PassportTest {
 			Passport passport =
 					new Passport(
 							123L,
-							"test@eeos.com",
+							"econo_user01",
 							"테스터",
+							32,
+							"AM",
 							List.of("USER"),
 							LocalDateTime.now(),
 							LocalDateTime.now().plusHours(1));
@@ -221,9 +279,10 @@ class PassportTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport userPassport =
-					new Passport(123L, "user@eeos.com", "사용자", List.of("USER"), now, now.plusHours(1));
+					new Passport(123L, "user_login", "사용자", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			Passport adminPassport =
-					new Passport(456L, "admin@eeos.com", "관리자", List.of("ADMIN"), now, now.plusHours(1));
+					new Passport(
+							456L, "admin_login", "관리자", 32, "AM", List.of("ADMIN"), now, now.plusHours(1));
 
 			// when & then
 			// 자신의 정보 접근
@@ -247,9 +306,11 @@ class PassportTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport1 =
-					new Passport(123L, "test1@eeos.com", "테스터1", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "login_id_1", "테스터1", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			Passport passport2 =
-					new Passport(123L, "test2@eeos.com", "테스터2", List.of("ADMIN"), now, now.plusHours(2));
+					new Passport(
+							123L, "login_id_2", "테스터2", 33, "RM", List.of("ADMIN"), now, now.plusHours(2));
 
 			// when & then
 			assertThat(passport1).isEqualTo(passport2);
@@ -262,9 +323,11 @@ class PassportTest {
 			// given
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport1 =
-					new Passport(123L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							123L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 			Passport passport2 =
-					new Passport(456L, "test@eeos.com", "테스터", List.of("USER"), now, now.plusHours(1));
+					new Passport(
+							456L, "econo_user01", "테스터", 32, "AM", List.of("USER"), now, now.plusHours(1));
 
 			// when & then
 			assertThat(passport1).isNotEqualTo(passport2);
@@ -282,7 +345,14 @@ class PassportTest {
 			LocalDateTime now = LocalDateTime.now();
 			Passport passport =
 					new Passport(
-							123L, "test@eeos.com", "테스터", List.of("USER", "ACTIVE"), now, now.plusHours(1));
+							123L,
+							"econo_user01",
+							"테스터",
+							32,
+							"AM",
+							List.of("USER", "ACTIVE"),
+							now,
+							now.plusHours(1));
 
 			// when
 			String result = passport.toString();

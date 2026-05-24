@@ -104,6 +104,21 @@ class PassportAuthIntegrationTest {
 						Passport passport) {
 			return ResponseEntity.ok("All roles required access by " + passport.getName());
 		}
+
+		@GetMapping("/loginid")
+		public ResponseEntity<String> getLoginId(@PassportAuth Passport passport) {
+			return ResponseEntity.ok("loginId: " + passport.getLoginId());
+		}
+
+		@GetMapping("/generation")
+		public ResponseEntity<String> getGeneration(@PassportAuth Passport passport) {
+			return ResponseEntity.ok("generation: " + passport.getGeneration());
+		}
+
+		@GetMapping("/status")
+		public ResponseEntity<String> getStatus(@PassportAuth Passport passport) {
+			return ResponseEntity.ok("status: " + passport.getStatus());
+		}
 	}
 
 	@ControllerAdvice
@@ -114,10 +129,12 @@ class PassportAuthIntegrationTest {
 		}
 	}
 
-	private String createEncodedPassport(Long memberId, String email, String name, List<String> roles)
-			throws Exception {
+	/** loginId 기반 Passport 생성 헬퍼 (generation, status 포함) */
+	private String createEncodedPassport(
+			Long memberId, String loginId, String name, List<String> roles) throws Exception {
 		LocalDateTime now = LocalDateTime.now();
-		Passport passport = new Passport(memberId, email, name, roles, now, now.plusHours(1));
+		Passport passport =
+				new Passport(memberId, loginId, name, 32, "AM", roles, now, now.plusHours(1));
 		String json = objectMapper.writeValueAsString(passport);
 		return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
 	}
@@ -126,7 +143,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("기본 인증 테스트")
 	void basicAuthTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "test@eeos.com", "테스터", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "econo_user01", "테스터", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -146,7 +163,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("관리자 권한 테스트 - 성공")
 	void adminRoleSuccessTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "admin@eeos.com", "관리자", List.of("ADMIN"));
+		String encodedPassport = createEncodedPassport(123L, "admin_login", "관리자", List.of("ADMIN"));
 
 		// when & then
 		mockMvc
@@ -159,7 +176,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("관리자 권한 테스트 - 실패")
 	void adminRoleFailureTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "user_login", "사용자", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -171,7 +188,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("권한 계층 테스트 - ADMIN이 MANAGER 영역 접근")
 	void roleHierarchyTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "admin@eeos.com", "관리자", List.of("ADMIN"));
+		String encodedPassport = createEncodedPassport(123L, "admin_login", "관리자", List.of("ADMIN"));
 
 		// when & then
 		mockMvc
@@ -184,7 +201,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("권한 계층 테스트 - USER가 MANAGER 영역 접근 실패")
 	void roleHierarchyFailureTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "user_login", "사용자", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -196,7 +213,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("SpEL 조건 테스트 - 자신의 프로필 접근 성공")
 	void spelConditionOwnProfileTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "user_login", "사용자", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -209,7 +226,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("SpEL 조건 테스트 - 다른 사용자 프로필 접근 실패")
 	void spelConditionOtherProfileFailureTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "user_login", "사용자", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -221,7 +238,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("SpEL 조건 테스트 - 관리자가 다른 사용자 프로필 접근 성공")
 	void spelConditionAdminAccessTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(999L, "admin@eeos.com", "관리자", List.of("ADMIN"));
+		String encodedPassport = createEncodedPassport(999L, "admin_login", "관리자", List.of("ADMIN"));
 
 		// when & then
 		mockMvc
@@ -234,7 +251,7 @@ class PassportAuthIntegrationTest {
 	@DisplayName("선택적 인증 테스트 - 인증된 사용자")
 	void optionalAuthenticatedTest() throws Exception {
 		// given
-		String encodedPassport = createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER"));
+		String encodedPassport = createEncodedPassport(123L, "user_login", "사용자", List.of("USER"));
 
 		// when & then
 		mockMvc
@@ -258,7 +275,7 @@ class PassportAuthIntegrationTest {
 	void multipleRolesOrConditionTest() throws Exception {
 		// given
 		String encodedPassport =
-				createEncodedPassport(123L, "manager@eeos.com", "매니저", List.of("MANAGER"));
+				createEncodedPassport(123L, "manager_login", "매니저", List.of("MANAGER"));
 
 		// when & then
 		mockMvc
@@ -272,7 +289,7 @@ class PassportAuthIntegrationTest {
 	void allRolesRequiredSuccessTest() throws Exception {
 		// given
 		String encodedPassport =
-				createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER", "ACTIVE"));
+				createEncodedPassport(123L, "user_login", "사용자", List.of("USER", "ACTIVE"));
 
 		// when & then
 		mockMvc
@@ -286,7 +303,7 @@ class PassportAuthIntegrationTest {
 	void allRolesRequiredFailureTest() throws Exception {
 		// given
 		String encodedPassport =
-				createEncodedPassport(123L, "user@eeos.com", "사용자", List.of("USER")); // ACTIVE 권한 없음
+				createEncodedPassport(123L, "user_login", "사용자", List.of("USER")); // ACTIVE 권한 없음
 
 		// when & then
 		mockMvc
@@ -302,8 +319,10 @@ class PassportAuthIntegrationTest {
 		Passport expiredPassport =
 				new Passport(
 						123L,
-						"user@eeos.com",
+						"user_login",
 						"사용자",
+						32,
+						"AM",
 						List.of("USER"),
 						now.minusHours(2),
 						now.minusHours(1)); // 1시간 전에 만료
@@ -324,5 +343,44 @@ class PassportAuthIntegrationTest {
 		mockMvc
 				.perform(get("/test/basic").header("X-User-Passport", "invalid-base64-token"))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@DisplayName("loginId 필드가 Passport에서 정상 조회된다")
+	void loginIdFieldIsAccessible() throws Exception {
+		// given
+		String encodedPassport = createEncodedPassport(123L, "my_login_id", "테스터", List.of("USER"));
+
+		// when & then
+		mockMvc
+				.perform(get("/test/loginid").header("X-User-Passport", encodedPassport))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("loginId: my_login_id")));
+	}
+
+	@Test
+	@DisplayName("generation 필드가 Passport에서 정상 조회된다")
+	void generationFieldIsAccessible() throws Exception {
+		// given
+		String encodedPassport = createEncodedPassport(123L, "user_login", "테스터", List.of("USER"));
+
+		// when & then
+		mockMvc
+				.perform(get("/test/generation").header("X-User-Passport", encodedPassport))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("generation: 32")));
+	}
+
+	@Test
+	@DisplayName("status 필드가 Passport에서 정상 조회된다")
+	void statusFieldIsAccessible() throws Exception {
+		// given
+		String encodedPassport = createEncodedPassport(123L, "user_login", "테스터", List.of("USER"));
+
+		// when & then
+		mockMvc
+				.perform(get("/test/status").header("X-User-Passport", encodedPassport))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("status: AM")));
 	}
 }

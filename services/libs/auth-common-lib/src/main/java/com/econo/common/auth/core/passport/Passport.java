@@ -17,8 +17,10 @@ import lombok.Getter;
 public class Passport {
 
 	@NotNull private final Long memberId;
-	private final String email;
+	private final String loginId;
 	private final String name;
+	private final Integer generation;
+	private final String status;
 
 	@NotNull private final List<String> roles;
 
@@ -30,8 +32,10 @@ public class Passport {
 	 * Passport 생성자
 	 *
 	 * @param memberId 회원 ID
-	 * @param email 이메일
+	 * @param loginId 로그인 아이디
 	 * @param name 이름
+	 * @param generation 기수
+	 * @param status 활동 상태
 	 * @param roles 권한 목록
 	 * @param issuedAt 발급 시간
 	 * @param expiresAt 만료 시간
@@ -39,14 +43,18 @@ public class Passport {
 	@JsonCreator
 	public Passport(
 			@JsonProperty("memberId") Long memberId,
-			@JsonProperty("email") String email,
+			@JsonProperty("loginId") String loginId,
 			@JsonProperty("name") String name,
+			@JsonProperty("generation") Integer generation,
+			@JsonProperty("status") String status,
 			@JsonProperty("roles") List<String> roles,
 			@JsonProperty("issuedAt") LocalDateTime issuedAt,
 			@JsonProperty("expiresAt") LocalDateTime expiresAt) {
 		this.memberId = memberId;
-		this.email = email;
+		this.loginId = loginId;
 		this.name = name;
+		this.generation = generation;
+		this.status = status;
 		this.roles = roles != null ? List.copyOf(roles) : List.of();
 		this.issuedAt = issuedAt;
 		this.expiresAt = expiresAt;
