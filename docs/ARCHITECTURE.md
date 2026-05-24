@@ -61,7 +61,7 @@ auth-common-lib (독립, 외부 서비스에 배포)
 | 모듈 | 유형 | 역할 |
 |------|------|------|
 | **api-gateway** | App | 클라이언트 요청 수신, Auth 서버로 포워딩, JWT 파싱 → Passport 생성 → 헤더 전달 |
-| **auth-api** | App | 로그인, 회원가입, 토큰 발급/갱신 API. `main()` 진입점 |
+| **auth-api** | App | 로그인, 회원가입, 로그아웃 API. JWT를 HttpOnly 쿠키로 응답. `main()` 진입점 |
 | **auth-core** | Lib | Member 엔티티, 인증 비즈니스 로직, 도메인 규칙 |
 | **auth-infra** | Lib | JPA Repository, 토큰 저장소, 외부 시스템 연동 |
 | **auth-common-lib** | Lib | Passport 도메인, @PassportAuth 어노테이션, ArgumentResolver. 외부 마이크로서비스가 의존하는 공유 라이브러리 |
@@ -111,7 +111,7 @@ com.econo.common.auth
 
 Spring Framework에 의존하지 않는 순수 도메인 로직.
 
-- **Passport**: 회원 인증 정보를 담는 불변 객체 (Aggregate Root). `memberId`, `email`, `name`, `roles`, `issuedAt`, `expiresAt` 필드를 가지며, 역할 확인(`hasRole`, `isAdmin`), 유효성 검증(`isValid`, `isExpired`, `isActive`), 접근 제어(`canAccessMember`) 메서드를 제공한다.
+- **Passport**: 회원 인증 정보를 담는 불변 객체 (Aggregate Root). `memberId`, `loginId`, `name`, `generation`(Integer), `status`(String), `roles`, `issuedAt`, `expiresAt` 필드를 가지며, 역할 확인(`hasRole`, `isAdmin`), 유효성 검증(`isValid`, `isExpired`, `isActive`), 접근 제어(`canAccessMember`) 메서드를 제공한다.
 - **PassportException**: HTTP 상태 코드와 에러 코드를 포함하는 커스텀 예외. 정적 팩토리 메서드(`unauthorized`, `forbidden`, `badRequest`, `expired`, `invalid`)로 생성한다.
 - **Roles**: 역할 상수(`USER`, `MANAGER`, `ADMIN`, `SUPER_ADMIN`)와 동적 역할 생성 헬퍼, 역할 계층 비교 유틸리티를 제공한다.
 
@@ -125,6 +125,32 @@ Spring MVC에 의존하는 웹 어댑터 계층.
 ### config (설정 계층)
 
 - **AuthAutoConfiguration**: `WebMvcConfigurer`를 구현하여 `PassportArgumentResolver`를 자동 등록한다. `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`에 선언되어 Spring Boot 3.x Auto-Configuration으로 동작한다.
+
+## auth-core 패키지 구조 (헥사고날)
+
+```
+com.econo.auth.core
+└── member/
+    ├── domain/
+    │   ├── Member                       # Aggregate Root - 회원 도메인 객체
+    │   └── MemberStatus                 # 활동 상태 Enum (AM / RM / CM / OB)
+    ├── application/
+    │   ├── port/
+    │   │   ├── in/
+    │   │   │   ├── SignupUseCase        # 인바운드 포트 (가입) + SignupCommand record
+    │   │   │   └── LoginUseCase        # 인바운드 포트 (로그인) + LoginCommand / LoginResult record
+    │   │   └── out/
+    │   │       ├── MemberRepository    # 아웃바운드 포트 (영속성)
+    │   │       ├── PasswordHasher      # 아웃바운드 포트 (해싱)
+    │   │       └── TokenIssuer         # 아웃바운드 포트 (JWT 발급)
+    │   └── usecase/
+    │       ├── SignupService           # SignupUseCase 구현체
+    │       └── LoginService            # LoginUseCase 구현체
+    └── exception/
+        ├── MemberAlreadyExistsException # 409 MEMBER_ALREADY_EXISTS
+        ├── InvalidCredentialsException  # 401 INVALID_CREDENTIALS
+        └── InvalidPasswordPolicyException # 400 INVALID_PASSWORD_POLICY
+```
 
 ## 핵심 설계 결정
 
@@ -151,7 +177,17 @@ Enum 대신 String 기반 역할을 사용한다. 이유:
 
 `@PassportAuth(condition = "#{passport.memberId == #userId or passport.isAdmin()}")` 형태로 복잡한 권한 로직을 선언적으로 표현할 수 있다. PathVariable과 RequestParam이 SpEL 컨텍스트에 자동 바인딩된다.
 
+### 6. 헥사고날 아키텍처 (auth-core)
+
+`auth-core`는 포트·어댑터 패턴을 따른다. 도메인과 유스케이스는 `auth-core`가 정의하고, 어댑터(`auth-infra`)가 포트를 구현한다. `SignupService`·`LoginService`는 `@Component`가 아닌 일반 클래스이며, `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 등록한다.
+
+### 7. Passport에 generation/status 포함
+
+Gateway가 JWT 클레임에서 `generation`과 `status`를 Passport에 미러링한다. 다운스트림 서비스가 회원 조회 없이 이 값을 사용할 수 있다. 단, 실시간 최신 상태가 중요한 경우 직접 DB 조회를 권장한다.
+
 ## 에러 코드 체계
+
+### auth-common-lib (Passport 검증)
 
 | HTTP 상태 | 에러 코드 | 발생 조건 |
 |-----------|-----------|-----------|
@@ -160,6 +196,21 @@ Enum 대신 String 기반 역할을 사용한다. 이유:
 | 401 UNAUTHORIZED | AUTH_PASSPORT_INVALID | Passport 구조 유효성 실패 |
 | 403 FORBIDDEN | AUTH_FORBIDDEN | 권한 부족 |
 | 400 BAD_REQUEST | AUTH_BAD_REQUEST | 디코딩/파싱 실패 |
+
+> 정의: `services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/PassportException.java`
+
+### auth-core (회원 도메인)
+
+| HTTP 상태 | 에러 코드 | 발생 조건 |
+|-----------|-----------|-----------|
+| 409 CONFLICT | MEMBER_ALREADY_EXISTS | loginId 중복 가입 |
+| 401 UNAUTHORIZED | INVALID_CREDENTIALS | loginId 미존재 또는 비밀번호 불일치 |
+| 400 BAD_REQUEST | INVALID_PASSWORD_POLICY | 비밀번호 정책 위반 |
+| 400 BAD_REQUEST | INVALID_LOGIN_ID_FORMAT | loginId 형식 위반 (IllegalArgumentException) |
+
+> 정의: `services/libs/auth-core/src/main/java/com/econo/auth/core/member/exception/`
+
+> Bean Validation 오류(VALIDATION_FAILED)는 auth-api 웹 레이어에서 처리.
 
 ## 테스트 구조
 
@@ -173,7 +224,35 @@ services/libs/auth-common-lib/src/test/java/com/econo/common/auth/
 │   └── PassportAuthIntegrationTest.java  # MockMvc 통합 테스트
 └── web/resolver/
     └── PassportArgumentResolverTest.java # ArgumentResolver 단위 테스트
+
+services/libs/auth-core/src/test/java/com/econo/auth/core/
+└── member/
+    ├── application/usecase/
+    │   ├── SignupServiceTest.java     # SignupService 단위 테스트
+    │   └── LoginServiceTest.java     # LoginService 단위 테스트
+    └── domain/
+        └── MemberTest.java           # Member 도메인 단위 테스트
+
+services/libs/auth-infra/src/test/java/com/econo/auth/infra/
+└── member/adapter/out/
+    ├── persistence/MemberRepositoryAdapterTest.java  # @DataJpaTest + Testcontainer
+    ├── security/BCryptPasswordHasherAdapterTest.java
+    └── token/JwtTokenIssuerAdapterTest.java
+
+services/apis/auth-api/src/test/java/com/econo/auth/api/
+├── adapter/in/web/
+│   └── MemberControllerTest.java      # @WebMvcTest 웹 레이어 테스트
+└── integration/
+    └── AuthApiIntegrationTest.java    # @SpringBootTest E2E
+
+services/apis/api-gateway/src/test/java/com/econo/auth/gateway/
+├── filter/
+│   └── JwtCookieToPassportFilterTest.java
+└── security/
+    ├── JwtVerifierTest.java
+    └── PassportSerializerTest.java
 ```
 
 - 단위 테스트: 도메인 로직 검증 (Spring 컨텍스트 불필요)
 - 통합 테스트: `@SpringBootTest` + `MockMvc`로 E2E 흐름 검증
+- JPA 통합 테스트: `@DataJpaTest` + Testcontainers PostgreSQL 이미지

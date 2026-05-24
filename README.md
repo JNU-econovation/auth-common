@@ -74,7 +74,7 @@ public class ProgramController {
     public ResponseEntity<List<Program>> getPrograms(@PassportAuth Passport passport) {
         // passport 객체를 바로 사용 가능
         Long memberId = passport.getMemberId();
-        String email = passport.getEmail();
+        String loginId = passport.getLoginId();
 
         return ResponseEntity.ok(programService.getUserPrograms(memberId));
     }
@@ -193,8 +193,10 @@ public class GlobalExceptionHandler {
 
 ```java
 Long memberId = passport.getMemberId();        // 회원 ID
-String email = passport.getEmail();           // 이메일
+String loginId = passport.getLoginId();       // 로그인 아이디
 String name = passport.getName();             // 이름
+Integer generation = passport.getGeneration(); // 기수
+String status = passport.getStatus();         // 활동 상태 (AM / RM / CM / OB)
 List<String> roles = passport.getRoles();     // 권한 목록
 LocalDateTime issuedAt = passport.getIssuedAt();  // 발급 시간
 LocalDateTime expiresAt = passport.getExpiresAt(); // 만료 시간
@@ -210,7 +212,7 @@ boolean hasRole = passport.hasRole("USER");     // 특정 권한 보유 여부
 
 // 복수 권한 체크
 boolean hasAny = passport.hasAnyRole("ADMIN", "MANAGER");  // OR 조건
-boolean hasAll = passport.hasAllRoles("USER", "ACTIVE");   // AND 조건
+boolean hasAll = passport.hasAllRoles("USER", "ADMIN");   // AND 조건
 ```
 
 ### 유효성 및 권한 체크
@@ -307,7 +309,8 @@ X-User-Passport: eyJ1c2VySWQiOjEsInN0dWRlbn...
 void testPassportInjection() {
     // given
     Passport mockPassport = new Passport(
-        123L, "test@eeos.com", "테스터",
+        123L, "testuser", "테스터",
+        1, "AM",
         List.of("USER"), LocalDateTime.now(),
         LocalDateTime.now().plusHours(1)
     );
