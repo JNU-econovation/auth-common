@@ -7,10 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.econo.auth.api.config.SecurityConfig;
-import com.econo.auth.core.member.application.port.in.LoginUseCase;
-import com.econo.auth.core.member.application.port.in.LoginUseCase.LoginResult;
 import com.econo.auth.core.member.application.port.in.SignupUseCase;
-import com.econo.auth.core.member.exception.InvalidCredentialsException;
 import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +21,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+/**
+ * MemberController 웹 레이어 테스트 — SAS 재작업 후
+ *
+ * <p>plan: todo.md [MemberController.login 재작성] — login() 메서드 제거, JsonLoginAuthenticationFilter가 처리
+ * plan: todo.md [MemberController.logout 재작성] — 세션 무효화 + SESSION 쿠키 만료로 재작성 plan: todo.md [POST
+ * /api/v1/auth/signup] — 기존 구현 유지, 변경 없음
+ *
+ * <p>LoginUseCase 의존 제거: plan implementation-plan.md — LoginUseCase/LoginService 제거
+ */
 @WebMvcTest(MemberController.class)
 @Import(SecurityConfig.class)
 class MemberControllerTest {
@@ -32,7 +38,7 @@ class MemberControllerTest {
 
 	@MockBean private SignupUseCase signupUseCase;
 
-	@MockBean private LoginUseCase loginUseCase;
+	// plan: implementation-plan.md — LoginUseCase 제거됨. LoginUseCase MockBean 제거.
 
 	@Nested
 	@DisplayName("POST /api/v1/auth/signup 테스트")
@@ -216,244 +222,80 @@ class MemberControllerTest {
 	}
 
 	@Nested
-	@DisplayName("POST /api/v1/auth/login 테스트")
-	class LoginTest {
-
-		@Test
-		@DisplayName("로그인 성공 시 200 + Set-Cookie 헤더 포함")
-		void loginSuccess() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			given(loginUseCase.login(any()))
-					.willReturn(new LoginResult("eyJhbGciOiJIUzI1NiJ9.testToken"));
-
-			// when & then
-			mockMvc
-					.perform(
-							post("/api/v1/auth/login")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
-					.andExpect(status().isOk())
-					.andExpect(header().exists("Set-Cookie"));
-		}
-
-		@Test
-		@DisplayName("로그인 성공 쿠키는 HttpOnly 속성을 포함한다")
-		void loginSuccessCookieIsHttpOnly() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			given(loginUseCase.login(any()))
-					.willReturn(new LoginResult("eyJhbGciOiJIUzI1NiJ9.testToken"));
-
-			// when
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.content(requestBody))
-							.andExpect(status().isOk())
-							.andReturn();
-
-			// then
-			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).containsIgnoringCase("HttpOnly");
-		}
-
-		@Test
-		@DisplayName("로그인 성공 쿠키는 Secure 속성을 포함한다")
-		void loginSuccessCookieIsSecure() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			given(loginUseCase.login(any()))
-					.willReturn(new LoginResult("eyJhbGciOiJIUzI1NiJ9.testToken"));
-
-			// when
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.content(requestBody))
-							.andExpect(status().isOk())
-							.andReturn();
-
-			// then
-			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).containsIgnoringCase("Secure");
-		}
-
-		@Test
-		@DisplayName("로그인 성공 쿠키는 SameSite=Strict 속성을 포함한다")
-		void loginSuccessCookieHasSameSiteStrict() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			given(loginUseCase.login(any()))
-					.willReturn(new LoginResult("eyJhbGciOiJIUzI1NiJ9.testToken"));
-
-			// when
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.content(requestBody))
-							.andExpect(status().isOk())
-							.andReturn();
-
-			// then
-			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).containsIgnoringCase("SameSite=Strict");
-		}
-
-		@Test
-		@DisplayName("로그인 성공 쿠키 이름은 auth_token이다")
-		void loginSuccessCookieNameIsAuthToken() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			given(loginUseCase.login(any()))
-					.willReturn(new LoginResult("eyJhbGciOiJIUzI1NiJ9.testToken"));
-
-			// when
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.content(requestBody))
-							.andExpect(status().isOk())
-							.andReturn();
-
-			// then
-			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).startsWith("auth_token=");
-		}
-
-		@Test
-		@DisplayName("로그인 성공 응답 바디에 JWT가 노출되지 않는다")
-		void loginSuccessResponseBodyDoesNotContainJwt() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "Econo1234!"
-					}
-					""";
-			String jwtToken = "eyJhbGciOiJIUzI1NiJ9.secretToken";
-			given(loginUseCase.login(any())).willReturn(new LoginResult(jwtToken));
-
-			// when
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.content(requestBody))
-							.andExpect(status().isOk())
-							.andReturn();
-
-			// then
-			assertThat(result.getResponse().getContentAsString()).doesNotContain(jwtToken);
-		}
-
-		@Test
-		@DisplayName("loginId 또는 비밀번호가 틀리면 401 INVALID_CREDENTIALS 반환")
-		void loginWithInvalidCredentials() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "honggildong",
-						"password": "wrongPassword!"
-					}
-					""";
-			willThrow(InvalidCredentialsException.of()).given(loginUseCase).login(any());
-
-			// when & then
-			mockMvc
-					.perform(
-							post("/api/v1/auth/login")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
-					.andExpect(status().isUnauthorized())
-					.andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
-		}
-
-		@Test
-		@DisplayName("loginId 필드가 비어 있으면 400 VALIDATION_FAILED 반환")
-		void loginWithBlankLoginId() throws Exception {
-			// given
-			String requestBody =
-					"""
-					{
-						"loginId": "",
-						"password": "Econo1234!"
-					}
-					""";
-
-			// when & then
-			mockMvc
-					.perform(
-							post("/api/v1/auth/login")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
-					.andExpect(status().isBadRequest())
-					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
-		}
-	}
-
-	@Nested
-	@DisplayName("POST /api/v1/auth/logout 테스트")
+	@DisplayName("POST /api/v1/auth/logout 재작성 테스트 (세션 무효화)")
 	class LogoutTest {
 
 		@Test
 		@DisplayName("로그아웃 시 200 반환")
 		void logoutSuccess() throws Exception {
 			// when & then
+			// plan: api-design-plan.md — POST /api/v1/auth/logout 성공 시 200 OK
 			mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk());
 		}
 
 		@Test
-		@DisplayName("로그아웃 시 auth_token 쿠키가 Max-Age=0으로 만료된다")
-		void logoutExpiresCookie() throws Exception {
+		@DisplayName("로그아웃 시 SESSION 쿠키가 Max-Age=0으로 만료된다")
+		void logoutExpiratesSessionCookie() throws Exception {
 			// when
+			// plan: api-design-plan.md — Set-Cookie: SESSION=; HttpOnly; SameSite=None; Secure; Path=/;
+			// Max-Age=0
 			MvcResult result =
 					mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk()).andReturn();
 
 			// then
 			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).containsIgnoringCase("Max-Age=0").startsWith("auth_token=");
+			assertThat(setCookieHeader).containsIgnoringCase("Max-Age=0");
+			// plan: 세션 쿠키 이름은 SESSION (Spring Session 기본값)
+			assertThat(setCookieHeader).startsWith("SESSION=");
+		}
+
+		@Test
+		@DisplayName("세션 쿠키가 없는 상태로 로그아웃해도 200 반환 (멱등)")
+		void logoutWithoutSessionCookieIsIdempotent() throws Exception {
+			// given — SESSION 쿠키 없는 요청
+			// plan: api-design-plan.md — 세션 쿠키가 없는 상태로 호출해도 200 OK 반환 (멱등 처리)
+			mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk());
+		}
+
+		@Test
+		@DisplayName("로그아웃 응답 바디는 비어있다")
+		void logoutResponseBodyIsEmpty() throws Exception {
+			// when
+			MvcResult result =
+					mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk()).andReturn();
+
+			// then
+			assertThat(result.getResponse().getContentAsString()).isEmpty();
+		}
+	}
+
+	@Nested
+	@DisplayName("POST /api/v1/auth/login 핸들러 부재 확인 테스트")
+	class LoginHandlerRemovedTest {
+
+		@Test
+		@DisplayName("MemberController에 login() 핸들러가 없으므로 @WebMvcTest 슬라이스에서 404 반환")
+		void loginEndpointHasNoControllerHandler() throws Exception {
+			// plan: implementation-plan.md — MemberController.login() 메서드 삭제
+			// JsonLoginAuthenticationFilter가 POST /api/v1/auth/login 경로를 필터 레벨에서 처리하므로
+			// MemberController에는 login() 핸들러 메서드가 없다.
+			// @WebMvcTest 슬라이스는 필터 체인을 완전히 구성하지 않으므로 JsonLoginAuthenticationFilter가
+			// 동작하지 않아, 컨트롤러 핸들러 부재가 404로 드러난다.
+			// (통합 환경에서는 필터가 선점하여 200 + Set-Cookie(SESSION) 반환)
+			String requestBody =
+					"""
+					{
+						"loginId": "honggildong",
+						"password": "Econo1234!"
+					}
+					""";
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content(requestBody))
+					// @WebMvcTest에서 컨트롤러 핸들러 부재 → 404
+					.andExpect(status().isNotFound());
 		}
 	}
 }

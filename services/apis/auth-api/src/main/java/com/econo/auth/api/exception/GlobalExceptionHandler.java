@@ -1,6 +1,5 @@
 package com.econo.auth.api.exception;
 
-import com.econo.auth.core.member.exception.InvalidCredentialsException;
 import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
 import java.time.LocalDateTime;
@@ -9,9 +8,11 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 /** 전역 예외 핸들러 */
 @Slf4j
@@ -63,18 +64,6 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
-	 * 인증 실패 예외 처리
-	 *
-	 * @param ex 예외
-	 * @return 401 INVALID_CREDENTIALS
-	 */
-	@ExceptionHandler(InvalidCredentialsException.class)
-	public ResponseEntity<ApiError> handleInvalidCredentials(InvalidCredentialsException ex) {
-		return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-				.body(new ApiError("INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다."));
-	}
-
-	/**
 	 * 비밀번호 정책 위반 예외 처리
 	 *
 	 * @param ex 예외
@@ -99,13 +88,33 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
+	 * Spring MVC ResponseStatusException 처리 — 원래 HTTP 상태 코드 그대로 전달
+	 *
+	 * <p>NoResourceFoundException(404), MethodNotAllowedException(405) 등 Spring 내부 예외가 {@code
+	 * GlobalExceptionHandler.handleGeneric}에 잡혀 500으로 변환되는 것을 방지한다.
+	 *
+	 * @param ex ResponseStatusException
+	 * @return 원래 HTTP 상태 코드
+	 */
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<Void> handleResponseStatus(ResponseStatusException ex) {
+		return ResponseEntity.status(ex.getStatusCode()).build();
+	}
+
+	/**
 	 * 예상치 못한 예외 처리 (스택트레이스 외부 노출 금지)
 	 *
+	 * <p>Spring 6.1+ {@link ErrorResponse} 구현체(NoResourceFoundException 등)는 원래 HTTP 상태 코드를 그대로 반환하여
+	 * 500으로 변환되는 것을 방지한다.
+	 *
 	 * @param ex 예외
-	 * @return 500 INTERNAL_SERVER_ERROR
+	 * @return 500 INTERNAL_SERVER_ERROR 또는 ErrorResponse의 원래 상태 코드
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiError> handleGeneric(Exception ex) {
+	public ResponseEntity<?> handleGeneric(Exception ex) {
+		if (ex instanceof ErrorResponse errorResponse) {
+			return ResponseEntity.status(errorResponse.getStatusCode()).build();
+		}
 		log.error("Unexpected error occurred", ex);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(new ApiError("INTERNAL_SERVER_ERROR", "서버 내부 오류가 발생했습니다."));
