@@ -295,6 +295,7 @@ void createWithNullRoles() {
 | 단위 테스트 | `@Test`, `@Nested` | 도메인 로직 검증 |
 | Mock 테스트 | `@ExtendWith(MockitoExtension.class)` | 의존성 격리 |
 | 통합 테스트 | `@SpringBootTest` + `MockMvc` | E2E 흐름 검증 |
+| JPA 통합 테스트 | `@DataJpaTest` + Testcontainers PostgreSQL | JPA Repository 슬라이스 검증 |
 
 ## 6. 빌드
 
