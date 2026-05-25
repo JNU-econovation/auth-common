@@ -6,3 +6,19 @@ spring:
           uri: ${AUTH_API_URI:http://localhost:8081}
           predicates:
             - Path=/api/v1/auth/**
+        - id: sas-oauth2
+          uri: ${AUTH_API_URI:http://localhost:8081}
+          predicates:
+            - Path=/oauth2/**
+        - id: sas-well-known
+          uri: ${AUTH_API_URI:http://localhost:8081}
+          predicates:
+            - Path=/.well-known/**
+        - id: sas-userinfo
+          uri: ${AUTH_API_URI:http://localhost:8081}
+          predicates:
+            - Path=/userinfo
+
+AUTH_JWKS_URI: ${AUTH_JWKS_URI:http://localhost:8081/oauth2/jwks}
+# SAS issuer (Gateway 공개 URL) — JWT iss 클레임 검증에 사용. auth-api의 AUTH_ISSUER_URI와 동일해야 한다.
+AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:http://localhost:8080}
