@@ -1,6 +1,8 @@
 package com.econo.auth.api.security;
 
 import com.econo.auth.core.member.domain.Member;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
@@ -16,7 +18,9 @@ import org.springframework.security.core.userdetails.UserDetails;
  * {@code roles})을 주입한다.
  */
 @Getter
-public class MemberUserDetails implements UserDetails {
+public class MemberUserDetails implements UserDetails, Serializable {
+
+	@Serial private static final long serialVersionUID = 1L;
 
 	private final Member member;
 

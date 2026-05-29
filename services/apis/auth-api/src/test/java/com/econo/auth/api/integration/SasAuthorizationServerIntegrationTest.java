@@ -73,6 +73,7 @@ class SasAuthorizationServerIntegrationTest {
 		// plan: RegisteredClientConfig — FIRST_PARTY_CLIENT_ID, FIRST_PARTY_REDIRECT_URI
 		registry.add("FIRST_PARTY_CLIENT_ID", () -> "econo-spa");
 		registry.add("FIRST_PARTY_REDIRECT_URI", () -> "http://localhost:3000/callback");
+		registry.add("AUTH_INTERNAL_API_KEY", () -> "test-internal-key");
 	}
 
 	@Autowired private MockMvc mockMvc;

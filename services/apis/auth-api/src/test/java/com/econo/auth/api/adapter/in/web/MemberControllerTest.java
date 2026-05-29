@@ -19,7 +19,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * MemberController 웹 레이어 테스트 — SAS 재작업 후
@@ -221,53 +220,8 @@ class MemberControllerTest {
 		}
 	}
 
-	@Nested
-	@DisplayName("POST /api/v1/auth/logout 재작성 테스트 (세션 무효화)")
-	class LogoutTest {
-
-		@Test
-		@DisplayName("로그아웃 시 200 반환")
-		void logoutSuccess() throws Exception {
-			// when & then
-			// plan: api-design-plan.md — POST /api/v1/auth/logout 성공 시 200 OK
-			mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk());
-		}
-
-		@Test
-		@DisplayName("로그아웃 시 SESSION 쿠키가 Max-Age=0으로 만료된다")
-		void logoutExpiratesSessionCookie() throws Exception {
-			// when
-			// plan: api-design-plan.md — Set-Cookie: SESSION=; HttpOnly; SameSite=None; Secure; Path=/;
-			// Max-Age=0
-			MvcResult result =
-					mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk()).andReturn();
-
-			// then
-			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
-			assertThat(setCookieHeader).containsIgnoringCase("Max-Age=0");
-			// plan: 세션 쿠키 이름은 SESSION (Spring Session 기본값)
-			assertThat(setCookieHeader).startsWith("SESSION=");
-		}
-
-		@Test
-		@DisplayName("세션 쿠키가 없는 상태로 로그아웃해도 200 반환 (멱등)")
-		void logoutWithoutSessionCookieIsIdempotent() throws Exception {
-			// given — SESSION 쿠키 없는 요청
-			// plan: api-design-plan.md — 세션 쿠키가 없는 상태로 호출해도 200 OK 반환 (멱등 처리)
-			mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk());
-		}
-
-		@Test
-		@DisplayName("로그아웃 응답 바디는 비어있다")
-		void logoutResponseBodyIsEmpty() throws Exception {
-			// when
-			MvcResult result =
-					mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isOk()).andReturn();
-
-			// then
-			assertThat(result.getResponse().getContentAsString()).isEmpty();
-		}
-	}
+	// 로그아웃은 ReissueController로 이전 — MemberController 범위 밖
+	// ReissueControllerTest에서 별도 검증
 
 	@Nested
 	@DisplayName("POST /api/v1/auth/login 핸들러 부재 확인 테스트")

@@ -1,6 +1,8 @@
 package com.econo.auth.api.config;
 
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -53,6 +55,8 @@ public class RsaKeyConfig {
 					new RSAKey.Builder(publicKey)
 							.privateKey(privateKey)
 							.keyID("econo-auth-rsa-key-v1")
+							.algorithm(JWSAlgorithm.RS256)
+							.keyUse(KeyUse.SIGNATURE)
 							.build();
 
 			JWKSet jwkSet = new JWKSet(rsaKey);

@@ -1,6 +1,12 @@
 package com.econo.auth.api.filter;
 
+import com.econo.auth.api.adapter.in.web.LoginResponse;
+import com.econo.auth.api.adapter.in.web.TokenCookieManager;
+import com.econo.auth.api.application.LoginTokenService;
+import com.econo.auth.api.application.LoginTokenService.TokenPair;
+import com.econo.auth.api.security.MemberUserDetails;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -14,99 +20,82 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 /**
- * JSON 자격증명 수신 → 서버 세션 수립 커스텀 인증 필터
+ * JSON 로그인 필터 — 인증 성공 시 AT/RT JWT를 발급한다 (세션 없음)
  *
- * <p>{@code POST /api/v1/auth/login} 요청에서 JSON body({@code loginId}, {@code password})를 파싱하고,
- * {@link AuthenticationManager}에 위임하여 인증 성공 시 Spring Session에 {@code SecurityContext}를 저장한다.
- *
- * <h2>성공 응답</h2>
- *
- * <p>{@code 200 OK}, 바디 없음, {@code Set-Cookie: SESSION=...}
- *
- * <h2>실패 응답</h2>
- *
- * <p>{@code 401 Unauthorized}, JSON body {@code
- * {"errorCode":"INVALID_CREDENTIALS","message":"..."}}
+ * <p>{@code Client-Type: WEB} (기본): AT → body, RT → HttpOnly 쿠키<br>
+ * {@code Client-Type: APP}: AT + RT 모두 → body
  */
 @Slf4j
 public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
 
 	private static final AntPathRequestMatcher LOGIN_MATCHER =
 			new AntPathRequestMatcher("/api/v1/auth/login", "POST");
+	private static final String CLIENT_TYPE_HEADER = "Client-Type";
 
 	private final ObjectMapper objectMapper;
+	private final LoginTokenService loginTokenService;
+	private final TokenCookieManager cookieManager;
 
-	/**
-	 * JsonLoginAuthenticationFilter 생성자
-	 *
-	 * @param authenticationManager Spring Security AuthenticationManager
-	 * @param objectMapper Jackson ObjectMapper
-	 */
 	public JsonLoginAuthenticationFilter(
-			AuthenticationManager authenticationManager, ObjectMapper objectMapper) {
+			AuthenticationManager authenticationManager,
+			ObjectMapper objectMapper,
+			LoginTokenService loginTokenService,
+			TokenCookieManager cookieManager) {
 		super(LOGIN_MATCHER, authenticationManager);
 		this.objectMapper = objectMapper;
-		// Spring Security 6.x: SecurityContext를 세션에 명시적으로 저장하도록 설정
-		setSecurityContextRepository(new HttpSessionSecurityContextRepository());
+		this.loginTokenService = loginTokenService;
+		this.cookieManager = cookieManager;
+		// 세션 불필요 — JWT로 stateless 인증
+		setSecurityContextRepository(new NullSecurityContextRepository());
 	}
 
-	/**
-	 * JSON 바디에서 자격증명 파싱 후 인증 시도
-	 *
-	 * @param request HTTP 요청
-	 * @param response HTTP 응답
-	 * @return 인증된 {@link Authentication}
-	 * @throws AuthenticationException 인증 실패 시
-	 */
 	@Override
-	public Authentication attemptAuthentication(
-			HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
+	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+			throws AuthenticationException {
 		try {
-			LoginRequest loginRequest =
-					objectMapper.readValue(request.getInputStream(), LoginRequest.class);
+			LoginRequest loginRequest = objectMapper.readValue(request.getInputStream(), LoginRequest.class);
 			String loginId = loginRequest.loginId() != null ? loginRequest.loginId() : "";
 			String password = loginRequest.password() != null ? loginRequest.password() : "";
-			UsernamePasswordAuthenticationToken authToken =
-					UsernamePasswordAuthenticationToken.unauthenticated(loginId, password);
-			return getAuthenticationManager().authenticate(authToken);
+			return getAuthenticationManager()
+					.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(loginId, password));
 		} catch (IOException e) {
-			log.warn("Failed to parse login request body: {}", e.getMessage());
 			throw new org.springframework.security.authentication.BadCredentialsException(
 					"Invalid login request body", e);
 		}
 	}
 
-	/**
-	 * 인증 성공 처리 — 200 OK + 세션 쿠키
-	 *
-	 * @param request HTTP 요청
-	 * @param response HTTP 응답
-	 * @param chain 필터 체인
-	 * @param authResult 인증 결과
-	 */
+	/** 인증 성공 — Client-Type에 따라 AT/RT 응답 */
 	@Override
 	protected void successfulAuthentication(
 			HttpServletRequest request,
 			HttpServletResponse response,
-			jakarta.servlet.FilterChain chain,
+			FilterChain chain,
 			Authentication authResult)
-			throws IOException, jakarta.servlet.ServletException {
-		// SecurityContextRepository(HttpSession)에 저장 — 세션 수립
-		super.successfulAuthentication(request, response, chain, authResult);
+			throws IOException {
+		MemberUserDetails userDetails = (MemberUserDetails) authResult.getPrincipal();
+		TokenPair tokens = loginTokenService.issue(userDetails.getMember());
+
+		String clientType = request.getHeader(CLIENT_TYPE_HEADER);
+		boolean isApp = "APP".equalsIgnoreCase(clientType);
+
+		LoginResponse body;
+		if (isApp) {
+			body = LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+		} else {
+			cookieManager.setRtCookie(response, tokens.refreshToken());
+			body = LoginResponse.web(tokens.accessToken(), tokens.accessExpiredAt());
+		}
+
 		response.setStatus(HttpServletResponse.SC_OK);
+		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		response.setCharacterEncoding("UTF-8");
+		objectMapper.writeValue(response.getWriter(), body);
 	}
 
-	/**
-	 * 인증 실패 처리 — 401 Unauthorized + JSON 에러 응답
-	 *
-	 * @param request HTTP 요청
-	 * @param response HTTP 응답
-	 * @param failed 인증 예외
-	 */
 	@Override
 	protected void unsuccessfulAuthentication(
 			HttpServletRequest request, HttpServletResponse response, AuthenticationException failed)
@@ -116,7 +105,6 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
 
-		// Map.of는 null 값 불허 — HashMap 사용하여 JSON null(fieldErrors: null) 직렬화
 		Map<String, Object> errorBody = new HashMap<>();
 		errorBody.put("errorCode", "INVALID_CREDENTIALS");
 		errorBody.put("message", "아이디 또는 비밀번호가 올바르지 않습니다.");
@@ -126,6 +114,5 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		objectMapper.writeValue(response.getWriter(), errorBody);
 	}
 
-	/** JSON 로그인 요청 DTO (내부 private record) */
 	private record LoginRequest(String loginId, String password) {}
 }

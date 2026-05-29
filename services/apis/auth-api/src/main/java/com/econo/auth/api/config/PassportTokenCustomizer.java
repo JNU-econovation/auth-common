@@ -34,7 +34,7 @@ public class PassportTokenCustomizer {
 	 * @return {@link OAuth2TokenCustomizer} 구현체
 	 */
 	@Bean
-	public OAuth2TokenCustomizer<JwtEncodingContext> passportTokenCustomizer() {
+	public OAuth2TokenCustomizer<JwtEncodingContext> jwtPassportTokenCustomizer() {
 		return context -> {
 			String tokenType = context.getTokenType().getValue();
 			boolean isAccessToken =
