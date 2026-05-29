@@ -3,11 +3,9 @@ plugins {
 }
 
 dependencies {
-    // auth-common-lib: Passport 도메인 클래스만 사용. MVC AutoConfiguration은 application.yml에서 제외.
-    implementation(project(":services:libs:auth-common-lib")) {
-        exclude(group = "org.springframework.boot", module = "spring-boot-starter-web")
-        exclude(group = "org.springframework.boot", module = "spring-boot-starter-tomcat")
-    }
+    // econo-passport: Passport 도메인 + @PassportAuth (JNU-econovation/econo-passport)
+    // compileOnly로 spring-boot-starter-web 선언되어 있어 Reactive 스택과 충돌 없음
+    implementation("com.github.JNU-econovation:econo-passport:1.0.0")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.cloud:spring-cloud-starter-gateway")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
