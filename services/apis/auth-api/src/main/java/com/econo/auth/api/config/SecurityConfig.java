@@ -1,28 +1,33 @@
 package com.econo.auth.api.config;
 
+import com.econo.auth.api.adapter.in.web.TokenCookieManager;
+import com.econo.auth.api.application.LoginTokenService;
 import com.econo.auth.api.filter.JsonLoginAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 /**
- * 앱용 SecurityFilterChain 설정 — {@code @Order(2)}
+ * 앱용 SecurityFilterChain — {@code @Order(2)}, JWT Stateless 인증
  *
- * <p>세션 기반({@link SessionCreationPolicy#IF_REQUIRED})으로 전환. CSRF는 {@link
- * CookieCsrfTokenRepository}를 사용하되 {@code /api/v1/auth/login}, {@code /api/v1/auth/signup}, {@code
- * /api/v1/auth/logout}을 제외. 커스텀 JSON 인증 필터({@link JsonLoginAuthenticationFilter})를 삽입한다.
- *
- * <p>{@code @EnableWebSecurity}는 이 클래스에만 선언하여 중복 선언을 방지한다.
+ * <p>세션 없이 JWT 기반으로 동작한다. {@link JsonLoginAuthenticationFilter}가 성공 시 AT/RT를 발급한다.
  */
 @Configuration
 @EnableWebSecurity
@@ -32,64 +37,71 @@ public class SecurityConfig {
 
 	private final ObjectMapper objectMapper;
 
-	/**
-	 * 앱용 SecurityFilterChain — {@code @Order(2)}
-	 *
-	 * <p>{@link JsonLoginAuthenticationFilter}는 {@link HttpSecurity#getSharedObject}를 통해 {@link
-	 * org.springframework.security.authentication.AuthenticationManager}를 얻어 인라인 생성한다. 이 방식은
-	 * {@code @WebMvcTest} 슬라이스 환경에서도 동작한다.
-	 *
-	 * @param http HttpSecurity
-	 * @return {@link SecurityFilterChain}
-	 * @throws Exception 설정 오류
-	 */
 	@Bean
 	@Order(2)
-	public SecurityFilterChain appSecurityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain appSecurityFilterChain(
+			HttpSecurity http,
+			@Qualifier("memberAuthenticationManager")
+					@org.springframework.beans.factory.annotation.Autowired(required = false)
+					AuthenticationManager memberAuthenticationManager,
+			@org.springframework.beans.factory.annotation.Autowired(required = false)
+					LoginTokenService loginTokenService,
+			@org.springframework.beans.factory.annotation.Autowired(required = false)
+					TokenCookieManager cookieManager)
+			throws Exception {
 		http.securityMatcher(
 						request -> {
-							// SAS 필터체인(@Order(1))이 처리하지 않는 요청만 처리
 							String path = request.getRequestURI();
 							return !path.startsWith("/oauth2/")
 									&& !path.startsWith("/.well-known/")
 									&& !path.equals("/userinfo");
 						})
-				.sessionManagement(
-						session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-				.csrf(
-						csrf ->
-								csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-										.ignoringRequestMatchers(
-												"/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/logout"))
+				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(
 						auth ->
 								auth.requestMatchers(
-												"/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/logout")
+												"/api/v1/auth/signup",
+												"/api/v1/auth/login",
+												"/api/v1/auth/logout",
+												"/api/v1/auth/reissue")
+										.permitAll()
+										.requestMatchers("/api/v1/admin/**")
 										.permitAll()
 										.anyRequest()
-										.authenticated());
+										.authenticated())
+				.exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint()));
 
-		// HttpSecurity를 통해 AuthenticationManager를 얻어 필터 인라인 생성
-		// @WebMvcTest 슬라이스 환경에서는 AuthenticationManager가 null일 수 있으므로 조건부 추가
-		org.springframework.security.authentication.AuthenticationManager authManager =
-				http.getSharedObject(
-						org.springframework.security.authentication.AuthenticationManager.class);
-		if (authManager != null) {
-			JsonLoginAuthenticationFilter jsonLoginFilter =
-					new JsonLoginAuthenticationFilter(authManager, objectMapper);
-			http.addFilterBefore(jsonLoginFilter, UsernamePasswordAuthenticationFilter.class);
+		if (memberAuthenticationManager != null && loginTokenService != null && cookieManager != null) {
+			JsonLoginAuthenticationFilter loginFilter =
+					new JsonLoginAuthenticationFilter(
+							memberAuthenticationManager, objectMapper, loginTokenService, cookieManager);
+			http.addFilterBefore(loginFilter, UsernamePasswordAuthenticationFilter.class);
 		}
 
 		return http.build();
 	}
 
-	/**
-	 * BCrypt PasswordEncoder 빈 등록 (cost=12, BCryptPasswordHasherAdapter와 일치)
-	 *
-	 * @return {@link PasswordEncoder}
-	 */
 	@Bean
 	public PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder(12);
+	}
+
+	@Bean(name = "memberAuthenticationManager")
+	@org.springframework.boot.autoconfigure.condition.ConditionalOnBean(name = "memberUserDetailsService")
+	public AuthenticationManager memberAuthenticationManager(
+			@Qualifier("memberUserDetailsService") UserDetailsService memberUserDetailsService) {
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+		provider.setUserDetailsService(memberUserDetailsService);
+		provider.setPasswordEncoder(passwordEncoder());
+		return new ProviderManager(provider);
+	}
+
+	private AuthenticationEntryPoint apiAuthenticationEntryPoint() {
+		return (request, response, authException) -> {
+			response.setContentType("application/json;charset=UTF-8");
+			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+			response.getWriter().write("{\"errorCode\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다.\"}");
+		};
 	}
 }

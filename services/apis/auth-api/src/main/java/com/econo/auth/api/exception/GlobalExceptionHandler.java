@@ -3,6 +3,7 @@ package com.econo.auth.api.exception;
 import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
 import java.time.LocalDateTime;
+import org.springframework.dao.DataIntegrityViolationException;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -99,6 +100,54 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(ResponseStatusException.class)
 	public ResponseEntity<Void> handleResponseStatus(ResponseStatusException ex) {
 		return ResponseEntity.status(ex.getStatusCode()).build();
+	}
+
+	/**
+	 * redirectUris 누락 예외 처리
+	 *
+	 * @param ex 예외
+	 * @return 400 REDIRECT_URI_REQUIRED
+	 */
+	@ExceptionHandler(RedirectUriRequiredException.class)
+	public ResponseEntity<ApiError> handleRedirectUriRequired(RedirectUriRequiredException ex) {
+		return ResponseEntity.badRequest().body(new ApiError("REDIRECT_URI_REQUIRED", ex.getMessage()));
+	}
+
+	/**
+	 * 지원하지 않는 그랜트 타입 예외 처리
+	 *
+	 * @param ex 예외
+	 * @return 400 UNSUPPORTED_GRANT_TYPE
+	 */
+	@ExceptionHandler(UnsupportedGrantTypeException.class)
+	public ResponseEntity<ApiError> handleUnsupportedGrantType(UnsupportedGrantTypeException ex) {
+		return ResponseEntity.badRequest()
+				.body(new ApiError("UNSUPPORTED_GRANT_TYPE", ex.getMessage()));
+	}
+
+	/**
+	 * 중복 클라이언트 이름 예외 처리
+	 *
+	 * @param ex 예외
+	 * @return 409 DUPLICATE_CLIENT_NAME
+	 */
+	@ExceptionHandler(DuplicateClientNameException.class)
+	public ResponseEntity<ApiError> handleDuplicateClientName(DuplicateClientNameException ex) {
+		return ResponseEntity.status(HttpStatus.CONFLICT)
+				.body(new ApiError("DUPLICATE_CLIENT_NAME", ex.getMessage()));
+	}
+
+	/**
+	 * DB UNIQUE 제약 위반 — pathPrefix/clientName 중복 등록 시
+	 *
+	 * @param ex 예외
+	 * @return 409 DUPLICATE_RESOURCE
+	 */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex) {
+		log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT)
+				.body(new ApiError("DUPLICATE_RESOURCE", "이미 등록된 리소스입니다. (경로 접두사 또는 클라이언트 이름 중복)"));
 	}
 
 	/**
