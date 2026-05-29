@@ -4,6 +4,9 @@ import com.econo.auth.gateway.security.JwtVerifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.web.server.SecurityWebFilterChain;
 
 /**
  * Gateway 보안 설정 — JwtVerifier 빈 등록
@@ -20,6 +23,7 @@ import org.springframework.context.annotation.Configuration;
  * 않는다. 이 클래스의 책임은 {@code AUTH_JWKS_URI} 환경변수를 주입하여 {@link JwtVerifier} 빈을 단독으로 제공하는 것이다.
  */
 @Configuration
+@EnableWebFluxSecurity
 public class GatewaySecurityConfig {
 
 	@Value("${AUTH_JWKS_URI:http://localhost:8081/oauth2/jwks}")
@@ -38,5 +42,14 @@ public class GatewaySecurityConfig {
 	@Bean
 	public JwtVerifier jwtVerifier() {
 		return JwtVerifier.fromJwksUri(jwksUri, issuerUri);
+	}
+
+	/** BearerToPassportFilter가 실질적 인증을 담당하므로 Spring Security 레이어는 전체 허용 */
+	@Bean
+	public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
+		return http
+				.csrf(ServerHttpSecurity.CsrfSpec::disable)
+				.authorizeExchange(ex -> ex.anyExchange().permitAll())
+				.build();
 	}
 }

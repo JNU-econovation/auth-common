@@ -18,7 +18,23 @@ spring:
           uri: ${AUTH_API_URI:http://localhost:8081}
           predicates:
             - Path=/userinfo
+        - id: eeos
+          uri: ${EEOS_API_URI:http://localhost:8080}
+          predicates:
+            - Path=/api/**
+  autoconfigure:
+    exclude:
+      - com.econo.common.auth.config.AuthAutoConfiguration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 AUTH_JWKS_URI: ${AUTH_JWKS_URI:http://localhost:8081/oauth2/jwks}
-# SAS issuer (Gateway 공개 URL) — JWT iss 클레임 검증에 사용. auth-api의 AUTH_ISSUER_URI와 동일해야 한다.
-AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:http://localhost:8080}
+AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:http://localhost:8081}
+EEOS_API_URI: ${EEOS_API_URI:http://localhost:8080}

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,13 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class BearerToPassportFilter implements GlobalFilter {
+public class BearerToPassportFilter implements GlobalFilter, Ordered {
+
+	/** RouteToRequestUrlFilter(10000)보다 먼저 실행되어 route filter 적용 전에 Bearer를 읽는다 */
+	@Override
+	public int getOrder() {
+		return -1;
+	}
 
 	private static final String BEARER_PREFIX = "Bearer ";
 	private static final String PASSPORT_HEADER = "X-User-Passport";
