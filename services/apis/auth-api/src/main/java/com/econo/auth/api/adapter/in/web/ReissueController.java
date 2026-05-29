@@ -5,7 +5,6 @@ import com.econo.auth.api.application.LoginTokenService.TokenPair;
 import com.econo.auth.core.member.application.port.out.MemberRepository;
 import com.econo.auth.core.member.domain.Member;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -49,7 +48,10 @@ public class ReissueController {
 							+ "**APP** (`Client-Type: APP`): RT를 요청 body(`refreshToken`)에서 읽음. 새 RT도 body로 반환.")
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "재발급 성공"),
-		@ApiResponse(responseCode = "401", description = "RT 없음, 만료, 또는 access token으로 재발급 시도", content = @Content)
+		@ApiResponse(
+				responseCode = "401",
+				description = "RT 없음, 만료, 또는 access token으로 재발급 시도",
+				content = @Content)
 	})
 	@PostMapping("/reissue")
 	public ResponseEntity<?> reissue(
@@ -92,7 +94,8 @@ public class ReissueController {
 
 		LoginResponse responseBody;
 		if (isApp) {
-			responseBody = LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+			responseBody =
+					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
 		} else {
 			cookieManager.setRtCookie(response, tokens.refreshToken());
 			responseBody = LoginResponse.web(tokens.accessToken(), tokens.accessExpiredAt());
@@ -115,7 +118,8 @@ public class ReissueController {
 		return ResponseEntity.ok().build();
 	}
 
-	private String resolveRefreshToken(String clientType, ReissueRequest body, HttpServletRequest request) {
+	private String resolveRefreshToken(
+			String clientType, ReissueRequest body, HttpServletRequest request) {
 		if ("APP".equalsIgnoreCase(clientType)) {
 			return body != null ? body.refreshToken() : null;
 		}

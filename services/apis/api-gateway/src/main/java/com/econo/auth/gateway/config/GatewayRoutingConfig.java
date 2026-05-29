@@ -36,7 +36,10 @@ public class GatewayRoutingConfig {
 				// EEOS-BE는 자체 HMAC 토큰을 모르므로 Bearer를 제거해야 PassportFilter가 동작
 				.route(
 						"eeos",
-						r -> r.path("/api/**").filters(f -> f.removeRequestHeader("Authorization")).uri(eeosApiUri))
+						r ->
+								r.path("/api/**")
+										.filters(f -> f.removeRequestHeader("Authorization"))
+										.uri(eeosApiUri))
 				.build();
 	}
 
@@ -54,7 +57,7 @@ public class GatewayRoutingConfig {
 				"/actuator/",
 				// EEOS-BE 공개 경로
 				"/api/health-check",
-				"/api/auth/",       // EEOS 자체 로그인
+				"/api/auth/", // EEOS 자체 로그인
 				"/api/guest/",
 				"/api/slack/events");
 	}

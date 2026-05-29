@@ -10,7 +10,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -135,13 +134,20 @@ public class AdminClientController {
 								+ "| UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType |\n"
 								+ "| VALIDATION_FAILED | clientName이 빈 문자열 |",
 				content = @Content),
-		@ApiResponse(responseCode = "401", description = "X-Internal-Api-Key 없거나 틀림", content = @Content),
-		@ApiResponse(responseCode = "409", description = "DUPLICATE_RESOURCE — clientName 또는 pathPrefix 중복", content = @Content)
+		@ApiResponse(
+				responseCode = "401",
+				description = "X-Internal-Api-Key 없거나 틀림",
+				content = @Content),
+		@ApiResponse(
+				responseCode = "409",
+				description = "DUPLICATE_RESOURCE — clientName 또는 pathPrefix 중복",
+				content = @Content)
 	})
 	@PostMapping("/clients")
 	public ResponseEntity<?> registerClient(
 			@Parameter(description = "내부 API 키 (환경변수 AUTH_INTERNAL_API_KEY)", required = true)
-					@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
+					@RequestHeader(value = "X-Internal-Api-Key", required = false)
+					String apiKeyHeader,
 			@Valid @RequestBody RegisterClientRequest request) {
 		if (!isValidApiKey(apiKeyHeader)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -192,12 +198,16 @@ public class AdminClientController {
 							+ "**인증:** `X-Internal-Api-Key` 헤더 필수")
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "라우트 목록 반환"),
-		@ApiResponse(responseCode = "401", description = "X-Internal-Api-Key 없거나 틀림", content = @Content)
+		@ApiResponse(
+				responseCode = "401",
+				description = "X-Internal-Api-Key 없거나 틀림",
+				content = @Content)
 	})
 	@GetMapping("/routes")
 	public ResponseEntity<?> getRoutes(
 			@Parameter(description = "내부 API 키", required = true)
-					@RequestHeader(value = "X-Internal-Api-Key", required = false) String internalApiKeyHeader) {
+					@RequestHeader(value = "X-Internal-Api-Key", required = false)
+					String internalApiKeyHeader) {
 		// Internal API Key 검증
 		if (internalApiKeyHeader == null
 				|| !MessageDigest.isEqual(
@@ -220,8 +230,7 @@ public class AdminClientController {
 	private boolean isValidApiKey(String header) {
 		if (header == null) return false;
 		return MessageDigest.isEqual(
-				internalApiKey.getBytes(StandardCharsets.UTF_8),
-				header.getBytes(StandardCharsets.UTF_8));
+				internalApiKey.getBytes(StandardCharsets.UTF_8), header.getBytes(StandardCharsets.UTF_8));
 	}
 
 	private GrantType parseGrantType(String grantTypeStr) {

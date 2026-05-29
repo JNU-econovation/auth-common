@@ -54,10 +54,11 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 	}
 
 	@Override
-	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
-			throws AuthenticationException {
+	public Authentication attemptAuthentication(
+			HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
 		try {
-			LoginRequest loginRequest = objectMapper.readValue(request.getInputStream(), LoginRequest.class);
+			LoginRequest loginRequest =
+					objectMapper.readValue(request.getInputStream(), LoginRequest.class);
 			String loginId = loginRequest.loginId() != null ? loginRequest.loginId() : "";
 			String password = loginRequest.password() != null ? loginRequest.password() : "";
 			return getAuthenticationManager()
@@ -84,7 +85,8 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 
 		LoginResponse body;
 		if (isApp) {
-			body = LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+			body =
+					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
 		} else {
 			cookieManager.setRtCookie(response, tokens.refreshToken());
 			body = LoginResponse.web(tokens.accessToken(), tokens.accessExpiredAt());

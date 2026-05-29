@@ -47,8 +47,7 @@ public class GatewaySecurityConfig {
 	/** BearerToPassportFilter가 실질적 인증을 담당하므로 Spring Security 레이어는 전체 허용 */
 	@Bean
 	public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
-		return http
-				.csrf(ServerHttpSecurity.CsrfSpec::disable)
+		return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
 				.authorizeExchange(ex -> ex.anyExchange().permitAll())
 				.build();
 	}

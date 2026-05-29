@@ -88,7 +88,8 @@ public class SecurityConfig {
 	}
 
 	@Bean(name = "memberAuthenticationManager")
-	@org.springframework.boot.autoconfigure.condition.ConditionalOnBean(name = "memberUserDetailsService")
+	@org.springframework.boot.autoconfigure.condition.ConditionalOnBean(
+			name = "memberUserDetailsService")
 	public AuthenticationManager memberAuthenticationManager(
 			@Qualifier("memberUserDetailsService") UserDetailsService memberUserDetailsService) {
 		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();

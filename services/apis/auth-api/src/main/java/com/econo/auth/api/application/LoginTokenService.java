@@ -77,7 +77,12 @@ public class LoginTokenService {
 						.claim(TOKEN_TYPE_CLAIM, ACCESS)
 						.build();
 		return jwtEncoder
-				.encode(JwtEncoderParameters.from(JwsHeader.with(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256).build(), claims))
+				.encode(
+						JwtEncoderParameters.from(
+								JwsHeader.with(
+												org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256)
+										.build(),
+								claims))
 				.getTokenValue();
 	}
 
@@ -91,7 +96,12 @@ public class LoginTokenService {
 						.claim(TOKEN_TYPE_CLAIM, REFRESH)
 						.build();
 		return jwtEncoder
-				.encode(JwtEncoderParameters.from(JwsHeader.with(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256).build(), claims))
+				.encode(
+						JwtEncoderParameters.from(
+								JwsHeader.with(
+												org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256)
+										.build(),
+								claims))
 				.getTokenValue();
 	}
 }
