@@ -31,4 +31,10 @@ public class MemberRepositoryAdapter implements MemberRepository {
 	public boolean existsByLoginId(String loginId) {
 		return memberJpaRepository.existsByLoginId(loginId);
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<Member> findById(Long id) {
+		return memberJpaRepository.findById(id).map(MemberJpaEntity::toDomain);
+	}
 }

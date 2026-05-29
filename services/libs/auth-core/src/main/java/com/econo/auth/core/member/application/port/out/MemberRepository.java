@@ -21,6 +21,8 @@ public interface MemberRepository {
 	 */
 	Optional<Member> findByLoginId(String loginId);
 
+	Optional<Member> findById(Long id);
+
 	/**
 	 * loginId 존재 여부 확인
 	 *

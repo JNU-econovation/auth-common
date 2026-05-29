@@ -1,11 +1,15 @@
 package com.econo.auth.core.member.domain;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import lombok.Getter;
 
 /** 회원 Aggregate Root — 불변 도메인 객체 */
 @Getter
-public class Member {
+public class Member implements Serializable {
+
+	@Serial private static final long serialVersionUID = 1L;
 
 	private final Long id;
 	private final String name;
