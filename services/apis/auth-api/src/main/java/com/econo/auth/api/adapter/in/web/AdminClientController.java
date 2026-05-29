@@ -7,6 +7,13 @@ import com.econo.auth.api.domain.GrantType;
 import com.econo.auth.api.domain.ServiceRoute;
 import com.econo.auth.api.exception.UnsupportedGrantTypeException;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.beans.ConstructorProperties;
@@ -33,6 +40,11 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>POST /api/v1/admin/clients — OAuth 클라이언트 등록 GET /api/v1/admin/routes — Gateway용 라우트 목록
  * (Internal API Key 인증)
  */
+@Tag(
+		name = "Admin — OAuth Client Management",
+		description =
+				"OAuth 클라이언트 등록 및 Gateway 라우트 관리 API. "
+						+ "모든 엔드포인트는 X-Internal-Api-Key 헤더 인증 필요 (서버 간 내부망 전용).")
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
@@ -103,9 +115,33 @@ public class AdminClientController {
 	 * @param request 등록 요청
 	 * @return 201 Created + 등록 결과
 	 */
+	@Operation(
+			summary = "OAuth 클라이언트 등록",
+			description =
+					"새 OAuth 클라이언트를 등록하고 clientId를 발급한다.\n\n"
+							+ "**grantType별 동작:**\n"
+							+ "- `authorization_code`: PKCE 필수 공개 클라이언트. `redirectUris` 필수. clientSecret 미발급.\n"
+							+ "- `client_credentials`: 비밀 클라이언트. clientSecret **1회만** 응답에 포함(이후 재조회 불가). "
+							+ "`upstreamUrl` + `pathPrefix` 지정 시 Gateway 동적 라우트 자동 등록.\n\n"
+							+ "**인증:** `X-Internal-Api-Key` 헤더 필수 (서버 내부망 전용)")
+	@ApiResponses({
+		@ApiResponse(responseCode = "201", description = "클라이언트 등록 성공"),
+		@ApiResponse(
+				responseCode = "400",
+				description =
+						"| 코드 | 설명 |\n"
+								+ "|------|------|\n"
+								+ "| REDIRECT_URI_REQUIRED | authorization_code인데 redirectUris 없음 |\n"
+								+ "| UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType |\n"
+								+ "| VALIDATION_FAILED | clientName이 빈 문자열 |",
+				content = @Content),
+		@ApiResponse(responseCode = "401", description = "X-Internal-Api-Key 없거나 틀림", content = @Content),
+		@ApiResponse(responseCode = "409", description = "DUPLICATE_RESOURCE — clientName 또는 pathPrefix 중복", content = @Content)
+	})
 	@PostMapping("/clients")
 	public ResponseEntity<?> registerClient(
-			@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
+			@Parameter(description = "내부 API 키 (환경변수 AUTH_INTERNAL_API_KEY)", required = true)
+					@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
 			@Valid @RequestBody RegisterClientRequest request) {
 		if (!isValidApiKey(apiKeyHeader)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -148,9 +184,20 @@ public class AdminClientController {
 	 * @param internalApiKeyHeader X-Internal-Api-Key 헤더 값
 	 * @return 200 OK + 라우트 목록
 	 */
+	@Operation(
+			summary = "Gateway 라우트 목록 조회",
+			description =
+					"등록된 service_route를 전체 반환한다. **api-gateway가 30초마다 폴링**하는 내부 전용 엔드포인트.\n\n"
+							+ "각 라우트는 `pathPrefix → upstreamUrl` 형태로 Gateway가 요청을 포워딩하는 데 사용된다.\n\n"
+							+ "**인증:** `X-Internal-Api-Key` 헤더 필수")
+	@ApiResponses({
+		@ApiResponse(responseCode = "200", description = "라우트 목록 반환"),
+		@ApiResponse(responseCode = "401", description = "X-Internal-Api-Key 없거나 틀림", content = @Content)
+	})
 	@GetMapping("/routes")
 	public ResponseEntity<?> getRoutes(
-			@RequestHeader(value = "X-Internal-Api-Key", required = false) String internalApiKeyHeader) {
+			@Parameter(description = "내부 API 키", required = true)
+					@RequestHeader(value = "X-Internal-Api-Key", required = false) String internalApiKeyHeader) {
 		// Internal API Key 검증
 		if (internalApiKeyHeader == null
 				|| !MessageDigest.isEqual(

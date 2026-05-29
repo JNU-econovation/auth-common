@@ -4,6 +4,12 @@ import com.econo.auth.api.application.LoginTokenService;
 import com.econo.auth.api.application.LoginTokenService.TokenPair;
 import com.econo.auth.core.member.application.port.out.MemberRepository;
 import com.econo.auth.core.member.domain.Member;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>WEB: RT를 HttpOnly 쿠키에서 읽어 재발급, APP: 요청 바디의 RT를 사용
  */
+@Tag(name = "Auth — Token Reissue & Logout", description = "AT/RT 재발급 및 로그아웃 API")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -34,7 +41,16 @@ public class ReissueController {
 	private final MemberRepository memberRepository;
 	private final TokenCookieManager cookieManager;
 
-	/** AT/RT 재발급 */
+	@Operation(
+			summary = "AT/RT 재발급",
+			description =
+					"Refresh Token으로 새 Access Token과 Refresh Token을 발급한다.\n\n"
+							+ "**WEB** (`Client-Type: WEB`, 기본): RT를 HttpOnly 쿠키(`rt`)에서 읽음. 새 RT를 쿠키로 반환.\n"
+							+ "**APP** (`Client-Type: APP`): RT를 요청 body(`refreshToken`)에서 읽음. 새 RT도 body로 반환.")
+	@ApiResponses({
+		@ApiResponse(responseCode = "200", description = "재발급 성공"),
+		@ApiResponse(responseCode = "401", description = "RT 없음, 만료, 또는 access token으로 재발급 시도", content = @Content)
+	})
 	@PostMapping("/reissue")
 	public ResponseEntity<?> reissue(
 			@RequestHeader(value = CLIENT_TYPE_HEADER, defaultValue = "WEB") String clientType,
@@ -85,7 +101,10 @@ public class ReissueController {
 		return ResponseEntity.ok(responseBody);
 	}
 
-	/** 로그아웃 — WEB: RT 쿠키 삭제 */
+	@Operation(
+			summary = "로그아웃",
+			description = "**WEB**: `rt` HttpOnly 쿠키를 Max-Age=0으로 만료시킨다.\n**APP**: 클라이언트가 RT를 직접 삭제한다.")
+	@ApiResponse(responseCode = "200", description = "로그아웃 성공 (멱등 — RT 없어도 200)")
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(
 			@RequestHeader(value = CLIENT_TYPE_HEADER, defaultValue = "WEB") String clientType,
