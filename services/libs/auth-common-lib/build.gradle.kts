@@ -4,10 +4,14 @@ plugins {
 }
 
 dependencies {
-    api("org.springframework.boot:spring-boot-starter-web")
-    api("org.springframework.boot:spring-boot-starter-validation")
+    // Passport 직렬화에 필요한 최소 의존성 — 모든 소비자(MVC/Reactive)에서 사용 가능
     api("com.fasterxml.jackson.core:jackson-databind")
     api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+
+    // PassportArgumentResolver, AuthAutoConfiguration은 Spring MVC 전용
+    // MVC 소비자는 자체 spring-boot-starter-web이 있으므로 compileOnly로 충분
+    compileOnly("org.springframework.boot:spring-boot-starter-web")
+    compileOnly("org.springframework.boot:spring-boot-starter-validation")
 }
 
 java {
