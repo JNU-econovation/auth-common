@@ -14,9 +14,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
   session:
-    store-type: jdbc
-    jdbc:
-      initialize-schema: never
+    # Authorization Code + PKCE 흐름은 수초짜리 단명 세션만 필요
+    # 분산 세션 불필요 → Tomcat 기본 인메모리 HttpSession 사용 (Java Serialization)
+    # JDBC 세션은 Jackson 허용 목록 이슈로 MemberUserDetails 직렬화 실패
+    store-type: none
   servlet:
     session:
       cookie:

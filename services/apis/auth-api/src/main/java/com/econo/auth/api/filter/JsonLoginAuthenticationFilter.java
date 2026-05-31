@@ -19,15 +19,30 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
-import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 /**
- * JSON 로그인 필터 — 인증 성공 시 AT/RT JWT를 발급한다 (세션 없음)
+ * JSON 로그인 필터 — SAS Authorization Code + PKCE 흐름과 직접 JWT 흐름을 모두 지원
  *
- * <p>{@code Client-Type: WEB} (기본): AT → body, RT → HttpOnly 쿠키<br>
- * {@code Client-Type: APP}: AT + RT 모두 → body
+ * <h2>흐름 자동 감지</h2>
+ *
+ * <ul>
+ *   <li><b>SAS 흐름</b>: 세션에 {@code /oauth2/authorize} 저장 요청이 있음 → 세션에 인증 저장 → SAS가 코드 발급 →
+ *       redirect_uri로 리다이렉트
+ *   <li><b>직접 흐름</b>: 저장 요청 없음 → JWT AT/RT 직접 발급
+ *       <ul>
+ *         <li>{@code Client-Type: WEB} (기본): AT → body, RT → HttpOnly 쿠키
+ *         <li>{@code Client-Type: APP}: AT + RT 모두 → body
+ *       </ul>
+ * </ul>
  */
 @Slf4j
 public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
@@ -40,6 +55,12 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 	private final LoginTokenService loginTokenService;
 	private final TokenCookieManager cookieManager;
 
+	private final HttpSessionSecurityContextRepository sessionContextRepository =
+			new HttpSessionSecurityContextRepository();
+	private final RequestCache requestCache = new HttpSessionRequestCache();
+	private final SavedRequestAwareAuthenticationSuccessHandler savedRequestHandler =
+			new SavedRequestAwareAuthenticationSuccessHandler();
+
 	public JsonLoginAuthenticationFilter(
 			AuthenticationManager authenticationManager,
 			ObjectMapper objectMapper,
@@ -49,8 +70,6 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		this.objectMapper = objectMapper;
 		this.loginTokenService = loginTokenService;
 		this.cookieManager = cookieManager;
-		// 세션 불필요 — JWT로 stateless 인증
-		setSecurityContextRepository(new NullSecurityContextRepository());
 	}
 
 	@Override
@@ -69,7 +88,7 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		}
 	}
 
-	/** 인증 성공 — Client-Type에 따라 AT/RT 응답 */
+	/** 인증 성공 — SAS 흐름이면 세션 저장 + redirect, 직접 흐름이면 JWT 발급 */
 	@Override
 	protected void successfulAuthentication(
 			HttpServletRequest request,
@@ -77,6 +96,30 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 			FilterChain chain,
 			Authentication authResult)
 			throws IOException {
+
+		SavedRequest savedRequest = requestCache.getRequest(request, response);
+		boolean isSasFlow =
+				savedRequest != null && savedRequest.getRedirectUrl().contains("/oauth2/authorize");
+
+		if (isSasFlow) {
+			// SAS Authorization Code + PKCE 흐름
+			// SecurityContext를 세션에 저장 → SAS가 인증 감지 → code 발급 → redirect_uri로 리다이렉트
+			log.debug("SAS Authorization Code 흐름 감지 — 세션에 인증 저장");
+			SecurityContext context = SecurityContextHolder.createEmptyContext();
+			context.setAuthentication(authResult);
+			SecurityContextHolder.setContext(context);
+			sessionContextRepository.saveContext(context, request, response);
+
+			try {
+				savedRequestHandler.onAuthenticationSuccess(request, response, authResult);
+			} catch (Exception e) {
+				log.error("SAS 리다이렉트 실패", e);
+				writeError(response, "AUTHORIZATION_REDIRECT_FAILED", "인증 후 리다이렉트에 실패했습니다.");
+			}
+			return;
+		}
+
+		// 직접 JWT 흐름
 		MemberUserDetails userDetails = (MemberUserDetails) authResult.getPrincipal();
 		TokenPair tokens = loginTokenService.issue(userDetails.getMember());
 
@@ -103,17 +146,20 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 			HttpServletRequest request, HttpServletResponse response, AuthenticationException failed)
 			throws IOException {
 		log.warn("Login failed: {}", failed.getMessage());
+		writeError(response, "INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다.");
+	}
+
+	private void writeError(HttpServletResponse response, String code, String message)
+			throws IOException {
 		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
-
-		Map<String, Object> errorBody = new HashMap<>();
-		errorBody.put("errorCode", "INVALID_CREDENTIALS");
-		errorBody.put("message", "아이디 또는 비밀번호가 올바르지 않습니다.");
-		errorBody.put("timestamp", LocalDateTime.now().toString());
-		errorBody.put("fieldErrors", null);
-
-		objectMapper.writeValue(response.getWriter(), errorBody);
+		Map<String, Object> body = new HashMap<>();
+		body.put("errorCode", code);
+		body.put("message", message);
+		body.put("timestamp", LocalDateTime.now().toString());
+		body.put("fieldErrors", null);
+		objectMapper.writeValue(response.getWriter(), body);
 	}
 
 	private record LoginRequest(String loginId, String password) {}

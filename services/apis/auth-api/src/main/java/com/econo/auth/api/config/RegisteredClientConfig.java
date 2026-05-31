@@ -57,6 +57,13 @@ public class RegisteredClientConfig {
 				.redirectUri(redirectUri)
 				.scope(OidcScopes.OPENID)
 				.scope(OidcScopes.PROFILE)
+				.scope("offline_access")
+				.tokenSettings(
+						org.springframework.security.oauth2.server.authorization.settings.TokenSettings
+								.builder()
+								.refreshTokenTimeToLive(java.time.Duration.ofDays(30))
+								.reuseRefreshTokens(false)
+								.build())
 				.clientSettings(
 						ClientSettings.builder()
 								.requireProofKey(true)

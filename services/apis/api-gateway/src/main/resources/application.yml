@@ -1,6 +1,15 @@
 spring:
   cloud:
     gateway:
+      globalcors:
+        # Gateway 레벨 CORS — 업스트림이 처리하기 전에 preflight를 잡을 수 있으므로 양쪽 모두 설정
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns: "${CORS_ALLOWED_ORIGINS:http://localhost:3000}"
+            allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
       routes:
         - id: auth-api
           uri: ${AUTH_API_URI:http://localhost:8081}
