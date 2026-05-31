@@ -1,6 +1,6 @@
 package com.econo.auth.infra.member.adapter.out.security;
 
-import com.econo.auth.core.member.application.port.out.PasswordHasher;
+import com.econo.auth.member.application.port.out.PasswordHasher;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 

@@ -1,0 +1,26 @@
+package com.econo.auth.member.exception;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+/** 비밀번호 정책 위반 예외 (HTTP 400) */
+@Getter
+public class InvalidPasswordPolicyException extends RuntimeException {
+
+	private final HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
+	private final String errorCode = "INVALID_PASSWORD_POLICY";
+
+	private InvalidPasswordPolicyException(String message) {
+		super(message);
+	}
+
+	/**
+	 * 비밀번호 정책 위반 예외 생성
+	 *
+	 * @param reason 위반 사유
+	 * @return InvalidPasswordPolicyException 인스턴스
+	 */
+	public static InvalidPasswordPolicyException of(String reason) {
+		return new InvalidPasswordPolicyException("비밀번호는 대문자·소문자·숫자·특수기호를 각 1자 이상 포함해야 합니다: " + reason);
+	}
+}

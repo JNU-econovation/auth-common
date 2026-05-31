@@ -1,7 +1,7 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.core.member.application.port.in.SignupUseCase;
-import com.econo.auth.core.member.application.port.in.SignupUseCase.SignupCommand;
+import com.econo.auth.member.application.port.in.SignupUseCase;
+import com.econo.auth.member.application.port.in.SignupUseCase.SignupCommand;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;

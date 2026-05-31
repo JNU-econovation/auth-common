@@ -1,8 +1,8 @@
 package com.econo.auth.api.config;
 
-import com.econo.auth.core.member.application.port.out.MemberRepository;
-import com.econo.auth.core.member.application.port.out.PasswordHasher;
-import com.econo.auth.core.member.application.usecase.SignupService;
+import com.econo.auth.member.application.port.out.MemberRepository;
+import com.econo.auth.member.application.port.out.PasswordHasher;
+import com.econo.auth.member.application.usecase.SignupService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

@@ -1,7 +1,7 @@
 package com.econo.auth.infra.member.adapter.out.persistence;
 
-import com.econo.auth.core.member.application.port.out.MemberRepository;
-import com.econo.auth.core.member.domain.Member;
+import com.econo.auth.member.application.port.out.MemberRepository;
+import com.econo.auth.member.domain.Member;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

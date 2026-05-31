@@ -1,7 +1,7 @@
 package com.econo.auth.api.config;
 
 import com.econo.auth.api.security.MemberUserDetails;
-import com.econo.auth.core.member.domain.Member;
+import com.econo.auth.member.domain.Member;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;

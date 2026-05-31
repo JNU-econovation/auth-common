@@ -2,8 +2,8 @@ package com.econo.auth.infra.member.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.econo.auth.core.member.domain.Member;
-import com.econo.auth.core.member.domain.MemberStatus;
+import com.econo.auth.member.domain.Member;
+import com.econo.auth.member.domain.MemberStatus;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

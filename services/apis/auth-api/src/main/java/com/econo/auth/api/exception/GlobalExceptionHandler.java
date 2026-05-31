@@ -1,7 +1,7 @@
 package com.econo.auth.api.exception;
 
-import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
-import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
+import com.econo.auth.member.exception.InvalidPasswordPolicyException;
+import com.econo.auth.member.exception.MemberAlreadyExistsException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;

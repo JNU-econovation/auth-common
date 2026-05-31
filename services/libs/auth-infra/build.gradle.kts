@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":services:libs:auth-core"))
+    implementation(project(":services:libs:member-core"))
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.security:spring-security-crypto")
 implementation("org.flywaydb:flyway-core")

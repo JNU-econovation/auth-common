@@ -1,7 +1,7 @@
 package com.econo.auth.infra.member.adapter.out.persistence;
 
-import com.econo.auth.core.member.domain.Member;
-import com.econo.auth.core.member.domain.MemberStatus;
+import com.econo.auth.member.domain.Member;
+import com.econo.auth.member.domain.MemberStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
