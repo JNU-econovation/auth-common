@@ -56,9 +56,7 @@ public class SecurityConfig {
 									&& !path.startsWith("/.well-known/")
 									&& !path.equals("/userinfo");
 						})
-				// Authorization Code + PKCE 흐름은 세션 필요 (SAS가 auth request를 세션에 보관)
-				// STATELESS → IF_REQUIRED: 직접 API 호출 시엔 세션 불생성, SAS 흐름에선 자동 생성
-				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(
 						auth ->
