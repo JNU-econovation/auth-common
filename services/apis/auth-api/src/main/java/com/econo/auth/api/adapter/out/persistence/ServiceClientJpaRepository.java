@@ -12,4 +12,8 @@ public interface ServiceClientJpaRepository extends JpaRepository<ServiceClientJ
 	 * @return 중복이면 true
 	 */
 	boolean existsByClientName(String clientName);
+
+	@org.springframework.data.jpa.repository.Query(
+			"SELECT e.registeredClientId FROM ServiceClientJpaEntity e")
+	java.util.List<String> findAllRegisteredClientIds();
 }

@@ -24,4 +24,10 @@ public class ServiceClientRepositoryAdapter implements ServiceClientRepository {
 	public boolean existsByClientName(String clientName) {
 		return serviceClientJpaRepository.existsByClientName(clientName);
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public java.util.List<String> findAllRegisteredClientIds() {
+		return serviceClientJpaRepository.findAllRegisteredClientIds();
+	}
 }

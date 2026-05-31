@@ -1,5 +1,6 @@
 package com.econo.auth.api.adapter.in.web;
 
+import com.econo.auth.api.application.ClientRedirectUriService;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
@@ -26,8 +27,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminClientController {
 
 	private final RegisterOAuthClientService registerOAuthClientService;
+	private final ClientRedirectUriService redirectUriService;
 
 	@Value("${AUTH_INTERNAL_API_KEY}")
 	private String internalApiKey;
@@ -226,6 +231,105 @@ public class AdminClientController {
 
 		return ResponseEntity.ok(new RoutesResponse(routeInfos));
 	}
+
+	// ──────────────────────────────────────────────────────────
+	// redirectUri 관리
+	// ──────────────────────────────────────────────────────────
+
+	@Operation(
+			summary = "클라이언트 조회 (redirectUri 포함)",
+			description = "clientId로 등록된 클라이언트의 상세 정보를 반환한다. **인증:** X-Internal-Api-Key")
+	@ApiResponses({
+		@ApiResponse(responseCode = "200", description = "클라이언트 정보"),
+		@ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+		@ApiResponse(responseCode = "404", description = "클라이언트 없음", content = @Content)
+	})
+	@GetMapping("/clients/{clientId}")
+	public ResponseEntity<?> getClient(
+			@Parameter(description = "내부 API 키", required = true)
+					@RequestHeader(value = "X-Internal-Api-Key", required = false)
+					String apiKeyHeader,
+			@PathVariable String clientId) {
+		if (!isValidApiKey(apiKeyHeader)) {
+			return ResponseEntity.status(401)
+					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
+		}
+		var client = redirectUriService.findByClientId(clientId);
+		return ResponseEntity.ok(
+				new ClientDetailResponse(
+						client.getClientId(), client.getClientName(), client.getRedirectUris()));
+	}
+
+	@Operation(
+			summary = "redirectUri 추가",
+			description = "기존 redirectUri 유지하면서 새 URI를 추가한다. 최대 10개. **인증:** X-Internal-Api-Key")
+	@ApiResponses({
+		@ApiResponse(responseCode = "200", description = "추가 후 전체 redirectUri 목록"),
+		@ApiResponse(responseCode = "400", description = "URI 형식 오류 또는 10개 초과", content = @Content),
+		@ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+		@ApiResponse(responseCode = "404", description = "클라이언트 없음", content = @Content)
+	})
+	@PostMapping("/clients/{clientId}/redirect-uris")
+	public ResponseEntity<?> addRedirectUri(
+			@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
+			@PathVariable String clientId,
+			@RequestBody RedirectUriRequest request) {
+		if (!isValidApiKey(apiKeyHeader)) {
+			return ResponseEntity.status(401)
+					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
+		}
+		var updated = redirectUriService.addRedirectUri(clientId, request.uri());
+		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
+	}
+
+	@Operation(
+			summary = "redirectUri 제거",
+			description = "특정 redirectUri를 삭제한다. 최소 1개는 유지해야 한다. **인증:** X-Internal-Api-Key")
+	@ApiResponses({
+		@ApiResponse(responseCode = "200", description = "삭제 후 전체 redirectUri 목록"),
+		@ApiResponse(responseCode = "400", description = "URI 없음 또는 마지막 URI 삭제 시도", content = @Content),
+		@ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+		@ApiResponse(responseCode = "404", description = "클라이언트 없음", content = @Content)
+	})
+	@DeleteMapping("/clients/{clientId}/redirect-uris")
+	public ResponseEntity<?> removeRedirectUri(
+			@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
+			@PathVariable String clientId,
+			@RequestBody RedirectUriRequest request) {
+		if (!isValidApiKey(apiKeyHeader)) {
+			return ResponseEntity.status(401)
+					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
+		}
+		var updated = redirectUriService.removeRedirectUri(clientId, request.uri());
+		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
+	}
+
+	@Operation(
+			summary = "redirectUri 전체 교체",
+			description = "기존 redirectUri를 모두 제거하고 새 목록으로 교체한다. **인증:** X-Internal-Api-Key")
+	@PutMapping("/clients/{clientId}/redirect-uris")
+	public ResponseEntity<?> replaceRedirectUris(
+			@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
+			@PathVariable String clientId,
+			@RequestBody RedirectUrisReplaceRequest request) {
+		if (!isValidApiKey(apiKeyHeader)) {
+			return ResponseEntity.status(401)
+					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
+		}
+		var updated = redirectUriService.replaceRedirectUris(clientId, request.uris());
+		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
+	}
+
+	// ── 요청/응답 DTO ────────────────────────────────────────────
+
+	record RedirectUriRequest(String uri) {}
+
+	record RedirectUrisReplaceRequest(java.util.Set<String> uris) {}
+
+	record RedirectUrisResponse(String clientId, java.util.Set<String> redirectUris) {}
+
+	record ClientDetailResponse(
+			String clientId, String clientName, java.util.Set<String> redirectUris) {}
 
 	private boolean isValidApiKey(String header) {
 		if (header == null) return false;

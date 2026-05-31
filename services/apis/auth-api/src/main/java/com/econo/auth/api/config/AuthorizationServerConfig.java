@@ -13,9 +13,6 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Spring Authorization Server(SAS) 인가 서버 전용 필터체인 설정 — {@code @Order(1)}
@@ -29,16 +26,16 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Slf4j
 @Configuration
+@lombok.RequiredArgsConstructor
 public class AuthorizationServerConfig {
+
+	private final DynamicCorsConfigurationSource dynamicCorsConfigurationSource;
 
 	@Value("${AUTH_ISSUER_URI:http://localhost:8080}")
 	private String issuerUri;
 
 	@Value("${auth.frontend-login-url:http://localhost:3000/login}")
 	private String frontendLoginUrl;
-
-	@Value("${CORS_ALLOWED_ORIGINS:http://localhost:3000}")
-	private String corsAllowedOrigins;
 
 	/**
 	 * SAS 인가 서버 전용 SecurityFilterChain — {@code @Order(1)}
@@ -62,7 +59,7 @@ public class AuthorizationServerConfig {
 										new LoginUrlAuthenticationEntryPoint(frontendLoginUrl),
 										new org.springframework.security.web.util.matcher.MediaTypeRequestMatcher(
 												MediaType.TEXT_HTML)))
-				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+				.cors(cors -> cors.configurationSource(dynamicCorsConfigurationSource))
 				.oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()));
 
 		return http.build();
@@ -79,79 +76,5 @@ public class AuthorizationServerConfig {
 	@Bean
 	public AuthorizationServerSettings authorizationServerSettings() {
 		return AuthorizationServerSettings.builder().issuer(issuerUri).build();
-	}
-
-	/**
-	 * SAS/앱 필터체인 공용 CORS 설정 소스 — api-design-plan.md CORS 정책 표 기준 경로별 분리
-	 *
-	 * <ul>
-	 *   <li>{@code /api/v1/auth/**}: 프런트 오리진 명시, GET/POST/OPTIONS, allowCredentials=true
-	 *   <li>{@code /oauth2/token}: 프런트 오리진 명시, POST/OPTIONS, allowCredentials=false
-	 *   <li>{@code /oauth2/authorize}: 프런트 오리진 명시, GET/OPTIONS, allowCredentials=true
-	 *   <li>{@code /userinfo}: 프런트 오리진 명시, GET/OPTIONS, allowCredentials=false
-	 *   <li>{@code /.well-known/**}: 전체 공개(*), GET, allowCredentials=false
-	 *   <li>{@code /oauth2/jwks}: 전체 공개(*), GET, allowCredentials=false
-	 * </ul>
-	 *
-	 * @return {@link CorsConfigurationSource}
-	 */
-	@Bean
-	public CorsConfigurationSource corsConfigurationSource() {
-		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
-		// /api/v1/auth/** — 로그인·회원가입·로그아웃 (세션 쿠키 포함)
-		CorsConfiguration authConfig = new CorsConfiguration();
-		authConfig.addAllowedOrigin(corsAllowedOrigins);
-		authConfig.addAllowedMethod("GET");
-		authConfig.addAllowedMethod("POST");
-		authConfig.addAllowedMethod("OPTIONS");
-		authConfig.addAllowedHeader("*");
-		authConfig.setAllowCredentials(true);
-		source.registerCorsConfiguration("/api/v1/auth/**", authConfig);
-
-		// /oauth2/token — 토큰 교환 (Bearer 없음, Credentials 불필요)
-		CorsConfiguration tokenConfig = new CorsConfiguration();
-		tokenConfig.addAllowedOrigin(corsAllowedOrigins);
-		tokenConfig.addAllowedMethod("POST");
-		tokenConfig.addAllowedMethod("OPTIONS");
-		tokenConfig.addAllowedHeader("*");
-		tokenConfig.setAllowCredentials(false);
-		source.registerCorsConfiguration("/oauth2/token", tokenConfig);
-
-		// /oauth2/authorize — navigate 또는 preflight
-		CorsConfiguration authorizeConfig = new CorsConfiguration();
-		authorizeConfig.addAllowedOrigin(corsAllowedOrigins);
-		authorizeConfig.addAllowedMethod("GET");
-		authorizeConfig.addAllowedMethod("OPTIONS");
-		authorizeConfig.addAllowedHeader("*");
-		authorizeConfig.setAllowCredentials(true);
-		source.registerCorsConfiguration("/oauth2/authorize", authorizeConfig);
-
-		// /userinfo — UserInfo 조회
-		CorsConfiguration userInfoConfig = new CorsConfiguration();
-		userInfoConfig.addAllowedOrigin(corsAllowedOrigins);
-		userInfoConfig.addAllowedMethod("GET");
-		userInfoConfig.addAllowedMethod("OPTIONS");
-		userInfoConfig.addAllowedHeader("*");
-		userInfoConfig.setAllowCredentials(false);
-		source.registerCorsConfiguration("/userinfo", userInfoConfig);
-
-		// /.well-known/** — Discovery (공개)
-		CorsConfiguration wellKnownConfig = new CorsConfiguration();
-		wellKnownConfig.addAllowedOriginPattern("*");
-		wellKnownConfig.addAllowedMethod("GET");
-		wellKnownConfig.addAllowedHeader("*");
-		wellKnownConfig.setAllowCredentials(false);
-		source.registerCorsConfiguration("/.well-known/**", wellKnownConfig);
-
-		// /oauth2/jwks — 공개키 (공개)
-		CorsConfiguration jwksConfig = new CorsConfiguration();
-		jwksConfig.addAllowedOriginPattern("*");
-		jwksConfig.addAllowedMethod("GET");
-		jwksConfig.addAllowedHeader("*");
-		jwksConfig.setAllowCredentials(false);
-		source.registerCorsConfiguration("/oauth2/jwks", jwksConfig);
-
-		return source;
 	}
 }

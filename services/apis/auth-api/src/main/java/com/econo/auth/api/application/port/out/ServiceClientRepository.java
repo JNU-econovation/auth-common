@@ -19,4 +19,7 @@ public interface ServiceClientRepository {
 	 * @return 중복이면 true
 	 */
 	boolean existsByClientName(String clientName);
+
+	/** 등록된 모든 클라이언트의 registered_client_id 목록 (CORS 오리진 추출용) */
+	java.util.List<String> findAllRegisteredClientIds();
 }
