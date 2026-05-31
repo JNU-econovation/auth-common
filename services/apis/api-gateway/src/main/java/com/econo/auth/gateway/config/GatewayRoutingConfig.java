@@ -50,6 +50,7 @@ public class GatewayRoutingConfig {
 				"/api/v1/auth/signup",
 				"/api/v1/auth/login",
 				"/api/v1/auth/logout",
+				"/api/v1/auth/reissue", // RT 쿠키 기반 — Bearer 없음
 				"/oauth2/",
 				"/.well-known/",
 				"/userinfo",
