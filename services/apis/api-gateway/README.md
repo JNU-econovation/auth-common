@@ -65,4 +65,4 @@ services/apis/api-gateway/
 
 ## 관련 모듈
 
-- `auth-common-lib` — `Passport` 직렬화·역할 상수 참조
+- `passport` — `Passport` 직렬화·역할 상수 참조

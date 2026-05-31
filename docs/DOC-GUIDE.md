@@ -31,11 +31,11 @@ auth-common 프로젝트의 문서화 규칙을 정의한다.
 | `services/libs/{module}/src/**` | `services/libs/{module}/README.md` |
 | `services/apis/{app}/src/main/java/.../{domain}/**` | 해당 도메인 README |
 | `services/apis/{app}/src/` 앱 루트 파일 | `services/apis/{app}/README.md` |
-| `services/libs/auth-common-lib/src/main/**` (공개 API) | 해당 모듈 README + 루트 `README.md` |
+| `services/libs/passport/src/main/**` (공개 API) | 해당 모듈 README + 루트 `README.md` |
 | `settings.gradle.kts` (모듈 추가·삭제) | `docs/ARCHITECTURE.md` 모듈 구조·의존성 |
 | `build.gradle.kts` (버전·플러그인 변경) | `docs/ARCHITECTURE.md` 기술 스택 |
-| `Passport.java`, `PassportException.java`, `Roles.java` | `docs/ARCHITECTURE.md` 계층 설계·에러 코드 체계 |
-| `PassportAuth.java`, `PassportArgumentResolver.java` | 루트 `README.md` 사용법·옵션 표 |
+| `passport` 모듈의 `Passport.java`, `PassportException.java`, `Roles.java` | `docs/ARCHITECTURE.md` 계층 설계·에러 코드 체계 |
+| `passport` 모듈의 `PassportAuth.java`, `PassportArgumentResolver.java` | 루트 `README.md` 사용법·옵션 표 |
 | 예외·에러 코드 추가 | `docs/ARCHITECTURE.md` 에러 코드 체계 + `README.md` 에러 코드 표 |
 | 테스트 구조·전략 변경 | `docs/ARCHITECTURE.md` 테스트 구조 + `docs/CONVENTION.md` 테스트 컨벤션 |
 | 네이밍·스타일 규칙 변경 | `docs/CONVENTION.md` |
@@ -68,7 +68,7 @@ auth-common 프로젝트의 문서화 규칙을 정의한다.
 | 기술 스택 | 항목·내용 표 |
 | 모듈 구조 | 디렉터리 트리 + 모듈 의존성 그래프 |
 | 인증 흐름 | ASCII 다이어그램 또는 단계별 설명 |
-| 패키지 구조 | auth-common-lib 패키지 트리 |
+| 패키지 구조 | passport 패키지 트리 |
 | 계층 설계 | core/web/config 계층 역할 |
 | 핵심 설계 결정 | 번호 매긴 "왜" 중심 결정 사항 |
 | 에러 코드 체계 | HTTP 상태·에러 코드·발생 조건 표 |
@@ -92,7 +92,7 @@ auth-common 프로젝트의 문서화 규칙을 정의한다.
 
 - 비즈니스·설계 관점에서 작성한다. 코드 레벨 디테일은 Javadoc에 맡긴다.
 - API 시그니처·필드 목록은 코드와 Javadoc이 단일 진실 소스다. 문서에 복제하지 않는다 (루트 `README.md`의 사용자 API 레퍼런스는 예외).
-- 참고 경로는 실제 파일 경로를 정확하게 명시한다 (`services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/Passport.java:42`).
+- 참고 경로는 실제 파일 경로를 정확하게 명시한다 (`services/libs/passport/src/main/java/com/econo/auth/passport/Passport.java:42`).
 - 코드를 직접 읽어 확인한 내용만 문서에 반영한다. 추측 금지.
 - 불확실한 내용은 `(추정)` 또는 `(확인 필요)` 표시.
 - 기존 문서의 구조와 톤을 유지하고, 코드 변경으로 필요한 부분만 수정한다.

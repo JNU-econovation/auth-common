@@ -35,8 +35,8 @@ auth-common 프로젝트의 코드 컨벤션.
 
 ### 1.1 패키지
 
-- 역도메인 표기법: `com.econo.common.auth` (auth-common-lib), `com.econo.auth` (auth-core, auth-infra, auth-api, api-gateway)
-- 계층별 분리: `core`, `web`, `config` (auth-common-lib); `domain`, `application.port.in`, `application.port.out`, `application.usecase`, `exception` (auth-core)
+- 역도메인 표기법: `com.econo.auth` (passport, member-core, member-infra, auth-api, api-gateway)
+- 계층별 분리: `annotation`, `resolver`, `config` (passport); `domain`, `application.port.in`, `application.port.out`, `application.usecase`, `exception` (member-core); `adapter.out.persistence` / `adapter.out.security`, `config` (member-infra)
 - 헥사고날 어댑터 패키지: `adapter.in.web` (인바운드), `adapter.out.persistence` / `adapter.out.security` / `adapter.out.token` (아웃바운드)
 - 소문자만 사용, 단어 구분 없이 연결
 
@@ -51,7 +51,7 @@ auth-common 프로젝트의 코드 컨벤션.
 | 예외 | `{Domain}Exception` | `PassportException`, `InvalidCredentialsException` |
 | 어노테이션 | `{Name}` | `PassportAuth` |
 | Resolver | `{Name}ArgumentResolver` | `PassportArgumentResolver` |
-| 설정 | `{Domain}AutoConfiguration` | `AuthAutoConfiguration` |
+| 설정 | `{Domain}AutoConfiguration` | `PassportAutoConfiguration` |
 | 설정 (일반) | `{Domain}Config` | `ApplicationServiceConfig`, `SecurityConfig` |
 | 상수 클래스 | `{Name}s` (복수형) | `Roles` |
 | 인바운드 포트 (UseCase) | `{Action}UseCase` | `SignupUseCase`, `LoginUseCase` |

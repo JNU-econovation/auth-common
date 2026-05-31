@@ -10,10 +10,10 @@
 
 | 순서 | 섹션 | 내용 |
 |------|------|------|
-| 1 | **Quick Reference** | 패키지 경로 (`com.econo.auth.xxx`), Gradle 의존 경로 (`implementation(project(":services:libs:auth-core"))`), 주요 연관 모듈, API 엔드포인트 |
+| 1 | **Quick Reference** | 패키지 경로 (`com.econo.auth.xxx`), Gradle 의존 경로 (`implementation(project(":services:libs:member-core"))`), 주요 연관 모듈, API 엔드포인트 |
 | 2 | **비즈니스 규칙** | 코드만 봐서는 알 수 없는 제약, 엣지 케이스, ⚠️ 주의사항 |
 | 3 | **코드 진입점** | Service, Repository, Entity, Errors, Controller 파일 경로 |
-| 4 | **에러 코드** | 에러 파일 경로 포인터 (예: `> 에러 정의: services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/PassportException.java`) |
+| 4 | **에러 코드** | 에러 파일 경로 포인터 (예: `> 에러 정의: services/libs/passport/src/main/java/com/econo/auth/passport/PassportException.java`) |
 | 5 | **관련 모듈** | 의존하는 내부 모듈 목록 (Gradle module path 기준) |
 
 ---
@@ -26,7 +26,7 @@
 
 - **생성 시점**: libs 모듈 디렉터리가 존재하면 README가 반드시 존재해야 한다.
 - **업데이트 시점**: 해당 모듈의 서비스·리포지토리·엔티티·에러 코드·비즈니스 로직이 변경될 때 반영한다.
-- **auth-common-lib 특이사항**: JitPack으로 외부 배포되는 라이브러리이므로 루트 `README.md`가 공개 사용자 문서 역할을 한다. 모듈 README는 내부 기여자용 설명으로 작성한다.
+- **passport 특이사항**: JitPack으로 외부 배포되는 라이브러리이므로 루트 `README.md`가 공개 사용자 문서 역할을 한다. 모듈 README는 내부 기여자용 설명으로 작성한다.
 
 ### apps README 계층 구조
 
@@ -75,10 +75,10 @@ services/apis/auth-api/
 
 | 금지 내용 | Source of Truth | 허용되는 대체 |
 |----------|----------------|-------------|
-| DB 테이블 스키마 | JPA `@Entity` 클래스 (`*.java`) | 한 줄 포인터: `> Entity 정의: services/libs/auth-infra/src/main/java/.../MemberEntity.java` |
+| DB 테이블 스키마 | JPA `@Entity` 클래스 (`*.java`) | 한 줄 포인터: `> Entity 정의: services/libs/member-infra/src/main/java/.../MemberJpaEntity.java` |
 | 파일 구조 트리 | `ls` / `glob` | — |
 | Gradle 의존성 전체 목록 | `build.gradle.kts` | — |
-| Enum·상수 전체 값 목록 | `Roles.java` 같은 상수 클래스 | 한 줄 포인터: `> Role 상수 정의: services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/Roles.java` |
+| Enum·상수 전체 값 목록 | `Roles.java` 같은 상수 클래스 | 한 줄 포인터: `> Role 상수 정의: services/libs/passport/src/main/java/com/econo/auth/passport/Roles.java` |
 | 변경 이력·changelog | `git log` | — |
 | 코드 사용 예시 | 실제 Controller·Service·Test | 최대 1개, 비즈니스 규칙 이해에 필수인 경우만 |
 | API 메서드 시그니처·필드 타입 전체 나열 | Javadoc + 실제 코드 | — |

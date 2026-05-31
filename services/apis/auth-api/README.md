@@ -82,6 +82,6 @@ services/apis/auth-api/
 
 ## 관련 모듈
 
-- `auth-core` — 도메인 모델·비즈니스 로직·유스케이스 (SignupService)
-- `auth-infra` — JPA Repository, BCrypt, Flyway 마이그레이션 (SAS 스키마 포함)
-- `auth-common-lib` — Passport 도메인 (전이 의존)
+- `member-core` — 도메인 모델·비즈니스 로직·유스케이스 (SignupService)
+- `member-infra` — JPA Repository, BCrypt, Flyway 마이그레이션 (SAS 스키마 포함)
+- `passport` — Passport 도메인 (전이 의존)
