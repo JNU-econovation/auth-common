@@ -1,6 +1,6 @@
 package com.econo.auth.gateway.security;
 
-import com.econo.common.auth.core.passport.Passport;
+import com.econo.auth.passport.Passport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;

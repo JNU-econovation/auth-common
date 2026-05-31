@@ -7,4 +7,4 @@ include("services:apis:auth-api")
 // === Libs (공유 라이브러리) ===
 include("services:libs:auth-core")
 include("services:libs:auth-infra")
-include("services:libs:auth-common-lib")
+include("services:libs:passport")

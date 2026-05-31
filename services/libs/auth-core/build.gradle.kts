@@ -3,5 +3,5 @@ plugins {
 }
 
 dependencies {
-    api(project(":services:libs:auth-common-lib"))
+    api(project(":services:libs:passport"))
 }

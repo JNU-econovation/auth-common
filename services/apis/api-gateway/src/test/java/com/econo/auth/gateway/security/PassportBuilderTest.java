@@ -2,7 +2,7 @@ package com.econo.auth.gateway.security;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.econo.common.auth.core.passport.Passport;
+import com.econo.auth.passport.Passport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.nimbusds.jose.jwk.JWKSet;
