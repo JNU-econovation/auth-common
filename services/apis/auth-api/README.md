@@ -1,87 +1,186 @@
 # auth-api
 
-ECONO OIDC Authorization Server. Spring Authorization Server(SAS 1.x) 기반으로 토큰 발급 권위를 일원화한 헤드리스 IdP.
+JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이언트 관리 API 제공.
 
-## 기본 정보
+---
 
-| 항목 | 값 |
-|---|---|
-| 역할 | OIDC Authorization Server (SAS 1.x) + 회원 가입·로그아웃 API |
-| 대상 사용자 | API Gateway (외부 클라이언트는 Gateway를 통해 접근) |
-| 인증 방식 | JSON 로그인(`/api/v1/auth/login`) → 서버 세션 수립 → SAS Authorization Code + PKCE → Access/ID Token 발급 |
-| 진입점 | `src/main/java/com/econo/auth/api/AuthApiApplication.java` |
-
-## 주요 기능
-
-| 도메인 | 설명 |
-|---|---|
-| member | loginId·비밀번호 회원 가입 / 세션 기반 로그인 / 로그아웃 |
-| OIDC Authorization Server | SAS 표준 엔드포인트 — Authorization Code, Token, JWKS, UserInfo, Discovery |
-
-## 주요 엔드포인트
-
-### 회원 API
-
-| Controller | 메서드·경로 | 성공 응답 |
-|---|---|---|
-| MemberController | `POST /api/v1/auth/signup` | 201 Created |
-| JsonLoginAuthenticationFilter | `POST /api/v1/auth/login` | 200 OK + `Set-Cookie: SESSION=...` |
-| MemberController | `POST /api/v1/auth/logout` | 200 OK (SESSION 쿠키 만료) |
-
-### SAS 표준 엔드포인트 (자동 활성화)
-
-| 경로 | 설명 |
-|---|---|
-| `GET /oauth2/authorize` | Authorization Code 발급 (PKCE 필수) |
-| `POST /oauth2/token` | Access Token / ID Token / Refresh Token 교환 |
-| `GET /oauth2/jwks` | RSA 공개키 JWKS |
-| `GET /userinfo` | OIDC UserInfo |
-| `GET /.well-known/openid-configuration` | OIDC Discovery Document |
-
-## 인증 및 권한 검증
-
-- 본 앱은 **인증을 발급**한다 (검증·소비는 다운스트림 서비스의 역할).
-- 필터체인은 두 개가 등록된다.
-  - `@Order(1)` SAS 필터체인(`AuthorizationServerConfig`): `/oauth2/**`, `/.well-known/**`, `/userinfo` 처리.
-  - `@Order(2)` 앱 필터체인(`SecurityConfig`): `/api/v1/auth/**` 처리. 세션 기반(`IF_REQUIRED`). CSRF는 `CookieCsrfTokenRepository.withHttpOnlyFalse()`, 단 `/api/v1/auth/login`, `/api/v1/auth/signup`, `/api/v1/auth/logout` 제외.
-- **⚠️ AUTH_ISSUER_URI**: issuer는 auth-api 내부 URL이 아닌 **Gateway 공개 URL**이어야 한다. JWKS URI·Discovery document 등 모든 엔드포인트 URL이 Gateway 도메인으로 발행된다.
-- **⚠️ RSA 키 고정 kid**: `jwkSource()` 빈은 `keyID("econo-auth-rsa-key-v1")` 고정 kid를 사용한다. kid가 바뀌면 기발급 토큰의 JWKS 키 매칭이 영구 실패한다.
-- `@PassportAuth`는 향후 인증이 필요한 엔드포인트가 도입될 때 사용한다.
-
-## 횡단 관심사
-
-- **GlobalExceptionHandler** (`@RestControllerAdvice`): Bean Validation 오류, `MemberAlreadyExistsException`, `InvalidPasswordPolicyException`, `IllegalArgumentException`, `ResponseStatusException`, 그 외 예외를 에러 코드·메시지 형태로 변환. Spring Security 인증 예외(`AuthenticationException`)는 `JsonLoginAuthenticationFilter`가 직접 처리하므로 핸들러 미포함.
-
-> 에러 코드 상세: `src/main/java/com/econo/auth/api/exception/GlobalExceptionHandler.java`
-
-## 모듈 구조
+## 전체 인증 플로우
 
 ```
-services/apis/auth-api/
-└── src/main/java/com/econo/auth/api/
-    ├── AuthApiApplication.java             # main() 진입점
-    ├── adapter/in/web/
-    │   ├── MemberController.java           # signup / logout 핸들러
-    │   └── SignupRequest.java              # 가입 요청 DTO (record)
-    ├── filter/
-    │   └── JsonLoginAuthenticationFilter.java  # POST /api/v1/auth/login JSON 인증 → 세션 수립
-    ├── security/
-    │   ├── MemberUserDetailsService.java   # UserDetailsService — loginId로 Member 로드
-    │   └── MemberUserDetails.java          # UserDetails 확장 — Member 래퍼
-    ├── config/
-    │   ├── AuthorizationServerConfig.java  # SAS @Order(1) 필터체인, AuthorizationServerSettings
-    │   ├── SecurityConfig.java             # 앱 @Order(2) 필터체인 (세션 기반, CSRF)
-    │   ├── RegisteredClientConfig.java     # JdbcRegisteredClientRepository + 1st-party client seed
-    │   ├── OAuth2AuthorizationServiceConfig.java  # JdbcOAuth2AuthorizationService/ConsentService 빈
-    │   ├── RsaKeyConfig.java               # PEM 환경변수 → JWKSource, JwtEncoder 빈
-    │   ├── PassportTokenCustomizer.java    # OAuth2TokenCustomizer — Passport 클레임 주입
-    │   └── ApplicationServiceConfig.java  # SignupService 빈 등록 (LoginService 제거됨)
-    └── exception/
-        └── GlobalExceptionHandler.java    # 전역 예외 핸들러
+┌──────────────────────────────────────────────────────────┐
+│                    전체 인증 흐름                          │
+└──────────────────────────────────────────────────────────┘
+
+[1단계] 로그인
+  POST /api/v1/auth/login
+  Body: {"loginId": "user01", "password": "Econo1234!"}
+  Header: Client-Type: WEB  (또는 APP)
+
+  WEB 응답:
+    Set-Cookie: at=<JWT>; HttpOnly; Domain=.econovation.kr; Max-Age=3600
+    Set-Cookie: rt=<JWT>; HttpOnly; Domain=.econovation.kr; Max-Age=2592000
+    Body: {"accessExpiredTime": 1780242839681}
+
+  APP 응답:
+    Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "..."}
+
+[2단계] API 호출 (Gateway 경유)
+  WEB:
+    브라우저가 at 쿠키 자동 전송
+    → api-gateway: at 쿠키에서 JWT 추출 → 검증 → X-User-Passport 주입 → 서비스
+
+  APP:
+    Authorization: Bearer <accessToken>
+    → api-gateway: Bearer 헤더에서 JWT 추출 → 검증 → X-User-Passport 주입 → 서비스
+
+[3단계] AT 만료 시 자동 갱신 (재로그인 없음)
+  WEB:
+    브라우저가 rt 쿠키 자동 전송
+    POST /api/v1/auth/reissue
+    → 새 at + rt 쿠키 교체
+
+  APP:
+    POST /api/v1/auth/reissue
+    Body: {"refreshToken": "<RT>"}
+    → Body: {"accessToken": "...", "refreshToken": "..."}
+
+[4단계] 로그아웃
+  WEB: POST /api/v1/auth/logout → at + rt 쿠키 삭제
+  APP: POST /api/v1/auth/logout → noop (클라이언트가 직접 토큰 폐기)
+
+[SSO: 서비스 A → 서비스 B 이동]
+  WEB: at 쿠키 Domain=.econovation.kr → 모든 서브도메인에서 자동 전송 → 재로그인 없음
+  APP: 클라이언트가 AT를 저장해두고 재사용
 ```
 
-## 관련 모듈
+---
 
-- `auth-core` — 도메인 모델·비즈니스 로직·유스케이스 (SignupService)
-- `auth-infra` — JPA Repository, BCrypt, Flyway 마이그레이션 (SAS 스키마 포함)
-- `auth-common-lib` — Passport 도메인 (전이 의존)
+## API 레퍼런스
+
+### `POST /api/v1/auth/login`
+
+| 파라미터 | 위치 | 필수 | 설명 |
+|---------|------|------|------|
+| `loginId` | Body (JSON) | ✅ | 로그인 아이디 |
+| `password` | Body (JSON) | ✅ | 비밀번호 |
+| `Client-Type` | Header | - | `WEB`(기본) 또는 `APP` |
+
+**WEB 응답:**
+```
+HTTP 200
+Set-Cookie: at=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=3600
+Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=2592000
+
+{"accessExpiredTime": 1780242839681}
+```
+
+**APP 응답:**
+```json
+{
+  "accessToken": "<JWT>",
+  "accessExpiredTime": 1780242839681,
+  "refreshToken": "<JWT>"
+}
+```
+
+---
+
+### `POST /api/v1/auth/reissue`
+
+| 파라미터 | 위치 | WEB | APP |
+|---------|------|-----|-----|
+| RT | Cookie `rt` | 자동 | - |
+| `refreshToken` | Body (JSON) | - | 필수 |
+| `Client-Type` | Header | `WEB` | `APP` |
+
+**WEB 응답:** 새 `at` + `rt` 쿠키 교체, body: `{"accessExpiredTime": ...}`
+
+**APP 응답:** `{"accessToken": ..., "accessExpiredTime": ..., "refreshToken": ...}`
+
+---
+
+### `POST /api/v1/auth/logout`
+
+**WEB:** `at` + `rt` 쿠키 Max-Age=0 삭제
+**APP:** 200 OK (클라이언트가 직접 토큰 폐기)
+
+---
+
+### `POST /api/v1/auth/signup`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "홍길동",
+    "loginId": "honggildong",
+    "password": "Econo1234!",
+    "generation": 30,
+    "status": "AM"
+  }'
+```
+
+---
+
+### `GET /oauth2/jwks`
+
+api-gateway가 JWT 서명 검증에 사용하는 공개키. 직접 호출 불필요.
+
+---
+
+## OAuth 클라이언트 관리 (X-Internal-Api-Key 헤더 필수)
+
+> 자세한 내용: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
+
+```bash
+# 클라이언트 등록
+curl -X POST http://localhost:8081/api/v1/admin/clients \
+  -H "X-Internal-Api-Key: <KEY>" \
+  -d '{"grantType": "authorization_code", "clientName": "EEOS 웹", "redirectUris": ["https://app.econovation.kr/callback"]}'
+
+# redirectUri 추가
+curl -X POST http://localhost:8081/api/v1/admin/clients/{clientId}/redirect-uris \
+  -H "X-Internal-Api-Key: <KEY>" \
+  -d '{"uri": "https://app2.econovation.kr/callback"}'
+```
+
+---
+
+## 환경 변수
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `DB_URL` | PostgreSQL JDBC URL | 필수 |
+| `DB_USERNAME` / `DB_PASSWORD` | DB 인증 | 필수 |
+| `RSA_PRIVATE_KEY` | PKCS#8 PEM 개인키 | 필수 |
+| `RSA_PUBLIC_KEY` | X.509 PEM 공개키 | 필수 |
+| `AUTH_ISSUER_URI` | JWT `iss` 클레임 (Gateway 공개 URL) | `http://localhost:8080` |
+| `AUTH_INTERNAL_API_KEY` | Admin API 인증 키 | 필수 |
+| `COOKIE_DOMAIN` | 쿠키 도메인 (`.econovation.kr`) | 빈값 |
+| `COOKIE_SECURE` | HTTPS 전용 쿠키 | `false` |
+| `AT_EXPIRY_SECONDS` | AT 유효시간 (초) | `3600` (1시간) |
+| `RT_EXPIRY_SECONDS` | RT 유효시간 (초) | `2592000` (30일) |
+
+---
+
+## 로컬 실행
+
+```bash
+# 1. PostgreSQL 실행
+docker compose -f ../../docker-compose-local.yml up -d
+
+# 2. RSA 키 생성 (최초 1회)
+openssl genrsa -out private.pem 2048
+openssl pkcs8 -topk8 -nocrypt -in private.pem -out private-pkcs8.pem
+openssl rsa -in private.pem -pubout -out public.pem
+
+# 3. 서버 실행
+DB_URL=jdbc:postgresql://localhost:5433/authdb \
+DB_USERNAME=auth DB_PASSWORD=auth1234 \
+RSA_PRIVATE_KEY="$(cat private-pkcs8.pem)" \
+RSA_PUBLIC_KEY="$(cat public.pem)" \
+AUTH_ISSUER_URI=http://localhost:8081 \
+AUTH_INTERNAL_API_KEY=local-test-key \
+COOKIE_SECURE=false \
+./gradlew :services:apis:auth-api:bootRun --args='--server.port=8081'
+```

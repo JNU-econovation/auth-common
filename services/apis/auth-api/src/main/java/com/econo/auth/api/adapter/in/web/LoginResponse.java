@@ -20,11 +20,6 @@ public record LoginResponse(String accessToken, Long accessExpiredTime, String r
 		return new LoginResponse(null, accessExpiredTime, null);
 	}
 
-	/** 하위 호환 — AT도 body에 포함 (테스트/직접 호출용) */
-	public static LoginResponse web(String accessToken, long accessExpiredTime) {
-		return new LoginResponse(accessToken, accessExpiredTime, null);
-	}
-
 	public static LoginResponse app(String accessToken, long accessExpiredTime, String refreshToken) {
 		return new LoginResponse(accessToken, accessExpiredTime, refreshToken);
 	}
