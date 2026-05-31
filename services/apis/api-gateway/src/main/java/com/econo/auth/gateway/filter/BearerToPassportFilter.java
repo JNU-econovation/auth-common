@@ -77,11 +77,24 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 						});
 	}
 
-	/** Authorization 헤더에서 Bearer 토큰 추출 */
+	/**
+	 * AT 토큰 추출 — 우선순위:
+	 *
+	 * <ol>
+	 *   <li>{@code Authorization: Bearer <token>} 헤더 (APP / 서버 간 호출)
+	 *   <li>{@code Cookie: at=<token>} (WEB 브라우저 — HttpOnly 쿠키)
+	 * </ol>
+	 */
 	private Optional<String> extractBearerToken(ServerWebExchange exchange) {
+		// 1. Authorization 헤더 (APP)
 		String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 		if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
 			return Optional.of(authHeader.substring(BEARER_PREFIX.length()));
+		}
+		// 2. at 쿠키 (WEB — Domain=.econovation.kr 설정 시 서브도메인 전체 공유)
+		var atCookie = exchange.getRequest().getCookies().getFirst("at");
+		if (atCookie != null && !atCookie.getValue().isBlank()) {
+			return Optional.of(atCookie.getValue());
 		}
 		return Optional.empty();
 	}

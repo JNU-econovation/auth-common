@@ -97,8 +97,10 @@ public class ReissueController {
 			responseBody =
 					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
 		} else {
+			// WEB: 새 AT + RT 모두 쿠키 교체
+			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
-			responseBody = LoginResponse.web(tokens.accessToken(), tokens.accessExpiredAt());
+			responseBody = LoginResponse.web(tokens.accessExpiredAt());
 		}
 
 		return ResponseEntity.ok(responseBody);
@@ -113,6 +115,7 @@ public class ReissueController {
 			@RequestHeader(value = CLIENT_TYPE_HEADER, defaultValue = "WEB") String clientType,
 			HttpServletResponse response) {
 		if (!"APP".equalsIgnoreCase(clientType)) {
+			cookieManager.deleteAtCookie(response);
 			cookieManager.deleteRtCookie(response);
 		}
 		return ResponseEntity.ok().build();

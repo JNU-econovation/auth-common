@@ -83,11 +83,14 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 
 		LoginResponse body;
 		if (isApp) {
+			// APP: AT + RT 모두 body
 			body =
 					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
 		} else {
+			// WEB: AT + RT 모두 HttpOnly 쿠키 (Domain=.econovation.kr → 서브도메인 간 SSO 자동)
+			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
-			body = LoginResponse.web(tokens.accessToken(), tokens.accessExpiredAt());
+			body = LoginResponse.web(tokens.accessExpiredAt()); // body엔 만료시간만
 		}
 
 		response.setStatus(HttpServletResponse.SC_OK);
