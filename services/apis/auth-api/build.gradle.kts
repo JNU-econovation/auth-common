@@ -4,7 +4,7 @@ plugins {
 
 dependencies {
     implementation(project(":services:libs:member-core"))
-    implementation(project(":services:libs:auth-infra"))
+    implementation(project(":services:libs:member-infra"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-authorization-server")

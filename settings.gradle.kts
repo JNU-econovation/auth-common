@@ -6,5 +6,5 @@ include("services:apis:auth-api")
 
 // === Libs (공유 라이브러리) ===
 include("services:libs:member-core")
-include("services:libs:auth-infra")
+include("services:libs:member-infra")
 include("services:libs:passport")
