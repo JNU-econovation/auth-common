@@ -9,7 +9,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-authorization-server")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.session:spring-session-jdbc")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
     testImplementation("org.testcontainers:postgresql")
     testImplementation("org.testcontainers:junit-jupiter")

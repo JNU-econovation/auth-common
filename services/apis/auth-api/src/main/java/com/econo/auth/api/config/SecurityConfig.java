@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -25,20 +24,18 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * 앱용 SecurityFilterChain — {@code @Order(2)}, JWT Stateless 인증
+ * SecurityFilterChain — JWT Stateless 인증
  *
  * <p>세션 없이 JWT 기반으로 동작한다. {@link JsonLoginAuthenticationFilter}가 성공 시 AT/RT를 발급한다.
  */
 @Configuration
 @EnableWebSecurity
-@Order(2)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
 	private final ObjectMapper objectMapper;
 
 	@Bean
-	@Order(2)
 	public SecurityFilterChain appSecurityFilterChain(
 			HttpSecurity http,
 			@Qualifier("memberAuthenticationManager")
@@ -49,14 +46,7 @@ public class SecurityConfig {
 			@org.springframework.beans.factory.annotation.Autowired(required = false)
 					TokenCookieManager cookieManager)
 			throws Exception {
-		http.securityMatcher(
-						request -> {
-							String path = request.getRequestURI();
-							return !path.startsWith("/oauth2/")
-									&& !path.startsWith("/.well-known/")
-									&& !path.equals("/userinfo");
-						})
-				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+		http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(
 						auth ->

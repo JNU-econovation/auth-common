@@ -35,6 +35,7 @@ class AdminClientControllerTest {
 	@Autowired private MockMvc mockMvc;
 
 	@MockBean private RegisterOAuthClientService registerOAuthClientService;
+	@MockBean private com.econo.auth.api.application.ClientRedirectUriService redirectUriService;
 
 	// ──────────────────────────────────────────────────────────
 	// POST /api/v1/admin/clients

@@ -13,10 +13,6 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-  session:
-    store-type: jdbc
-    jdbc:
-      initialize-schema: never
   servlet:
     session:
       cookie:
