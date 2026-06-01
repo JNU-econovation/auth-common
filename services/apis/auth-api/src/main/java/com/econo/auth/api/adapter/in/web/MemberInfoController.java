@@ -21,13 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 회원 정보 조회 API — 내부 서비스 간 회원 정보 공유용
  *
- * <p>단건/다건 모두 {@code POST /api/v1/members/query} 하나로 처리한다.
+ * <p>단건/다건 모두 {@code POST /api/v1/members/batch} 하나로 처리한다.
  *
  * <p>GET ?ids= 방식은 URL 길이 제한(서버/프록시마다 2KB~8KB)으로 인해 대량 조회가 불가능하다. body에 ID 목록을 담는 POST를 사용해 이 한계를
  * 우회한다. (Elasticsearch _msearch, Google Batch API와 동일한 패턴)
  *
  * <pre>
- * POST /api/v1/members/query
+ * POST /api/v1/members/batch
  * { "ids": [1, 2, 42] }
  * </pre>
  *
@@ -65,7 +65,7 @@ public class MemberInfoController {
 				description = "ids 빈 배열 또는 " + MAX_IDS + "개 초과",
 				content = @Content)
 	})
-	@PostMapping("/query")
+	@PostMapping("/batch")
 	public ResponseEntity<List<MemberInfoResponse>> queryMembers(
 			@Valid @RequestBody MemberQueryRequest request) {
 		List<Member> members = memberRepository.findAllByIds(request.ids());

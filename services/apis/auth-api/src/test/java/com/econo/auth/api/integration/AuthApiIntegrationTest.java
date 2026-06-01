@@ -609,7 +609,7 @@ class AuthApiIntegrationTest {
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("POST /api/v1/members/query")
+	@DisplayName("POST /api/v1/members/batch")
 	class MemberInfoTest {
 
 		@Test
@@ -620,7 +620,7 @@ class AuthApiIntegrationTest {
 
 			mockMvc
 					.perform(
-							post("/api/v1/members/query")
+							post("/api/v1/members/batch")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"ids\":[" + memberId + "]}"))
 					.andExpect(status().isOk())
@@ -641,7 +641,7 @@ class AuthApiIntegrationTest {
 
 			mockMvc
 					.perform(
-							post("/api/v1/members/query")
+							post("/api/v1/members/batch")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"ids\":[" + id1 + "," + id2 + "]}"))
 					.andExpect(status().isOk())
@@ -653,7 +653,7 @@ class AuthApiIntegrationTest {
 		void query_nonexistent_id_returns_empty_list() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/members/query")
+							post("/api/v1/members/batch")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"ids\":[999999999]}"))
 					.andExpect(status().isOk())
@@ -666,7 +666,7 @@ class AuthApiIntegrationTest {
 		void query_empty_ids_returns_400() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/members/query")
+							post("/api/v1/members/batch")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"ids\":[]}"))
 					.andExpect(status().isBadRequest());
