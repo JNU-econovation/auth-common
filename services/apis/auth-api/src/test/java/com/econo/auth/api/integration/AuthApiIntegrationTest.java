@@ -609,17 +609,20 @@ class AuthApiIntegrationTest {
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("GET /api/v1/members?ids=...")
+	@DisplayName("POST /api/v1/members/query")
 	class MemberInfoTest {
 
 		@Test
-		@DisplayName("단건: ids=1개 → 결과 1개, 이름/loginId 포함")
-		void get_single_member() throws Exception {
+		@DisplayName("단건: ids 1개 → 결과 1개, 이름/loginId 포함")
+		void query_single_member() throws Exception {
 			signup("memberinfo01");
 			Long memberId = extractMemberIdFromToken(login("memberinfo01", "APP"));
 
 			mockMvc
-					.perform(get("/api/v1/members").param("ids", String.valueOf(memberId)))
+					.perform(
+							post("/api/v1/members/query")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content("{\"ids\":[" + memberId + "]}"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$").isArray())
 					.andExpect(jsonPath("$[0].memberId").value(memberId))
@@ -628,8 +631,8 @@ class AuthApiIntegrationTest {
 		}
 
 		@Test
-		@DisplayName("다건: ids=여러개 → 존재하는 것만 반환")
-		void get_multiple_members() throws Exception {
+		@DisplayName("다건: ids 여러개 → 존재하는 것만 반환")
+		void query_multiple_members() throws Exception {
 			signup("memberinfo_a");
 			signup("memberinfo_b");
 
@@ -637,25 +640,36 @@ class AuthApiIntegrationTest {
 			Long id2 = extractMemberIdFromToken(login("memberinfo_b", "APP"));
 
 			mockMvc
-					.perform(get("/api/v1/members").param("ids", id1 + "," + id2))
+					.perform(
+							post("/api/v1/members/query")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content("{\"ids\":[" + id1 + "," + id2 + "]}"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.length()").value(2));
 		}
 
 		@Test
 		@DisplayName("없는 ID 포함해도 200 — 존재하는 것만 반환")
-		void get_with_nonexistent_id_returns_200() throws Exception {
+		void query_nonexistent_id_returns_empty_list() throws Exception {
 			mockMvc
-					.perform(get("/api/v1/members").param("ids", "999999999"))
+					.perform(
+							post("/api/v1/members/query")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content("{\"ids\":[999999999]}"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$").isArray())
 					.andExpect(jsonPath("$.length()").value(0));
 		}
 
 		@Test
-		@DisplayName("ids 파라미터 없으면 400")
-		void get_without_ids_param_returns_400() throws Exception {
-			mockMvc.perform(get("/api/v1/members")).andExpect(status().isBadRequest());
+		@DisplayName("ids 빈 배열 → 400")
+		void query_empty_ids_returns_400() throws Exception {
+			mockMvc
+					.perform(
+							post("/api/v1/members/query")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content("{\"ids\":[]}"))
+					.andExpect(status().isBadRequest());
 		}
 	}
 
