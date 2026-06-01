@@ -1,33 +1,47 @@
 # auth-infra
 
-JPA Repository, 비밀번호 해싱, JWT 발급/검증 등 인프라 어댑터 계층. `auth-core`가 정의한 포트를 어댑터로 구현한다.
-
-> **상태:** 골격 단계 — `build.gradle.kts`만 존재하고 `src/`는 비어 있다. 실 구현은 `member-auth` 작업에서 도입된다.
+JPA Repository, 비밀번호 해싱 등 인프라 어댑터 계층. `auth-core`가 정의한 포트를 어댑터로 구현한다.
 
 ## Quick Reference
 
 | 항목 | 값 |
 |---|---|
-| 패키지 | `com.econo.auth.infra` (추정 — `member-auth` 작업의 `implementation-plan.md`에서 확정) |
+| 패키지 | `com.econo.auth.infra` |
 | Gradle 의존 (내부) | `implementation(project(":services:libs:auth-infra"))` |
-| 외부 의존 | `spring-boot-starter-data-jpa` |
+| 외부 의존 | `spring-boot-starter-data-jpa`, `spring-security-crypto`, `flyway-core`, `postgresql` |
+| 의존하는 내부 모듈 | `auth-core` |
 
 ## 비즈니스 규칙
 
-현재 미구현. `member-auth` 작업의 `implementation-plan.md` / `db-design-plan.md`에서 도입 예정 항목:
+- **BCrypt cost=12**: `BCryptPasswordHasherAdapter`는 cost 12로 고정된다. 변경 시 기존 해시와 호환성 문제가 발생한다. `SecurityConfig`의 `BCryptPasswordEncoder(12)`와 동일 cost여야 한다.
+- **Flyway 자동 실행**: 애플리케이션 기동 시 `db/migration/` 경로의 마이그레이션을 자동 실행한다. `spring.jpa.hibernate.ddl-auto=validate`로 Hibernate는 스키마를 수정하지 않는다.
+- **Flyway 마이그레이션 순서**: V1(members), V2(SAS 3종 테이블), V3(Spring Session 2종 테이블). V2·V3은 `sas-authorization-server` 작업에서 추가됨.
+- **JPA 스캔 범위**: `InfraConfig`에서 `@EnableJpaRepositories`, `@EntityScan` 기준 패키지를 `com.econo.auth.infra`로 명시한다. `auth-api`에서 `auth-infra`의 빈이 스캔되려면 이 설정이 반드시 로드되어야 한다.
+- **⚠️ Spring Security 풀 스택 미사용**: BCrypt만 필요하므로 `spring-security-crypto` 모듈 단독 의존. `spring-boot-starter-security` 없음. (`jjwt` 의존성은 SAS 도입으로 제거됨)
 
-- Member JPA 엔티티 / 리포지토리 (`members` 테이블, email 유니크 인덱스)
-- BCrypt 비밀번호 해싱 어댑터 (`spring-security-crypto` 단독 사용)
-- JWT 발급/검증 어댑터 (HMAC-SHA256, OIDC 확장 시 RSA로 교체 가능)
-- ⚠️ DB 마이그레이션은 Flyway, V1 파일에서 `members` 테이블 생성
+> Entity 정의: `src/main/java/com/econo/auth/infra/member/adapter/out/persistence/MemberJpaEntity.java`
 
 ## 코드 진입점
 
-(현재 없음.)
+| 구분 | 파일 |
+|---|---|
+| JPA Entity | `src/main/java/com/econo/auth/infra/member/adapter/out/persistence/MemberJpaEntity.java` |
+| Spring Data Repository | `src/main/java/com/econo/auth/infra/member/adapter/out/persistence/MemberJpaRepository.java` |
+| MemberRepository 어댑터 | `src/main/java/com/econo/auth/infra/member/adapter/out/persistence/MemberRepositoryAdapter.java` |
+| BCrypt 어댑터 | `src/main/java/com/econo/auth/infra/member/adapter/out/security/BCryptPasswordHasherAdapter.java` |
+| JPA Auditing 설정 | `src/main/java/com/econo/auth/infra/config/JpaAuditingConfig.java` |
+| JPA/Entity 스캔 설정 | `src/main/java/com/econo/auth/infra/config/InfraConfig.java` |
+| Flyway 마이그레이션 (V1) | `src/main/resources/db/migration/V1__create_members_table.sql` |
+| Flyway 마이그레이션 (V2) | `src/main/resources/db/migration/V2__create_sas_tables.sql` |
+| Flyway 마이그레이션 (V3) | `src/main/resources/db/migration/V3__create_spring_session_tables.sql` |
+
+> `JwtTokenIssuerAdapter`는 SAS 도입으로 제거됨. 토큰 발급은 Spring Authorization Server가 전담.
 
 ## 에러 코드
 
-인프라 계층은 일반적으로 도메인 예외(`auth-core`)로 변환해 throw한다.
+인프라 계층은 도메인 예외(`auth-core`)로 변환해 throw한다. 자체 에러 코드 없음.
+
+> 도메인 예외 정의: [`services/libs/auth-core/src/main/java/com/econo/auth/core/member/exception/`](../auth-core/src/main/java/com/econo/auth/core/member/exception/)
 
 ## 관련 모듈
 

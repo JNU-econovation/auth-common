@@ -3,5 +3,5 @@ plugins {
 }
 
 dependencies {
-    api(project(":services:libs:auth-common-lib"))
+    // 순수 도메인 모듈 — Spring Web 의존성 없음
 }
