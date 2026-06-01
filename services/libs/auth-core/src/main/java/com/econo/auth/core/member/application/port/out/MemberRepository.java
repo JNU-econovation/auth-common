@@ -1,6 +1,7 @@
 package com.econo.auth.core.member.application.port.out;
 
 import com.econo.auth.core.member.domain.Member;
+import java.util.List;
 import java.util.Optional;
 
 /** 회원 영속성 조작 아웃바운드 포트 */
@@ -30,4 +31,12 @@ public interface MemberRepository {
 	 * @return 존재하면 true
 	 */
 	boolean existsByLoginId(String loginId);
+
+	/**
+	 * ID 목록으로 회원 일괄 조회
+	 *
+	 * @param ids 조회할 회원 ID 목록
+	 * @return 조회된 회원 목록 (없는 ID는 제외됨)
+	 */
+	List<Member> findAllByIds(List<Long> ids);
 }

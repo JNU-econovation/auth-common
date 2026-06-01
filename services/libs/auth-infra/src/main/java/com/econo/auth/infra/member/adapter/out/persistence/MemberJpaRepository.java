@@ -1,5 +1,6 @@
 package com.econo.auth.infra.member.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -21,4 +22,6 @@ public interface MemberJpaRepository extends JpaRepository<MemberJpaEntity, Long
 	 * @return 존재하면 true
 	 */
 	boolean existsByLoginId(String loginId);
+
+	List<MemberJpaEntity> findAllByIdIn(List<Long> ids);
 }

@@ -3,6 +3,7 @@ package com.econo.auth.gateway.filter;
 import com.econo.auth.gateway.config.GatewayRoutingConfig;
 import com.econo.auth.gateway.security.JwtVerifier;
 import com.econo.auth.gateway.security.PassportBuilder;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,24 +12,32 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Mono;
 
 /**
  * Bearer 토큰 → Passport 헤더 주입 GlobalFilter
  *
- * <p>{@code Authorization: Bearer <token>} 헤더에서 SAS 발급 JWT를 추출하고, {@link
- * JwtVerifier}(ReactiveJwtDecoder)로 RS256 서명 검증 후 {@link PassportBuilder}로 Passport 직렬화하여 {@code
- * X-User-Passport} 헤더에 주입한다. SAS OAuth 엔드포인트({@code /oauth2/**}, {@code /.well-known/**}, {@code
- * /userinfo}) 및 인증 불필요 경로는 Bearer 토큰 검증 없이 통과시킨다.
+ * <p>AT 추출 우선순위:
+ *
+ * <ol>
+ *   <li>{@code Authorization: Bearer <token>} 헤더 (APP / 서버 간 호출)
+ *   <li>{@code Cookie: at=<token>} (WEB 브라우저 — HttpOnly 쿠키)
+ * </ol>
+ *
+ * <p>인증 불필요 경로는 {@link GatewayRoutingConfig#permittedPaths()}에서 Ant 패턴으로 관리한다. 패턴 평가는 Spring의
+ * {@link PathPatternParser}를 사용하여 {@code /oauth2-hack} 같은 오탐을 방지한다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class BearerToPassportFilter implements GlobalFilter, Ordered {
 
-	/** RouteToRequestUrlFilter(10000)보다 먼저 실행되어 route filter 적용 전에 Bearer를 읽는다 */
+	/** RouteToRequestUrlFilter(10000)보다 먼저 실행 */
 	@Override
 	public int getOrder() {
 		return -1;
@@ -36,6 +45,7 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 
 	private static final String BEARER_PREFIX = "Bearer ";
 	private static final String PASSPORT_HEADER = "X-User-Passport";
+	private static final PathPatternParser PATTERN_PARSER = new PathPatternParser();
 
 	private final JwtVerifier jwtVerifier;
 	private final PassportBuilder passportBuilder;
@@ -77,21 +87,11 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 						});
 	}
 
-	/**
-	 * AT 토큰 추출 — 우선순위:
-	 *
-	 * <ol>
-	 *   <li>{@code Authorization: Bearer <token>} 헤더 (APP / 서버 간 호출)
-	 *   <li>{@code Cookie: at=<token>} (WEB 브라우저 — HttpOnly 쿠키)
-	 * </ol>
-	 */
 	private Optional<String> extractBearerToken(ServerWebExchange exchange) {
-		// 1. Authorization 헤더 (APP)
 		String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 		if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
 			return Optional.of(authHeader.substring(BEARER_PREFIX.length()));
 		}
-		// 2. at 쿠키 (WEB — Domain=.econovation.kr 설정 시 서브도메인 전체 공유)
 		var atCookie = exchange.getRequest().getCookies().getFirst("at");
 		if (atCookie != null && !atCookie.getValue().isBlank()) {
 			return Optional.of(atCookie.getValue());
@@ -99,12 +99,26 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 		return Optional.empty();
 	}
 
-	/** 인증 필요 경로 판별 */
+	/**
+	 * 인증 불필요 경로 판별 — {@link PathPatternParser}로 Ant 패턴 매칭.
+	 *
+	 * <p>단순 {@code startsWith}와 달리 {@code /oauth2/**} 패턴은 {@code /oauth2/} 이하만 매칭하여 오탐을 방지한다.
+	 */
 	private boolean isProtectedPath(String path) {
-		return routingConfig.permittedPaths().stream().noneMatch(path::startsWith);
+		List<String> patterns = routingConfig.permittedPaths();
+		PathContainer pathContainer = PathContainer.parsePath(path);
+		return patterns.stream()
+				.noneMatch(
+						pattern -> {
+							try {
+								PathPattern parsed = PATTERN_PARSER.parse(pattern);
+								return parsed.matches(pathContainer);
+							} catch (Exception e) {
+								return false;
+							}
+						});
 	}
 
-	/** 401 Unauthorized 응답 */
 	private Mono<Void> rejectUnauthorized(ServerWebExchange exchange) {
 		exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
 		return exchange.getResponse().setComplete();

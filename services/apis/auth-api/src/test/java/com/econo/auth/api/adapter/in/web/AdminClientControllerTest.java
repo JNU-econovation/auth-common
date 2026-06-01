@@ -9,6 +9,7 @@ import com.econo.auth.api.application.usecase.RegisterOAuthClientService;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
 import com.econo.auth.api.config.SecurityConfig;
+import com.econo.auth.api.exception.RedirectUriRequiredException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -104,7 +105,10 @@ class AdminClientControllerTest {
 		@DisplayName("authorization_code 타입에서 redirectUris 누락 시 400 반환")
 		@WithMockUser(roles = "ADMIN")
 		void registerAuthorizationCode_withoutRedirectUris_returns400() throws Exception {
-			// given
+			// given — redirectUri 검증은 서비스에서 처리하므로 mock이 예외를 던지도록 설정
+			given(registerOAuthClientService.register(any(RegisterOAuthClientCommand.class)))
+					.willThrow(new RedirectUriRequiredException());
+
 			String requestBody =
 					"""
 					{

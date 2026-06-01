@@ -60,6 +60,9 @@ public class SecurityConfig {
 										.permitAll()
 										.requestMatchers("/api/v1/admin/**")
 										.permitAll()
+										// Gateway가 AT 검증 후 전달 — auth-api 내부는 Gateway 인증에 의존
+										.requestMatchers("/api/v1/members/**")
+										.permitAll()
 										.anyRequest()
 										.authenticated())
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint()));

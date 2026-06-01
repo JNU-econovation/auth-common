@@ -1,5 +1,6 @@
 package com.econo.auth.api.application.usecase;
 
+import com.econo.auth.api.application.port.out.SasClientRegistrar;
 import com.econo.auth.api.application.port.out.ServiceClientRepository;
 import com.econo.auth.api.application.port.out.ServiceRouteRepository;
 import com.econo.auth.api.domain.GrantType;
@@ -18,27 +19,26 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * OAuth 클라이언트 등록 서비스
  *
- * <p>authorization_code: PKCE 필수, ClientAuthenticationMethod.NONE client_credentials: BCrypt
- * secret, SHA-256 api_key_hash
+ * <p>SAS 인프라 의존은 {@link SasClientRegistrar} 포트 뒤로 격리되어 있다.
+ *
+ * <ul>
+ *   <li>authorization_code: PKCE 필수 공개 클라이언트
+ *   <li>client_credentials: BCrypt secret, SHA-256 api_key_hash
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
 public class RegisterOAuthClientService {
 
 	private static final int SECRET_BYTE_LENGTH = 32;
-	private final RegisteredClientRepository sasRegisteredClientRepository;
+
+	private final SasClientRegistrar sasClientRegistrar;
 	private final ServiceClientRepository serviceClientRepository;
 	private final ServiceRouteRepository serviceRouteRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -73,6 +73,8 @@ public class RegisterOAuthClientService {
 	 *
 	 * @param command 등록 명령
 	 * @return 등록 결과
+	 * @throws RedirectUriRequiredException authorization_code인데 redirectUris 없을 때
+	 * @throws DuplicateClientNameException clientName 중복 시
 	 */
 	@Transactional
 	public RegisterOAuthClientResult register(RegisterOAuthClientCommand command) {
@@ -86,61 +88,28 @@ public class RegisterOAuthClientService {
 		String rawSecret = null;
 		String apiKeyHash = null;
 
-		RegisteredClient registeredClient;
-
 		if (command.grantType() == GrantType.AUTHORIZATION_CODE) {
 			if (command.redirectUris() == null || command.redirectUris().isEmpty()) {
 				throw new RedirectUriRequiredException();
 			}
-
-			RegisteredClient.Builder builder =
-					RegisteredClient.withId(UUID.randomUUID().toString())
-							.clientId(clientId)
-							.clientName(command.clientName())
-							.clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-							.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-							.scope(OidcScopes.OPENID)
-							.clientSettings(
-									ClientSettings.builder()
-											.requireProofKey(true)
-											.requireAuthorizationConsent(false)
-											.build());
-
-			for (String uri : command.redirectUris()) {
-				builder.redirectUri(uri);
-			}
-
-			registeredClient = builder.build();
-
+			sasClientRegistrar.registerAuthorizationCodeClient(
+					clientId, command.clientName(), command.redirectUris());
 		} else {
-			// CLIENT_CREDENTIALS
 			rawSecret = generateSecret();
-			String hashedSecret = "{bcrypt}" + passwordEncoder.encode(rawSecret);
 			apiKeyHash = sha256Hex(rawSecret);
-
-			registeredClient =
-					RegisteredClient.withId(UUID.randomUUID().toString())
-							.clientId(clientId)
-							.clientName(command.clientName())
-							.clientSecret(hashedSecret)
-							.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-							.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-							.scope("read")
-							.build();
+			String bcryptSecret = "{bcrypt}" + passwordEncoder.encode(rawSecret);
+			sasClientRegistrar.registerClientCredentialsClient(
+					clientId, command.clientName(), bcryptSecret);
 		}
 
-		sasRegisteredClientRepository.save(registeredClient);
-
-		ServiceClient serviceClient =
-				ServiceClient.create(clientId, command.clientName(), command.grantType(), apiKeyHash);
-		serviceClientRepository.save(serviceClient);
+		serviceClientRepository.save(
+				ServiceClient.create(clientId, command.clientName(), command.grantType(), apiKeyHash));
 
 		String routeId = null;
 		if (command.upstreamUrl() != null) {
 			routeId = UUID.randomUUID().toString();
-			ServiceRoute serviceRoute =
-					new ServiceRoute(routeId, clientId, command.upstreamUrl(), command.pathPrefix());
-			serviceRouteRepository.save(serviceRoute);
+			serviceRouteRepository.save(
+					new ServiceRoute(routeId, clientId, command.upstreamUrl(), command.pathPrefix()));
 		}
 
 		return new RegisterOAuthClientResult(clientId, rawSecret, routeId);

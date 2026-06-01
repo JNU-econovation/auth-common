@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
+import com.econo.auth.api.application.port.out.SasClientRegistrar;
 import com.econo.auth.api.application.port.out.ServiceClientRepository;
 import com.econo.auth.api.application.port.out.ServiceRouteRepository;
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
@@ -24,19 +25,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 
 /**
  * RegisterOAuthClientService 단위 테스트
  *
- * <p>plan: RegisterOAuthClientService — 핵심 서비스 - SAS RegisteredClientRepository.save() 호출 -
- * ServiceClientRepository.save() 호출 - upstreamUrl 있으면 ServiceRouteRepository.save() 추가 호출 -
- * client_credentials 시 secret 생성 + BCrypt 저장 + SHA-256 해시 저장
+ * <p>SAS 인프라 의존은 {@link SasClientRegistrar} 포트 뒤로 격리되어 있으므로 실제 SAS 없이 Mockito로 테스트한다.
  */
 @ExtendWith(MockitoExtension.class)
 class RegisterOAuthClientServiceTest {
 
-	@Mock private RegisteredClientRepository sasRegisteredClientRepository;
+	@Mock private SasClientRegistrar sasClientRegistrar;
 	@Mock private ServiceClientRepository serviceClientRepository;
 	@Mock private ServiceRouteRepository serviceRouteRepository;
 
@@ -47,10 +45,7 @@ class RegisterOAuthClientServiceTest {
 	void setUp() {
 		service =
 				new RegisterOAuthClientService(
-						sasRegisteredClientRepository,
-						serviceClientRepository,
-						serviceRouteRepository,
-						passwordEncoder);
+						sasClientRegistrar, serviceClientRepository, serviceRouteRepository, passwordEncoder);
 	}
 
 	// ──────────────────────────────────────────────────────────
@@ -62,9 +57,8 @@ class RegisterOAuthClientServiceTest {
 	class AuthorizationCodeGrantTest {
 
 		@Test
-		@DisplayName("authorization_code 등록 성공 시 SAS repository와 ServiceClient 저장이 호출된다")
+		@DisplayName("authorization_code 등록 성공 시 SAS 등록 + ServiceClient 저장이 호출된다")
 		void registerAuthorizationCode_savesBothRepositories() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(
 							GrantType.AUTHORIZATION_CODE,
@@ -73,50 +67,37 @@ class RegisterOAuthClientServiceTest {
 							null,
 							null);
 
-			// when
 			RegisterOAuthClientResult result = service.register(command);
 
-			// then
-			then(sasRegisteredClientRepository).should(times(1)).save(any());
+			then(sasClientRegistrar)
+					.should(times(1))
+					.registerAuthorizationCodeClient(anyString(), eq("테스트 SPA"), any());
 			then(serviceClientRepository).should(times(1)).save(any(ServiceClient.class));
 			then(serviceRouteRepository).should(never()).save(any(ServiceRoute.class));
 			assertThat(result.clientId()).isNotBlank();
-			assertThat(result.clientSecret()).isNull(); // authorization_code는 secret 없음
+			assertThat(result.clientSecret()).isNull();
 		}
 
 		@Test
 		@DisplayName("authorization_code 등록 시 redirectUris가 없으면 RedirectUriRequiredException 발생")
 		void registerAuthorizationCode_withoutRedirectUris_throwsException() {
-			// given
 			RegisterOAuthClientCommand command =
-					new RegisterOAuthClientCommand(
-							GrantType.AUTHORIZATION_CODE,
-							"테스트 SPA",
-							null, // redirectUris 없음
-							null,
-							null);
+					new RegisterOAuthClientCommand(GrantType.AUTHORIZATION_CODE, "테스트 SPA", null, null, null);
 
-			// when & then
 			assertThatThrownBy(() -> service.register(command))
 					.isInstanceOf(RedirectUriRequiredException.class);
 
-			then(sasRegisteredClientRepository).should(never()).save(any());
+			then(sasClientRegistrar).should(never()).registerAuthorizationCodeClient(any(), any(), any());
 			then(serviceClientRepository).should(never()).save(any());
 		}
 
 		@Test
 		@DisplayName("authorization_code 등록 시 redirectUris가 비어있으면 RedirectUriRequiredException 발생")
 		void registerAuthorizationCode_withEmptyRedirectUris_throwsException() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(
-							GrantType.AUTHORIZATION_CODE,
-							"테스트 SPA",
-							Set.of(), // 빈 집합
-							null,
-							null);
+							GrantType.AUTHORIZATION_CODE, "테스트 SPA", Set.of(), null, null);
 
-			// when & then
 			assertThatThrownBy(() -> service.register(command))
 					.isInstanceOf(RedirectUriRequiredException.class);
 		}
@@ -133,55 +114,46 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("client_credentials 등록 성공 시 rawSecret이 1회 반환된다")
 		void registerClientCredentials_returnsRawSecretOnce() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, "배치 서비스", null, null, null);
 
-			// when
 			RegisterOAuthClientResult result = service.register(command);
 
-			// then
 			assertThat(result.clientId()).isNotBlank();
 			assertThat(result.clientSecret()).isNotBlank();
 		}
 
 		@Test
-		@DisplayName("client_credentials 등록 시 SAS repository에 BCrypt 해시된 secret이 저장된다")
+		@DisplayName("client_credentials 등록 시 SAS에 BCrypt 해시된 secret이 전달된다")
 		void registerClientCredentials_savesBCryptHashedSecretToSas() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, "배치 서비스", null, null, null);
 
-			// when
 			service.register(command);
 
-			// then — SAS에 저장된 clientSecret은 BCrypt 형식이어야 한다
-			then(sasRegisteredClientRepository)
+			// SAS 포트에 전달된 secret이 {bcrypt} 형식인지 검증
+			then(sasClientRegistrar)
 					.should(times(1))
-					.save(
-							argThat(
-									rc ->
-											rc.getClientSecret() != null && rc.getClientSecret().startsWith("{bcrypt}")));
+					.registerClientCredentialsClient(
+							anyString(),
+							eq("배치 서비스"),
+							argThat(secret -> secret != null && secret.startsWith("{bcrypt}")));
 		}
 
 		@Test
-		@DisplayName("client_credentials 등록 시 ServiceClientRepository에도 SHA-256 해시가 저장된다")
+		@DisplayName("client_credentials 등록 시 ServiceClientRepository에도 저장된다")
 		void registerClientCredentials_savesSha256HashToServiceClient() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, "배치 서비스", null, null, null);
 
-			// when
 			service.register(command);
 
-			// then
 			then(serviceClientRepository).should(times(1)).save(any(ServiceClient.class));
 		}
 
 		@Test
 		@DisplayName("두 번 호출해도 서로 다른 secret이 반환된다 (매번 새로 생성)")
 		void registerClientCredentials_generatesDifferentSecretEachTime() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(
 							GrantType.CLIENT_CREDENTIALS, "배치 서비스 A", null, null, null);
@@ -189,11 +161,9 @@ class RegisterOAuthClientServiceTest {
 					new RegisterOAuthClientCommand(
 							GrantType.CLIENT_CREDENTIALS, "배치 서비스 B", null, null, null);
 
-			// when
 			RegisterOAuthClientResult result1 = service.register(command);
 			RegisterOAuthClientResult result2 = service.register(command2);
 
-			// then
 			assertThat(result1.clientSecret()).isNotEqualTo(result2.clientSecret());
 		}
 	}
@@ -209,7 +179,6 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("upstreamUrl이 있으면 ServiceRouteRepository.save()가 호출된다")
 		void registerWithUpstreamUrl_savesRoute() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(
 							GrantType.CLIENT_CREDENTIALS,
@@ -218,10 +187,8 @@ class RegisterOAuthClientServiceTest {
 							"http://ecommerce-service:8080",
 							"/api/shop");
 
-			// when
 			RegisterOAuthClientResult result = service.register(command);
 
-			// then
 			then(serviceRouteRepository).should(times(1)).save(any(ServiceRoute.class));
 			assertThat(result.routeId()).isNotBlank();
 		}
@@ -229,38 +196,27 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("upstreamUrl이 없으면 ServiceRouteRepository.save()가 호출되지 않는다")
 		void registerWithoutUpstreamUrl_doesNotSaveRoute() {
-			// given
 			RegisterOAuthClientCommand command =
-					new RegisterOAuthClientCommand(
-							GrantType.CLIENT_CREDENTIALS,
-							"배치 서비스",
-							null,
-							null, // upstreamUrl 없음
-							null);
+					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, "배치 서비스", null, null, null);
 
-			// when
 			service.register(command);
 
-			// then
 			then(serviceRouteRepository).should(never()).save(any(ServiceRoute.class));
 		}
 
 		@Test
 		@DisplayName("upstreamUrl만 있고 pathPrefix가 없으면 routeId가 반환된다")
 		void registerWithUpstreamUrlOnly_returnsRouteId() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(
 							GrantType.CLIENT_CREDENTIALS,
 							"이커머스 서비스",
 							null,
 							"http://ecommerce-service:8080",
-							null); // pathPrefix 없음
+							null);
 
-			// when
 			RegisterOAuthClientResult result = service.register(command);
 
-			// then
 			then(serviceRouteRepository).should(times(1)).save(any(ServiceRoute.class));
 			assertThat(result.routeId()).isNotBlank();
 		}
@@ -277,16 +233,15 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("이미 존재하는 clientName으로 등록 시 DuplicateClientNameException 발생")
 		void registerWithDuplicateClientName_throwsException() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, "이미있는서비스", null, null, null);
 			given(serviceClientRepository.existsByClientName("이미있는서비스")).willReturn(true);
 
-			// when & then
 			assertThatThrownBy(() -> service.register(command))
 					.isInstanceOf(DuplicateClientNameException.class);
 
-			then(sasRegisteredClientRepository).should(never()).save(any());
+			then(sasClientRegistrar).should(never()).registerAuthorizationCodeClient(any(), any(), any());
+			then(sasClientRegistrar).should(never()).registerClientCredentialsClient(any(), any(), any());
 		}
 	}
 
@@ -301,11 +256,9 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("clientName이 null이면 IllegalArgumentException 발생")
 		void registerWithNullClientName_throwsException() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(GrantType.CLIENT_CREDENTIALS, null, null, null, null);
 
-			// when & then
 			assertThatThrownBy(() -> service.register(command))
 					.isInstanceOf(IllegalArgumentException.class);
 		}
@@ -313,11 +266,9 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("grantType이 null이면 IllegalArgumentException 발생")
 		void registerWithNullGrantType_throwsException() {
-			// given
 			RegisterOAuthClientCommand command =
 					new RegisterOAuthClientCommand(null, "서비스이름", null, null, null);
 
-			// when & then
 			assertThatThrownBy(() -> service.register(command))
 					.isInstanceOf(IllegalArgumentException.class);
 		}
@@ -334,16 +285,13 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("등록된 라우트가 있으면 목록을 반환한다")
 		void getRoutes_returnsRegisteredRoutes() {
-			// given
 			ServiceRoute route =
 					new ServiceRoute(
 							"route-uuid-001", "client-uuid-123", "http://ecommerce:8080", "/api/shop");
 			given(serviceRouteRepository.findAll()).willReturn(List.of(route));
 
-			// when
 			List<ServiceRoute> routes = service.getRoutes();
 
-			// then
 			assertThat(routes).hasSize(1);
 			assertThat(routes.get(0).routeId()).isEqualTo("route-uuid-001");
 		}
@@ -351,13 +299,10 @@ class RegisterOAuthClientServiceTest {
 		@Test
 		@DisplayName("등록된 라우트가 없으면 빈 목록을 반환한다")
 		void getRoutes_withNoRoutes_returnsEmptyList() {
-			// given
 			given(serviceRouteRepository.findAll()).willReturn(List.of());
 
-			// when
 			List<ServiceRoute> routes = service.getRoutes();
 
-			// then
 			assertThat(routes).isEmpty();
 		}
 	}

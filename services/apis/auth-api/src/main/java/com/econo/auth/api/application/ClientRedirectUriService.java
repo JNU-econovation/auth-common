@@ -1,9 +1,11 @@
 package com.econo.auth.api.application;
 
+import com.econo.auth.api.application.port.out.ServiceClientRepository;
 import com.econo.auth.api.exception.InvalidClientException;
 import com.econo.auth.api.exception.RedirectUriRequiredException;
 import java.net.URI;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -25,6 +27,7 @@ public class ClientRedirectUriService {
 	private static final int MAX_URI_LENGTH = 512;
 
 	private final RegisteredClientRepository registeredClientRepository;
+	private final ServiceClientRepository serviceClientRepository;
 
 	/** clientId로 클라이언트 조회 */
 	public RegisteredClient findByClientId(String clientId) {
@@ -73,11 +76,30 @@ public class ClientRedirectUriService {
 		return uris;
 	}
 
-	/** 등록된 모든 클라이언트의 redirectUri에서 CORS 허용 오리진 추출 */
+	/**
+	 * 등록된 모든 클라이언트의 redirectUri에서 CORS 허용 오리진 추출
+	 *
+	 * <p>DB에 저장된 모든 클라이언트의 redirectUri 오리진과 additionalOrigins를 합산하여 반환한다. Gateway의 CORS 설정에 활용된다.
+	 *
+	 * @param additionalOrigins 환경변수로 추가 등록된 오리진 목록
+	 * @return 허용 오리진 목록
+	 */
 	public Set<String> extractAllowedOrigins(Set<String> additionalOrigins) {
 		Set<String> origins = new HashSet<>(additionalOrigins);
-		// RegisteredClientRepository에 전체 조회 API가 없으므로 DB에서 직접 조회는 별도 구현 필요
-		// 현재는 additionalOrigins(env)만 반환
+		serviceClientRepository.findAllRegisteredClientIds().stream()
+				.map(
+						id -> {
+							try {
+								return registeredClientRepository.findByClientId(id);
+							} catch (Exception e) {
+								return null;
+							}
+						})
+				.filter(Objects::nonNull)
+				.flatMap(client -> client.getRedirectUris().stream())
+				.map(ClientRedirectUriService::extractOrigin)
+				.filter(Objects::nonNull)
+				.forEach(origins::add);
 		return origins;
 	}
 
@@ -115,7 +137,6 @@ public class ClientRedirectUriService {
 				RegisteredClient.from(client)
 						.clientSettings(
 								ClientSettings.withSettings(client.getClientSettings().getSettings()).build());
-		// 기존 redirectUri 모두 제거 후 새로 추가
 		builder.redirectUris(
 				uris -> {
 					uris.clear();

@@ -2,8 +2,6 @@ package com.econo.auth.api.adapter.in.web;
 
 import com.econo.auth.api.application.LoginTokenService;
 import com.econo.auth.api.application.LoginTokenService.TokenPair;
-import com.econo.auth.core.member.application.port.out.MemberRepository;
-import com.econo.auth.core.member.domain.Member;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,9 +21,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * AT/RT 재발급 컨트롤러 — EEOS-BE V1 reissue 패턴과 동일
+ * AT/RT 재발급 컨트롤러
  *
- * <p>WEB: RT를 HttpOnly 쿠키에서 읽어 재발급, APP: 요청 바디의 RT를 사용
+ * <p>WEB: RT를 HttpOnly 쿠키에서 읽어 재발급, APP: 요청 바디의 RT를 사용. Member 조회는 {@link LoginTokenService}에 위임한다.
  */
 @Tag(name = "Auth — Token Reissue & Logout", description = "AT/RT 재발급 및 로그아웃 API")
 @RestController
@@ -37,7 +35,6 @@ public class ReissueController {
 
 	private final LoginTokenService loginTokenService;
 	private final JwtDecoder jwtDecoder;
-	private final MemberRepository memberRepository;
 	private final TokenCookieManager cookieManager;
 
 	@Operation(
@@ -59,6 +56,7 @@ public class ReissueController {
 			@RequestBody(required = false) ReissueRequest body,
 			HttpServletRequest request,
 			HttpServletResponse response) {
+
 		String rawRt = resolveRefreshToken(clientType, body, request);
 		if (rawRt == null || rawRt.isBlank()) {
 			return ResponseEntity.status(401)
@@ -81,15 +79,8 @@ public class ReissueController {
 					.body(new ErrorResponse("REFRESH_TOKEN_INVALID", "Access token으로 재발급 불가합니다."));
 		}
 
-		Member member =
-				memberRepository
-						.findById(memberId)
-						.orElseThrow(
-								() ->
-										new org.springframework.web.server.ResponseStatusException(
-												org.springframework.http.HttpStatus.UNAUTHORIZED));
-
-		TokenPair tokens = loginTokenService.reissue(member);
+		// Member 조회 + 토큰 재발급을 LoginTokenService에 위임
+		TokenPair tokens = loginTokenService.reissue(memberId);
 		boolean isApp = "APP".equalsIgnoreCase(clientType);
 
 		LoginResponse responseBody;
@@ -97,7 +88,6 @@ public class ReissueController {
 			responseBody =
 					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
 		} else {
-			// WEB: 새 AT + RT 모두 쿠키 교체
 			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
 			responseBody = LoginResponse.web(tokens.accessExpiredAt());
@@ -108,7 +98,8 @@ public class ReissueController {
 
 	@Operation(
 			summary = "로그아웃",
-			description = "**WEB**: `rt` HttpOnly 쿠키를 Max-Age=0으로 만료시킨다.\n**APP**: 클라이언트가 RT를 직접 삭제한다.")
+			description =
+					"**WEB**: `at`/`rt` HttpOnly 쿠키를 Max-Age=0으로 만료시킨다.\n**APP**: 클라이언트가 RT를 직접 삭제한다.")
 	@ApiResponse(responseCode = "200", description = "로그아웃 성공 (멱등 — RT 없어도 200)")
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(

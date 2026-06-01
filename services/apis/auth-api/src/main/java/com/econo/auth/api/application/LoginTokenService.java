@@ -1,11 +1,14 @@
 package com.econo.auth.api.application;
 
+import com.econo.auth.core.member.application.port.out.MemberRepository;
 import com.econo.auth.core.member.domain.Member;
+import com.econo.auth.core.member.exception.MemberNotFoundException;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
@@ -24,16 +27,22 @@ public class LoginTokenService {
 	private static final String REFRESH = "refresh";
 
 	private final JwtEncoder jwtEncoder;
+	private final JwtDecoder jwtDecoder;
+	private final MemberRepository memberRepository;
 	private final String issuer;
 	private final long atExpirySeconds;
 	private final long rtExpirySeconds;
 
 	public LoginTokenService(
 			JwtEncoder jwtEncoder,
+			JwtDecoder jwtDecoder,
+			MemberRepository memberRepository,
 			@Value("${AUTH_ISSUER_URI:http://localhost:8081}") String issuer,
 			@Value("${auth.token.at-expiry-seconds:3600}") long atExpirySeconds,
 			@Value("${auth.token.rt-expiry-seconds:2592000}") long rtExpirySeconds) {
 		this.jwtEncoder = jwtEncoder;
+		this.jwtDecoder = jwtDecoder;
+		this.memberRepository = memberRepository;
 		this.issuer = issuer;
 		this.atExpirySeconds = atExpirySeconds;
 		this.rtExpirySeconds = rtExpirySeconds;
@@ -41,11 +50,29 @@ public class LoginTokenService {
 
 	public record TokenPair(String accessToken, long accessExpiredAt, String refreshToken) {}
 
+	/** Member 객체로 AT + RT 발급 — 로그인 시 사용 */
 	public TokenPair issue(Member member) {
 		Instant now = Instant.now();
 		String at = encodeAt(member, now);
 		String rt = encodeRt(member, now);
 		return new TokenPair(at, now.plusSeconds(atExpirySeconds).toEpochMilli(), rt);
+	}
+
+	/**
+	 * memberId로 회원을 조회해 AT + RT 재발급 — 재발급 요청 시 사용.
+	 *
+	 * <p>RT 서명 검증 및 token_type 확인은 {@link ReissueController}에서 먼저 수행하고 memberId만 전달한다.
+	 *
+	 * @param memberId 회원 PK
+	 * @return 새 토큰 페어
+	 * @throws MemberNotFoundException 회원이 존재하지 않을 때 (JWT 유효하지만 회원 탈퇴 케이스)
+	 */
+	public TokenPair reissue(Long memberId) {
+		Member member =
+				memberRepository
+						.findById(memberId)
+						.orElseThrow(() -> new MemberNotFoundException(memberId));
+		return issue(member);
 	}
 
 	/** RT를 검증하고 회원 ID를 반환한다. 만료 검증은 JwtDecoder가 담당. */
@@ -55,10 +82,6 @@ public class LoginTokenService {
 			throw new IllegalArgumentException("Not a refresh token");
 		}
 		return Long.valueOf(jwt.getSubject());
-	}
-
-	public TokenPair reissue(Member member) {
-		return issue(member);
 	}
 
 	private String encodeAt(Member member, Instant now) {

@@ -88,8 +88,8 @@ class BearerToPassportFilterTest {
 								"/api/v1/auth/signup",
 								"/api/v1/auth/login",
 								"/api/v1/auth/logout",
-								"/oauth2/",
-								"/.well-known/",
+								"/oauth2/**",
+								"/.well-known/**",
 								"/userinfo"));
 		filter = new BearerToPassportFilter(jwtVerifier, passportBuilder, routingConfig);
 	}

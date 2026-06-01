@@ -2,6 +2,7 @@ package com.econo.auth.infra.member.adapter.out.persistence;
 
 import com.econo.auth.core.member.application.port.out.MemberRepository;
 import com.econo.auth.core.member.domain.Member;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -36,5 +37,14 @@ public class MemberRepositoryAdapter implements MemberRepository {
 	@Transactional(readOnly = true)
 	public Optional<Member> findById(Long id) {
 		return memberJpaRepository.findById(id).map(MemberJpaEntity::toDomain);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Member> findAllByIds(List<Long> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return List.of();
+		}
+		return memberJpaRepository.findAllByIdIn(ids).stream().map(MemberJpaEntity::toDomain).toList();
 	}
 }
