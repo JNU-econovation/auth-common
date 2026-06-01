@@ -605,6 +605,61 @@ class AuthApiIntegrationTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
+	// 회원 정보 조회
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("GET /api/v1/members?ids=...")
+	class MemberInfoTest {
+
+		@Test
+		@DisplayName("단건: ids=1개 → 결과 1개, 이름/loginId 포함")
+		void get_single_member() throws Exception {
+			signup("memberinfo01");
+			Long memberId = extractMemberIdFromToken(login("memberinfo01", "APP"));
+
+			mockMvc
+					.perform(get("/api/v1/members").param("ids", String.valueOf(memberId)))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$").isArray())
+					.andExpect(jsonPath("$[0].memberId").value(memberId))
+					.andExpect(jsonPath("$[0].name").value("memberinfo01"))
+					.andExpect(jsonPath("$[0].loginId").value("memberinfo01"));
+		}
+
+		@Test
+		@DisplayName("다건: ids=여러개 → 존재하는 것만 반환")
+		void get_multiple_members() throws Exception {
+			signup("memberinfo_a");
+			signup("memberinfo_b");
+
+			Long id1 = extractMemberIdFromToken(login("memberinfo_a", "APP"));
+			Long id2 = extractMemberIdFromToken(login("memberinfo_b", "APP"));
+
+			mockMvc
+					.perform(get("/api/v1/members").param("ids", id1 + "," + id2))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.length()").value(2));
+		}
+
+		@Test
+		@DisplayName("없는 ID 포함해도 200 — 존재하는 것만 반환")
+		void get_with_nonexistent_id_returns_200() throws Exception {
+			mockMvc
+					.perform(get("/api/v1/members").param("ids", "999999999"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$").isArray())
+					.andExpect(jsonPath("$.length()").value(0));
+		}
+
+		@Test
+		@DisplayName("ids 파라미터 없으면 400")
+		void get_without_ids_param_returns_400() throws Exception {
+			mockMvc.perform(get("/api/v1/members")).andExpect(status().isBadRequest());
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
 	// 헬퍼
 	// ──────────────────────────────────────────────────────────
 
@@ -639,6 +694,21 @@ class AuthApiIntegrationTest {
 	 * TokenCookieManager가 response.addHeader(SET_COOKIE, ...) 방식을 사용하므로 response.getCookie()가 아닌
 	 * Set-Cookie 헤더를 직접 파싱해야 한다.
 	 */
+	/** APP 로그인 응답에서 JWT의 memberId 클레임을 추출한다. */
+	private Long extractMemberIdFromToken(MvcResult loginResult) throws Exception {
+		String at =
+				objectMapper
+						.readValue(loginResult.getResponse().getContentAsString(), Map.class)
+						.get("accessToken")
+						.toString();
+		// JWT payload 디코딩 (Base64URL, padding 없음)
+		String payload = at.split("\\.")[1];
+		int pad = (4 - payload.length() % 4) % 4;
+		byte[] decoded = java.util.Base64.getDecoder().decode(payload + "=".repeat(pad));
+		Map<?, ?> claims = objectMapper.readValue(new String(decoded), Map.class);
+		return ((Number) claims.get("memberId")).longValue();
+	}
+
 	private String getCookieValue(MockHttpServletResponse response, String name) {
 		return response.getHeaders("Set-Cookie").stream()
 				.filter(h -> h.startsWith(name + "="))

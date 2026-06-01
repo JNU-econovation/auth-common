@@ -2,34 +2,31 @@ package com.econo.auth.api.adapter.in.web;
 
 import com.econo.auth.core.member.application.port.out.MemberRepository;
 import com.econo.auth.core.member.domain.Member;
-import com.econo.auth.core.member.exception.MemberNotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 회원 정보 조회 API — 내부 서비스 간 회원 정보 공유용
  *
- * <p>Gateway가 AT를 검증하고 X-User-Passport 헤더를 주입한 이후 도달하는 엔드포인트이다. 다른 서비스(EEOS-BE 등)에서 타 회원 정보가 필요할 때
- * Gateway를 통해 이 API를 호출한다.
+ * <p>단건/다건 모두 {@code GET /api/v1/members?ids=1,2,3} 하나로 처리한다. 없는 ID는 결과에서 조용히 제외된다.
  *
  * <pre>
- * 단건:  GET  /api/v1/members/{memberId}
- * 다건:  POST /api/v1/members/batch  { "memberIds": [1, 2, 3] }
+ * 단건: GET /api/v1/members?ids=42
+ * 다건: GET /api/v1/members?ids=1,2,42
  * </pre>
+ *
+ * <p>Gateway가 AT를 검증하고 X-User-Passport를 주입한 이후 도달하는 엔드포인트이므로 별도 인증 처리가 없다.
  */
 @Tag(name = "Members — Info", description = "회원 정보 조회 API (Gateway 인증 후 내부 서비스 호출용)")
 @RestController
@@ -39,54 +36,24 @@ public class MemberInfoController {
 
 	private final MemberRepository memberRepository;
 
-	/**
-	 * 단건 회원 정보 조회
-	 *
-	 * @param memberId 조회할 회원 ID
-	 */
 	@Operation(
-			summary = "단건 회원 정보 조회",
-			description = "memberId로 회원 정보를 조회한다. Gateway를 통해 인증된 요청만 허용 (X-User-Passport 필수).")
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "조회 성공"),
-		@ApiResponse(responseCode = "404", description = "MEMBER_NOT_FOUND", content = @Content)
-	})
-	@GetMapping("/{memberId}")
-	public ResponseEntity<MemberInfoResponse> getMember(
-			@Parameter(description = "조회할 회원 ID") @PathVariable Long memberId) {
-		Member member =
-				memberRepository
-						.findById(memberId)
-						.orElseThrow(() -> new MemberNotFoundException(memberId));
-		return ResponseEntity.ok(MemberInfoResponse.from(member));
-	}
-
-	/**
-	 * 다건 회원 정보 일괄 조회
-	 *
-	 * <p>존재하지 않는 ID는 결과에서 제외된다 (오류 아님). 중복 ID는 한 번만 포함된다.
-	 *
-	 * @param request 조회할 회원 ID 목록
-	 */
-	@Operation(
-			summary = "다건 회원 정보 일괄 조회",
+			summary = "회원 정보 조회 (단건/다건 통합)",
 			description =
-					"최대 100개 ID를 한 번에 조회한다. 존재하지 않는 ID는 결과에서 조용히 제외된다.\n\n"
-							+ "```json\n"
-							+ "{ \"memberIds\": [1, 2, 42] }\n"
-							+ "```")
+					"IDs 목록으로 회원 정보를 조회한다. 단건도 동일한 엔드포인트를 사용한다.\n\n"
+							+ "- 단건: `GET /api/v1/members?ids=42`\n"
+							+ "- 다건: `GET /api/v1/members?ids=1,2,42`\n\n"
+							+ "존재하지 않는 ID는 결과에서 조용히 제외된다. 중복 ID는 한 번만 포함된다.")
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "조회 성공 (결과가 0개여도 200)"),
-		@ApiResponse(responseCode = "400", description = "memberIds 빈 배열", content = @Content)
+		@ApiResponse(responseCode = "400", description = "ids 파라미터 없음", content = @Content)
 	})
-	@PostMapping("/batch")
+	@GetMapping
 	public ResponseEntity<List<MemberInfoResponse>> getMembers(
-			@RequestBody MemberBatchRequest request) {
-		List<Member> members = memberRepository.findAllByIds(request.memberIds());
+			@Parameter(description = "조회할 회원 ID 목록 (쉼표 구분, 예: 1,2,42)", required = true) @RequestParam
+					List<Long> ids) {
+		List<Member> members = memberRepository.findAllByIds(ids);
 		return ResponseEntity.ok(members.stream().map(MemberInfoResponse::from).toList());
 	}
-
-	// ── DTO ─────────────────────────────────────────────────────
 
 	/**
 	 * 회원 정보 응답 DTO
@@ -109,11 +76,4 @@ public class MemberInfoController {
 					member.getStatus().name());
 		}
 	}
-
-	/**
-	 * 다건 조회 요청 DTO
-	 *
-	 * @param memberIds 조회할 회원 ID 목록 (최대 100개)
-	 */
-	public record MemberBatchRequest(@NotEmpty List<Long> memberIds) {}
 }
