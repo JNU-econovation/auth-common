@@ -1,14 +1,9 @@
 package com.econo.auth.core.member.exception;
 
-import lombok.Getter;
-import org.springframework.http.HttpStatus;
-
-/** loginId 중복 예외 (HTTP 409) */
-@Getter
+/** loginId 중복 예외 — HTTP 매핑은 GlobalExceptionHandler가 담당 */
 public class MemberAlreadyExistsException extends RuntimeException {
 
-	private final HttpStatus httpStatus = HttpStatus.CONFLICT;
-	private final String errorCode = "MEMBER_ALREADY_EXISTS";
+	public static final String ERROR_CODE = "MEMBER_ALREADY_EXISTS";
 
 	private MemberAlreadyExistsException(String message) {
 		super(message);

@@ -1,14 +1,9 @@
 package com.econo.auth.core.member.exception;
 
-import lombok.Getter;
-import org.springframework.http.HttpStatus;
-
-/** 비밀번호 정책 위반 예외 (HTTP 400) */
-@Getter
+/** 비밀번호 정책 위반 예외 — HTTP 매핑은 GlobalExceptionHandler가 담당 */
 public class InvalidPasswordPolicyException extends RuntimeException {
 
-	private final HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
-	private final String errorCode = "INVALID_PASSWORD_POLICY";
+	public static final String ERROR_CODE = "INVALID_PASSWORD_POLICY";
 
 	private InvalidPasswordPolicyException(String message) {
 		super(message);

@@ -1,16 +1,10 @@
 package com.econo.auth.core.member.exception;
 
-import lombok.Getter;
-import org.springframework.http.HttpStatus;
-
-/** 인증 실패 예외 (HTTP 401) */
-@Getter
+/** 인증 실패 예외 — HTTP 매핑은 GlobalExceptionHandler가 담당 */
 public class InvalidCredentialsException extends RuntimeException {
 
+	public static final String ERROR_CODE = "INVALID_CREDENTIALS";
 	private static final String FIXED_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다";
-
-	private final HttpStatus httpStatus = HttpStatus.UNAUTHORIZED;
-	private final String errorCode = "INVALID_CREDENTIALS";
 
 	private InvalidCredentialsException() {
 		super(FIXED_MESSAGE);
