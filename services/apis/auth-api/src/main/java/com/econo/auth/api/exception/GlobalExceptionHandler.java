@@ -72,6 +72,18 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
+	 * 클라이언트 미존재 예외 처리 — ClientRedirectUriService.findByClientId 등에서 발생
+	 *
+	 * @param ex 예외
+	 * @return 404 CLIENT_NOT_FOUND
+	 */
+	@ExceptionHandler(InvalidClientException.class)
+	public ResponseEntity<ApiError> handleInvalidClient(InvalidClientException ex) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(new ApiError("CLIENT_NOT_FOUND", ex.getMessage()));
+	}
+
+	/**
 	 * 비밀번호 정책 위반 예외 처리
 	 *
 	 * @param ex 예외
@@ -92,7 +104,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-				.body(new ApiError("INVALID_LOGIN_ID_FORMAT", ex.getMessage(), LocalDateTime.now(), null));
+				.body(new ApiError("INVALID_ARGUMENT", ex.getMessage(), LocalDateTime.now(), null));
 	}
 
 	/**
