@@ -65,7 +65,7 @@ auth-common-lib (독립, 외부 서비스에 배포)
 | **api-gateway** | App | 클라이언트 요청 수신, Bearer JWT RS256 검증 → Passport 생성 → 헤더 전달. SAS OAuth 엔드포인트를 auth-api로 프록시 |
 | **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인 → 세션 수립 → Authorization Code + PKCE → 토큰 발급 |
 | **auth-core** | Lib | Member 엔티티, 회원가입 비즈니스 로직, 도메인 규칙. Spring 독립. |
-| **auth-infra** | Lib | JPA Repository, Flyway 마이그레이션 (members, SAS 3종, Spring Session 2종) |
+| **auth-infra** | Lib | JPA Repository, Flyway 마이그레이션 (members, SAS 3종, Spring Session 2종, service_client·service_route, grant_type nullable) |
 | **auth-common-lib** | Lib | Passport 도메인, @PassportAuth 어노테이션, ArgumentResolver. 외부 마이크로서비스가 의존하는 공유 라이브러리 |
 
 ## 인증 흐름

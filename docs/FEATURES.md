@@ -134,13 +134,20 @@ Body: {
 #### 클라이언트 등록
 ```
 POST /api/v1/admin/clients
+
+// grantType 생략 → client_credentials 디폴트 (가장 단순)
 {
-  "grantType": "authorization_code",   // SPA/웹앱
+  "clientName": "app-b"
+}
+
+// SPA/웹앱 (authorization_code 명시)
+{
+  "grantType": "authorization_code",
   "clientName": "EEOS 웹",
   "redirectUris": ["https://app.econovation.kr/callback"]
 }
 
-// 또는 서버간 + 라우팅 등록
+// 서버간 + 라우팅 등록
 {
   "grantType": "client_credentials",
   "clientName": "새 서비스",
@@ -197,7 +204,6 @@ GET    /api/v1/admin/clients/{clientId}                // 조회
 curl -X POST http://auth-api:8081/api/v1/admin/clients \
   -H "X-Internal-Api-Key: <KEY>" \
   -d '{
-    "grantType": "client_credentials",
     "clientName": "내 새 서비스",
     "upstreamUrl": "http://my-service:8080",
     "pathPrefix": "/api/my-service"
