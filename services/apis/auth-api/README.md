@@ -137,13 +137,13 @@ redirectUri 관리 4개 endpoint는 `Authorization: Basic base64(clientId:client
 
 ```bash
 # 클라이언트 등록 (public — 인증 불필요)
-curl -X POST http://localhost:8081/api/v1/admin/clients \
+curl -X POST http://localhost:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{"grantType": "authorization_code", "clientName": "EEOS 웹", "redirectUris": ["https://app.econovation.kr/callback"]}'
 
 # redirectUri 추가 (Basic Auth 필요 — clientId:clientSecret 을 Base64 인코딩)
 BASIC_TOKEN=$(echo -n "{clientId}:{clientSecret}" | base64)
-curl -X POST http://localhost:8081/api/v1/admin/clients/{clientId}/redirect-uris \
+curl -X POST http://localhost:8081/api/v1/clients/{clientId}/redirect-uris \
   -H "Authorization: Basic ${BASIC_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"uri": "https://app2.econovation.kr/callback"}'

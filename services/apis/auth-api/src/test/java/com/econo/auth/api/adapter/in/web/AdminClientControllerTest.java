@@ -31,9 +31,9 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * AdminClientController 웹 레이어 테스트 — OAuth 클라이언트 등록 API
  *
- * <p>plan: POST /api/v1/admin/clients — OAuth 클라이언트 등록 (public) plan: GET /api/v1/admin/routes —
- * Gateway용 라우트 목록 (public) plan: GET /api/v1/admin/clients/{clientId} — Basic Auth 인증 plan:
- * POST|DELETE|PUT /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth 인증
+ * <p>plan: POST /api/v1/clients — OAuth 클라이언트 등록 (public) plan: GET /api/v1/routes —
+ * Gateway용 라우트 목록 (public) plan: GET /api/v1/clients/{clientId} — Basic Auth 인증 plan:
+ * POST|DELETE|PUT /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증
  */
 @WebMvcTest(AdminClientController.class)
 @Import(SecurityConfig.class)
@@ -53,11 +53,11 @@ class AdminClientControllerTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// POST /api/v1/admin/clients
+	// POST /api/v1/clients
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("POST /api/v1/admin/clients — OAuth 클라이언트 등록")
+	@DisplayName("POST /api/v1/clients — OAuth 클라이언트 등록")
 	class RegisterClientTest {
 
 		@Test
@@ -78,7 +78,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isCreated())
@@ -103,7 +103,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isCreated())
@@ -129,7 +129,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isBadRequest())
@@ -152,7 +152,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isCreated())
@@ -175,7 +175,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isBadRequest())
@@ -202,7 +202,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isCreated())
@@ -226,7 +226,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
 					.andExpect(status().isBadRequest())
@@ -247,7 +247,7 @@ class AdminClientControllerTest {
 			// when & then — 구 헤더 포함해도 정상 처리
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("X-Internal-Api-Key", "any-legacy-value")
 									.content(requestBody))
@@ -256,11 +256,11 @@ class AdminClientControllerTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// GET /api/v1/admin/routes
+	// GET /api/v1/routes
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("GET /api/v1/admin/routes — Gateway 라우트 목록 조회")
+	@DisplayName("GET /api/v1/routes — Gateway 라우트 목록 조회")
 	class GetRoutesTest {
 
 		@Test
@@ -269,7 +269,7 @@ class AdminClientControllerTest {
 			// given — 인증 헤더 없음 (public endpoint)
 			// when & then
 			mockMvc
-					.perform(get("/api/v1/admin/routes"))
+					.perform(get("/api/v1/routes"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.routes").isArray());
 		}
@@ -280,17 +280,17 @@ class AdminClientControllerTest {
 			// given — 구 헤더 포함 (무시됨)
 			// when & then
 			mockMvc
-					.perform(get("/api/v1/admin/routes").header("X-Internal-Api-Key", "any-legacy-value"))
+					.perform(get("/api/v1/routes").header("X-Internal-Api-Key", "any-legacy-value"))
 					.andExpect(status().isOk());
 		}
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// GET /api/v1/admin/clients/{clientId} — Basic Auth
+	// GET /api/v1/clients/{clientId} — Basic Auth
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("GET /api/v1/admin/clients/{clientId} — Basic Auth 인증")
+	@DisplayName("GET /api/v1/clients/{clientId} — Basic Auth 인증")
 	class GetClientBasicAuthTest {
 
 		private static final String CLIENT_ID = "test-client-id";
@@ -317,7 +317,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + CLIENT_ID)
+							get("/api/v1/clients/" + CLIENT_ID)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, RAW_SECRET)))
 					.andExpect(status().isOk());
 		}
@@ -334,7 +334,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + CLIENT_ID)
+							get("/api/v1/clients/" + CLIENT_ID)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, "wrong-secret")))
 					.andExpect(status().isUnauthorized())
 					.andExpect(jsonPath("$.errorCode").value("INVALID_CLIENT_CREDENTIALS"))
@@ -354,7 +354,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + CLIENT_ID)
+							get("/api/v1/clients/" + CLIENT_ID)
 									.header("Authorization", basicAuthHeader(otherClientId, RAW_SECRET)))
 					.andExpect(status().isForbidden())
 					.andExpect(jsonPath("$.errorCode").value("FORBIDDEN_CLIENT_MISMATCH"));
@@ -366,7 +366,7 @@ class AdminClientControllerTest {
 			// given — Authorization 헤더 없음
 			// when & then
 			mockMvc
-					.perform(get("/api/v1/admin/clients/" + CLIENT_ID))
+					.perform(get("/api/v1/clients/" + CLIENT_ID))
 					.andExpect(status().isUnauthorized())
 					.andExpect(jsonPath("$.errorCode").value("INVALID_CLIENT_CREDENTIALS"))
 					.andExpect(header().string("WWW-Authenticate", "Basic realm=\"admin\""));
@@ -374,11 +374,11 @@ class AdminClientControllerTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// POST /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth
+	// POST /api/v1/clients/{clientId}/redirect-uris — Basic Auth
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("POST /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth 인증")
+	@DisplayName("POST /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증")
 	class AddRedirectUriBasicAuthTest {
 
 		private static final String CLIENT_ID = "test-client-id";
@@ -400,7 +400,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							post("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -419,7 +419,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							post("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, "wrong-secret"))
 									.content(REQUEST_BODY))
@@ -441,7 +441,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							post("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(otherClientId, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -456,7 +456,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							post("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(REQUEST_BODY))
 					.andExpect(status().isUnauthorized())
@@ -466,11 +466,11 @@ class AdminClientControllerTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// DELETE /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth
+	// DELETE /api/v1/clients/{clientId}/redirect-uris — Basic Auth
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("DELETE /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth 인증")
+	@DisplayName("DELETE /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증")
 	class RemoveRedirectUriBasicAuthTest {
 
 		private static final String CLIENT_ID = "test-client-id";
@@ -492,7 +492,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							delete("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							delete("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -511,7 +511,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							delete("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							delete("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, "wrong-secret"))
 									.content(REQUEST_BODY))
@@ -533,7 +533,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							delete("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							delete("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(otherClientId, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -548,7 +548,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							delete("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							delete("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(REQUEST_BODY))
 					.andExpect(status().isUnauthorized())
@@ -558,11 +558,11 @@ class AdminClientControllerTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
-	// PUT /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth
+	// PUT /api/v1/clients/{clientId}/redirect-uris — Basic Auth
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("PUT /api/v1/admin/clients/{clientId}/redirect-uris — Basic Auth 인증")
+	@DisplayName("PUT /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증")
 	class ReplaceRedirectUrisBasicAuthTest {
 
 		private static final String CLIENT_ID = "test-client-id";
@@ -585,7 +585,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							put("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							put("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -604,7 +604,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							put("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							put("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(CLIENT_ID, "wrong-secret"))
 									.content(REQUEST_BODY))
@@ -626,7 +626,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							put("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							put("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.header("Authorization", basicAuthHeader(otherClientId, RAW_SECRET))
 									.content(REQUEST_BODY))
@@ -641,7 +641,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							put("/api/v1/admin/clients/" + CLIENT_ID + "/redirect-uris")
+							put("/api/v1/clients/" + CLIENT_ID + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(REQUEST_BODY))
 					.andExpect(status().isUnauthorized())

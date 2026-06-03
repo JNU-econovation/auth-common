@@ -130,7 +130,7 @@ public ResponseEntity<?> getSettings(
 ### 방법 A: admin API로 등록 (운영 중 추가)
 
 ```bash
-curl -X POST https://gateway.econovation.kr/api/v1/admin/clients \
+curl -X POST https://gateway.econovation.kr/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",

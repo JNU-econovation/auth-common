@@ -36,7 +36,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *   <li>토큰 재발급 WEB/APP (POST /api/v1/auth/reissue)
  *   <li>로그아웃 (POST /api/v1/auth/logout)
  *   <li>JWKS 공개키 (GET /oauth2/jwks)
- *   <li>OAuth 클라이언트 등록/관리 (POST /api/v1/admin/clients)
+ *   <li>OAuth 클라이언트 등록/관리 (POST /api/v1/clients)
  * </ul>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -399,7 +399,7 @@ class AuthApiIntegrationTest {
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("POST /api/v1/admin/clients")
+	@DisplayName("POST /api/v1/clients")
 	class AdminClientRegistrationTest {
 
 		@Test
@@ -407,7 +407,7 @@ class AuthApiIntegrationTest {
 		void register_authorization_code_client() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(
 											"""
@@ -427,7 +427,7 @@ class AuthApiIntegrationTest {
 		void register_client_credentials_returns_secret_once() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(
 											"""
@@ -449,7 +449,7 @@ class AuthApiIntegrationTest {
 		void register_authorization_code_without_redirect_uris() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(
 											"""
@@ -468,10 +468,10 @@ class AuthApiIntegrationTest {
 					"redirectUris":["http://localhost"]}
 					""";
 			mockMvc.perform(
-					post("/api/v1/admin/clients").contentType(MediaType.APPLICATION_JSON).content(body));
+					post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(body));
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients").contentType(MediaType.APPLICATION_JSON).content(body))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(body))
 					.andExpect(status().isConflict());
 		}
 
@@ -480,7 +480,7 @@ class AuthApiIntegrationTest {
 		void register_unsupported_grant_type() throws Exception {
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
+							post("/api/v1/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(
 											"""
@@ -506,7 +506,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResult =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -524,7 +524,7 @@ class AuthApiIntegrationTest {
 			// 3. Basic Auth로 redirectUri 추가
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + clientId + "/redirect-uris")
+							post("/api/v1/clients/" + clientId + "/redirect-uris")
 									.header("Authorization", buildBasicAuthHeader(clientId, clientSecret))
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(
@@ -553,7 +553,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResult =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -574,7 +574,7 @@ class AuthApiIntegrationTest {
 			// then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + clientId)
+							get("/api/v1/clients/" + clientId)
 									.header("Authorization", buildBasicAuthHeader(clientId, clientSecret)))
 					.andExpect(status().isOk());
 		}
@@ -586,7 +586,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResult =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -608,7 +608,7 @@ class AuthApiIntegrationTest {
 			// then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + clientId)
+							get("/api/v1/clients/" + clientId)
 									.header("Authorization", buildBasicAuthHeader(clientId, "wrong-secret")))
 					.andExpect(status().isUnauthorized())
 					.andExpect(jsonPath("$.errorCode").value("INVALID_CLIENT_CREDENTIALS"))
@@ -622,7 +622,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResultA =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -643,7 +643,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResultB =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -665,7 +665,7 @@ class AuthApiIntegrationTest {
 			// then
 			mockMvc
 					.perform(
-							get("/api/v1/admin/clients/" + clientIdB)
+							get("/api/v1/clients/" + clientIdB)
 									.header("Authorization", buildBasicAuthHeader(clientIdA, clientSecretA)))
 					.andExpect(status().isForbidden())
 					.andExpect(jsonPath("$.errorCode").value("FORBIDDEN_CLIENT_MISMATCH"));
@@ -678,7 +678,7 @@ class AuthApiIntegrationTest {
 			MvcResult regResult =
 					mockMvc
 							.perform(
-									post("/api/v1/admin/clients")
+									post("/api/v1/clients")
 											.contentType(MediaType.APPLICATION_JSON)
 											.content(
 													"""
@@ -700,7 +700,7 @@ class AuthApiIntegrationTest {
 			// then
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients/" + clientId + "/redirect-uris")
+							post("/api/v1/clients/" + clientId + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"uri\":\"https://dev.econovation.kr/callback\"}"))
 					.andExpect(status().isUnauthorized())
@@ -713,14 +713,14 @@ class AuthApiIntegrationTest {
 	// ──────────────────────────────────────────────────────────
 
 	@Nested
-	@DisplayName("GET /api/v1/admin/routes")
+	@DisplayName("GET /api/v1/routes")
 	class RoutesTest {
 
 		@Test
 		@DisplayName("인증 헤더 없이 → 200 + routes 배열 (public endpoint)")
 		void get_routes_without_auth_returns200() throws Exception {
 			mockMvc
-					.perform(get("/api/v1/admin/routes"))
+					.perform(get("/api/v1/routes"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.routes").isArray());
 		}

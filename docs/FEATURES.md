@@ -31,7 +31,7 @@ econovation 인증 인프라가 제공하는 기능을 정리한 문서입니다
 │  :8081              │
 │  /api/v1/auth/**    │
 │  /oauth2/jwks       │
-│  /api/v1/admin/**   │
+│  /api/v1/**   │
 └─────────────────────┘
     │  ② at 쿠키 + rt 쿠키 (WEB)  or  AT+RT body (APP)
     ▼
@@ -134,7 +134,7 @@ Body: {
 
 #### 클라이언트 등록
 ```
-POST /api/v1/admin/clients
+POST /api/v1/clients
 
 // grantType 생략 → client_credentials 디폴트 (가장 단순)
 {
@@ -159,10 +159,10 @@ POST /api/v1/admin/clients
 
 #### redirectUri 관리 (인증: Basic Auth — clientId:clientSecret)
 ```
-POST   /api/v1/admin/clients/{clientId}/redirect-uris  // 추가
-DELETE /api/v1/admin/clients/{clientId}/redirect-uris  // 삭제
-PUT    /api/v1/admin/clients/{clientId}/redirect-uris  // 전체 교체
-GET    /api/v1/admin/clients/{clientId}                // 조회
+POST   /api/v1/clients/{clientId}/redirect-uris  // 추가
+DELETE /api/v1/clients/{clientId}/redirect-uris  // 삭제
+PUT    /api/v1/clients/{clientId}/redirect-uris  // 전체 교체
+GET    /api/v1/clients/{clientId}                // 조회
 ```
 
 ---
@@ -202,7 +202,7 @@ GET    /api/v1/admin/clients/{clientId}                // 조회
 ### Step 1. auth-api에 클라이언트 등록
 
 ```bash
-curl -X POST http://auth-api:8081/api/v1/admin/clients \
+curl -X POST http://auth-api:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "clientName": "내 새 서비스",

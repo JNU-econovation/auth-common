@@ -1,6 +1,6 @@
 # OAuth 클라이언트 등록 가이드
 
-`POST /api/v1/admin/clients` — OAuth 클라이언트를 등록한다.
+`POST /api/v1/clients` — OAuth 클라이언트를 등록한다.
 등록 및 라우트 조회 endpoint는 인증 불필요 (public). redirectUri 관리 4개 endpoint는
 `Authorization: Basic base64(clientId:clientSecret)` 헤더 필수 (서버 내부망 전용).
 
@@ -25,7 +25,7 @@
 `grantType`을 생략하면 서버가 `client_credentials`로 처리한다. 가장 단순한 등록 방법이다.
 
 ```bash
-curl -X POST http://auth-api:8081/api/v1/admin/clients \
+curl -X POST http://auth-api:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "clientName": "app-b"
@@ -43,7 +43,7 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients \
 ### authorization_code (SPA / 웹앱)
 
 ```bash
-curl -X POST http://auth-api:8081/api/v1/admin/clients \
+curl -X POST http://auth-api:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "authorization_code",
@@ -67,7 +67,7 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients \
 ### client_credentials (서버 간 호출 + Gateway 라우팅)
 
 ```bash
-curl -X POST http://auth-api:8081/api/v1/admin/clients \
+curl -X POST http://auth-api:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",
@@ -113,14 +113,14 @@ BASIC_TOKEN=$(echo -n "${CLIENT_ID}:${CLIENT_SECRET}" | base64)
 ### 조회
 
 ```bash
-curl http://auth-api:8081/api/v1/admin/clients/{clientId} \
+curl http://auth-api:8081/api/v1/clients/{clientId} \
   -H "Authorization: Basic base64(clientId:clientSecret)"
 ```
 
 ### 추가 (기존 유지)
 
 ```bash
-curl -X POST http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
+curl -X POST http://auth-api:8081/api/v1/clients/{clientId}/redirect-uris \
   -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uri": "https://new.econovation.kr/callback"}'
@@ -129,7 +129,7 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris 
 ### 삭제
 
 ```bash
-curl -X DELETE http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
+curl -X DELETE http://auth-api:8081/api/v1/clients/{clientId}/redirect-uris \
   -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uri": "https://old.econovation.kr/callback"}'
@@ -138,7 +138,7 @@ curl -X DELETE http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uri
 ### 전체 교체
 
 ```bash
-curl -X PUT http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
+curl -X PUT http://auth-api:8081/api/v1/clients/{clientId}/redirect-uris \
   -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uris": ["https://app.econovation.kr/callback", "http://localhost:3000/callback"]}'

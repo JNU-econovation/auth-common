@@ -89,7 +89,7 @@ GET /oauth2/jwks
 새 서비스를 인증 시스템에 등록한다.
 
 ```
-POST /api/v1/admin/clients
+POST /api/v1/clients
 
 {
   "grantType": "authorization_code",
@@ -100,7 +100,7 @@ POST /api/v1/admin/clients
 ```
 
 ```
-POST /api/v1/admin/clients
+POST /api/v1/clients
 
 {
   "grantType": "client_credentials",
@@ -116,7 +116,7 @@ POST /api/v1/admin/clients
 ### Gateway 라우트 조회
 
 ```
-GET /api/v1/admin/routes
+GET /api/v1/routes
 → { "routes": [{ "routeId": "...", "clientId": "...", "upstreamUrl": "...", "pathPrefix": "..." }] }
 ```
 
@@ -132,7 +132,7 @@ GET /api/v1/admin/routes
 | `/api/v1/auth/logout` | POST | 없음 | 로그아웃 |
 | `/api/v1/members/batch` | POST | Gateway | 회원 정보 일괄 조회 |
 | `/oauth2/jwks` | GET | 없음 | RS256 공개키 |
-| `/api/v1/admin/clients` | POST | 없음 (public) | OAuth 클라이언트 등록 |
-| `/api/v1/admin/clients/{id}` | GET | Basic Auth (clientId:clientSecret) | 클라이언트 조회 |
-| `/api/v1/admin/clients/{id}/redirect-uris` | POST/PUT/DELETE | Basic Auth (clientId:clientSecret) | redirectUri 관리 |
-| `/api/v1/admin/routes` | GET | 없음 (public) | 라우트 목록 |
+| `/api/v1/clients` | POST | 없음 (public) | OAuth 클라이언트 등록 |
+| `/api/v1/clients/{id}` | GET | Basic Auth (clientId:clientSecret) | 클라이언트 조회 |
+| `/api/v1/clients/{id}/redirect-uris` | POST/PUT/DELETE | Basic Auth (clientId:clientSecret) | redirectUri 관리 |
+| `/api/v1/routes` | GET | 없음 (public) | 라우트 목록 |

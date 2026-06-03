@@ -35,7 +35,7 @@ description: |
 ## Step 1. auth-api에 클라이언트 등록
 
 ```bash
-curl -X POST ${AUTH_API_URL:-http://localhost:8081}/api/v1/admin/clients \
+curl -X POST ${AUTH_API_URL:-http://localhost:8081}/api/v1/clients \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",

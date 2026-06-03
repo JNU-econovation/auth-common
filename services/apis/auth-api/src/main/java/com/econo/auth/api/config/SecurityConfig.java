@@ -58,7 +58,7 @@ public class SecurityConfig {
 												"/oauth2/jwks", // Gateway JWT 검증용
 												"/.well-known/**") // OIDC Discovery
 										.permitAll()
-										.requestMatchers("/api/v1/admin/**")
+										.requestMatchers("/api/v1/clients/**", "/api/v1/routes/**")
 										.permitAll()
 										// Gateway가 AT 검증 후 전달 — auth-api 내부는 Gateway 인증에 의존
 										.requestMatchers("/api/v1/members/**")

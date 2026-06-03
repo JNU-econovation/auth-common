@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 						+ "클라이언트 조회 및 redirectUri 관리(4개 엔드포인트)는 "
 						+ "Authorization: Basic base64(clientId:clientSecret) 헤더 필수 (서버 내부망 전용).")
 @RestController
-@RequestMapping("/api/v1/admin")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class AdminClientController {
 
