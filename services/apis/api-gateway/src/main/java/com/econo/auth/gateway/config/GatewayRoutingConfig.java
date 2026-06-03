@@ -47,6 +47,13 @@ public class GatewayRoutingConfig {
 		return permittedPaths;
 	}
 
+	/**
+	 * Gateway 라우트 정의.
+	 *
+	 * <p><strong>주의:</strong> {@code /api/v1/admin/**} 라우트를 이 파일에 추가하지 말 것. admin endpoint는 내부망 전용이며,
+	 * Gateway 외부 라우트에 노출 시 public 등록 endpoint ({@code POST /api/v1/admin/clients})에 대한 도배(flood) 공격
+	 * 위험이 있다. ADR-0010 참조.
+	 */
 	@Bean
 	public RouteLocator routes(RouteLocatorBuilder builder) {
 		return builder

@@ -5,5 +5,3 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-
-AUTH_INTERNAL_API_KEY: valid-internal-key

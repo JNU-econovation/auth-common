@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,7 +61,6 @@ class AuthApiIntegrationTest {
 		registry.add("RSA_PUBLIC_KEY", () -> TEST_PUBLIC_KEY_PEM);
 		registry.add("AUTH_ISSUER_URI", () -> "http://localhost:8081");
 		registry.add("CORS_ALLOWED_ORIGINS", () -> "http://localhost:3000");
-		registry.add("AUTH_INTERNAL_API_KEY", () -> "test-internal-key");
 		registry.add("COOKIE_SECURE", () -> "false");
 	}
 
@@ -174,8 +175,8 @@ class AuthApiIntegrationTest {
 											.header("Client-Type", "WEB")
 											.content(
 													"""
-											{"loginId":"webuser02","password":"Econo1234!"}
-											"""))
+													{"loginId":"webuser02","password":"Econo1234!"}
+													"""))
 							.andReturn();
 
 			String setCookieHeader = result.getResponse().getHeader("Set-Cookie");
@@ -194,8 +195,8 @@ class AuthApiIntegrationTest {
 									.header("Client-Type", "WEB")
 									.content(
 											"""
-									{"loginId":"webuser03","password":"WrongPass1!"}
-									"""))
+											{"loginId":"webuser03","password":"WrongPass1!"}
+											"""))
 					.andExpect(status().isUnauthorized())
 					.andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
 		}
@@ -210,8 +211,8 @@ class AuthApiIntegrationTest {
 									.header("Client-Type", "WEB")
 									.content(
 											"""
-									{"loginId":"unknown_nobody","password":"Econo1234!"}
-									"""))
+											{"loginId":"unknown_nobody","password":"Econo1234!"}
+											"""))
 					.andExpect(status().isUnauthorized());
 		}
 	}
@@ -237,8 +238,8 @@ class AuthApiIntegrationTest {
 											.header("Client-Type", "APP")
 											.content(
 													"""
-											{"loginId":"appuser01","password":"Econo1234!"}
-											"""))
+													{"loginId":"appuser01","password":"Econo1234!"}
+													"""))
 							.andExpect(status().isOk())
 							.andExpect(jsonPath("$.accessToken").isNotEmpty())
 							.andExpect(jsonPath("$.refreshToken").isNotEmpty())
@@ -408,7 +409,6 @@ class AuthApiIntegrationTest {
 					.perform(
 							post("/api/v1/admin/clients")
 									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
 									.content(
 											"""
 											{
@@ -429,7 +429,6 @@ class AuthApiIntegrationTest {
 					.perform(
 							post("/api/v1/admin/clients")
 									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
 									.content(
 											"""
 											{
@@ -446,44 +445,12 @@ class AuthApiIntegrationTest {
 		}
 
 		@Test
-		@DisplayName("X-Internal-Api-Key 없이 → 401")
-		void register_without_api_key_returns_401() throws Exception {
-			mockMvc
-					.perform(
-							post("/api/v1/admin/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(
-											"""
-											{"grantType":"authorization_code","clientName":"x",
-											"redirectUris":["http://localhost"]}
-											"""))
-					.andExpect(status().isUnauthorized());
-		}
-
-		@Test
-		@DisplayName("잘못된 X-Internal-Api-Key → 401")
-		void register_wrong_api_key_returns_401() throws Exception {
-			mockMvc
-					.perform(
-							post("/api/v1/admin/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "wrong-key")
-									.content(
-											"""
-											{"grantType":"authorization_code","clientName":"x",
-											"redirectUris":["http://localhost"]}
-											"""))
-					.andExpect(status().isUnauthorized());
-		}
-
-		@Test
 		@DisplayName("authorization_code에 redirectUris 없으면 400")
 		void register_authorization_code_without_redirect_uris() throws Exception {
 			mockMvc
 					.perform(
 							post("/api/v1/admin/clients")
 									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
 									.content(
 											"""
 											{"grantType":"authorization_code","clientName":"no-redirect"}
@@ -501,16 +468,10 @@ class AuthApiIntegrationTest {
 					"redirectUris":["http://localhost"]}
 					""";
 			mockMvc.perform(
-					post("/api/v1/admin/clients")
-							.contentType(MediaType.APPLICATION_JSON)
-							.header("X-Internal-Api-Key", "test-internal-key")
-							.content(body));
+					post("/api/v1/admin/clients").contentType(MediaType.APPLICATION_JSON).content(body));
 			mockMvc
 					.perform(
-							post("/api/v1/admin/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
-									.content(body))
+							post("/api/v1/admin/clients").contentType(MediaType.APPLICATION_JSON).content(body))
 					.andExpect(status().isConflict());
 		}
 
@@ -521,7 +482,6 @@ class AuthApiIntegrationTest {
 					.perform(
 							post("/api/v1/admin/clients")
 									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
 									.content(
 											"""
 											{"grantType":"implicit","clientName":"bad-app"}
@@ -540,43 +500,211 @@ class AuthApiIntegrationTest {
 	class RedirectUriManagementTest {
 
 		@Test
-		@DisplayName("redirectUri 추가 → 목록에 반영")
+		@DisplayName("client_credentials 등록 후 받은 secret으로 Basic Auth 검증 + redirectUri 추가 성공")
 		void add_redirect_uri() throws Exception {
-			// 클라이언트 등록
+			// 1. client_credentials 타입으로 등록 (public endpoint)
 			MvcResult regResult =
 					mockMvc
 							.perform(
 									post("/api/v1/admin/clients")
 											.contentType(MediaType.APPLICATION_JSON)
-											.header("X-Internal-Api-Key", "test-internal-key")
 											.content(
 													"""
-													{"grantType":"authorization_code","clientName":"uri-test-app",
-													"redirectUris":["https://app.econovation.kr/callback"]}
+													{"grantType":"client_credentials","clientName":"uri-test-cc-app"}
 													"""))
+							.andExpect(status().isCreated())
 							.andReturn();
+
+			// 2. 응답에서 clientId, clientSecret 추출
+			Map<?, ?> regResponse =
+					objectMapper.readValue(regResult.getResponse().getContentAsString(), Map.class);
+			String clientId = regResponse.get("clientId").toString();
+			String clientSecret = regResponse.get("clientSecret").toString();
+
+			// 3. Basic Auth로 redirectUri 추가
+			mockMvc
+					.perform(
+							post("/api/v1/admin/clients/" + clientId + "/redirect-uris")
+									.header("Authorization", buildBasicAuthHeader(clientId, clientSecret))
+									.contentType(MediaType.APPLICATION_JSON)
+									.content(
+											"""
+											{"uri":"https://app.example.com/callback"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clientId").value(clientId))
+					.andExpect(jsonPath("$.redirectUris").isArray())
+					.andExpect(jsonPath("$.redirectUris[0]").value("https://app.example.com/callback"));
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// Basic Auth 검증 통합 테스트
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("Basic Auth 검증 — 통합 시나리오")
+	class BasicAuthVerificationTest {
+
+		@Test
+		@DisplayName("등록 후 반환된 clientSecret으로 GET /clients/{clientId} → 200 (I-1)")
+		void get_client_with_valid_secret_returns_200() throws Exception {
+			// given — client_credentials 등록 (public endpoint)
+			MvcResult regResult =
+					mockMvc
+							.perform(
+									post("/api/v1/admin/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.content(
+													"""
+													{
+														"grantType": "client_credentials",
+														"clientName": "basic-auth-test-client"
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			Map<?, ?> regResponse =
+					objectMapper.readValue(regResult.getResponse().getContentAsString(), Map.class);
+			String clientId = regResponse.get("clientId").toString();
+			String clientSecret = regResponse.get("clientSecret").toString();
+
+			// when — 등록 응답의 clientSecret으로 Basic Auth
+			// then
+			mockMvc
+					.perform(
+							get("/api/v1/admin/clients/" + clientId)
+									.header("Authorization", buildBasicAuthHeader(clientId, clientSecret)))
+					.andExpect(status().isOk());
+		}
+
+		@Test
+		@DisplayName("잘못된 secret으로 GET /clients/{clientId} → 401 INVALID_CLIENT_CREDENTIALS (I-2)")
+		void get_client_with_wrong_secret_returns_401() throws Exception {
+			// given — 클라이언트 등록
+			MvcResult regResult =
+					mockMvc
+							.perform(
+									post("/api/v1/admin/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.content(
+													"""
+													{
+														"grantType": "client_credentials",
+														"clientName": "basic-auth-wrong-secret-client"
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
 			String clientId =
 					objectMapper
 							.readValue(regResult.getResponse().getContentAsString(), Map.class)
 							.get("clientId")
 							.toString();
 
-			// URI 추가
+			// when — 잘못된 secret으로 요청
+			// then
+			mockMvc
+					.perform(
+							get("/api/v1/admin/clients/" + clientId)
+									.header("Authorization", buildBasicAuthHeader(clientId, "wrong-secret")))
+					.andExpect(status().isUnauthorized())
+					.andExpect(jsonPath("$.errorCode").value("INVALID_CLIENT_CREDENTIALS"))
+					.andExpect(header().string("WWW-Authenticate", "Basic realm=\"admin\""));
+		}
+
+		@Test
+		@DisplayName("다른 클라이언트의 자격증명으로 요청 → 403 FORBIDDEN_CLIENT_MISMATCH (I-3)")
+		void get_client_with_other_client_credentials_returns_403() throws Exception {
+			// given — 클라이언트 A 등록
+			MvcResult regResultA =
+					mockMvc
+							.perform(
+									post("/api/v1/admin/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.content(
+													"""
+													{
+														"grantType": "client_credentials",
+														"clientName": "basic-auth-client-a"
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			Map<?, ?> responseA =
+					objectMapper.readValue(regResultA.getResponse().getContentAsString(), Map.class);
+			String clientIdA = responseA.get("clientId").toString();
+			String clientSecretA = responseA.get("clientSecret").toString();
+
+			// 클라이언트 B 등록
+			MvcResult regResultB =
+					mockMvc
+							.perform(
+									post("/api/v1/admin/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.content(
+													"""
+													{
+														"grantType": "client_credentials",
+														"clientName": "basic-auth-client-b"
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			String clientIdB =
+					objectMapper
+							.readValue(regResultB.getResponse().getContentAsString(), Map.class)
+							.get("clientId")
+							.toString();
+
+			// when — 클라이언트 A 자격증명으로 클라이언트 B endpoint 접근
+			// then
+			mockMvc
+					.perform(
+							get("/api/v1/admin/clients/" + clientIdB)
+									.header("Authorization", buildBasicAuthHeader(clientIdA, clientSecretA)))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.errorCode").value("FORBIDDEN_CLIENT_MISMATCH"));
+		}
+
+		@Test
+		@DisplayName("Authorization 헤더 없이 POST redirect-uris → 401 INVALID_CLIENT_CREDENTIALS (I-4)")
+		void add_redirect_uri_without_auth_returns_401() throws Exception {
+			// given — 클라이언트 등록
+			MvcResult regResult =
+					mockMvc
+							.perform(
+									post("/api/v1/admin/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.content(
+													"""
+													{
+														"grantType": "client_credentials",
+														"clientName": "basic-auth-no-header-client"
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			String clientId =
+					objectMapper
+							.readValue(regResult.getResponse().getContentAsString(), Map.class)
+							.get("clientId")
+							.toString();
+
+			// when — Authorization 헤더 없이 redirect-uris POST
+			// then
 			mockMvc
 					.perform(
 							post("/api/v1/admin/clients/" + clientId + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
-									.header("X-Internal-Api-Key", "test-internal-key")
 									.content("{\"uri\":\"https://dev.econovation.kr/callback\"}"))
-					.andExpect(status().isOk());
-
-			// 조회로 확인
-			mockMvc
-					.perform(
-							get("/api/v1/admin/clients/" + clientId)
-									.header("X-Internal-Api-Key", "test-internal-key"))
-					.andExpect(status().isOk())
-					.andExpect(jsonPath("$.redirectUris").isArray());
+					.andExpect(status().isUnauthorized())
+					.andExpect(jsonPath("$.errorCode").value("INVALID_CLIENT_CREDENTIALS"));
 		}
 	}
 
@@ -589,18 +717,12 @@ class AuthApiIntegrationTest {
 	class RoutesTest {
 
 		@Test
-		@DisplayName("올바른 키 → 200 + routes 배열")
-		void get_routes_with_valid_key() throws Exception {
+		@DisplayName("인증 헤더 없이 → 200 + routes 배열 (public endpoint)")
+		void get_routes_without_auth_returns200() throws Exception {
 			mockMvc
-					.perform(get("/api/v1/admin/routes").header("X-Internal-Api-Key", "test-internal-key"))
+					.perform(get("/api/v1/admin/routes"))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.routes").isArray());
-		}
-
-		@Test
-		@DisplayName("키 없이 → 401")
-		void get_routes_without_key() throws Exception {
-			mockMvc.perform(get("/api/v1/admin/routes")).andExpect(status().isUnauthorized());
 		}
 	}
 
@@ -702,6 +824,13 @@ class AuthApiIntegrationTest {
 												""",
 												loginId)))
 				.andReturn();
+	}
+
+	/** "Basic " + Base64(clientId + ":" + rawSecret) 헤더 값 생성 */
+	private String buildBasicAuthHeader(String clientId, String rawSecret) {
+		return "Basic "
+				+ Base64.getEncoder()
+						.encodeToString((clientId + ":" + rawSecret).getBytes(StandardCharsets.UTF_8));
 	}
 
 	/**
