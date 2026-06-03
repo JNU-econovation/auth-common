@@ -38,6 +38,7 @@ auth-common/                          # 루트 프로젝트
 │   └── libs/                         # 공유 라이브러리
 │       ├── auth-core/                # 도메인 엔티티, 비즈니스 로직 (Spring 독립)
 │       ├── auth-infra/               # JPA Repository, Flyway 마이그레이션
+│       ├── service-client/           # ServiceClient·ServiceRoute 도메인, 헥사고날 구조
 │       └── auth-common-lib/          # Passport, @PassportAuth (외부 서비스용)
 ├── docs/                             # 문서 (ARCHITECTURE.md, CONVENTION.md, DOC-GUIDE.md, README-GUIDE.md, INFRASTRUCTURE.md)
 └── .claude/                          # Claude Code harness (agents, skills, commands)
@@ -50,6 +51,9 @@ api-gateway ──→ auth-common-lib
 
 auth-api ──→ auth-core
          ──→ auth-infra
+         ──→ service-client
+
+service-client ──→ auth-infra   (JpaAuditingConfig 공유)
 
 auth-infra ──→ auth-core
 
@@ -66,6 +70,7 @@ auth-common-lib (독립, 외부 서비스에 배포)
 | **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인 → 세션 수립 → Authorization Code + PKCE → 토큰 발급 |
 | **auth-core** | Lib | Member 엔티티, 회원가입 비즈니스 로직, 도메인 규칙. Spring 독립. |
 | **auth-infra** | Lib | JPA Repository, Flyway 마이그레이션 (members, SAS 3종, Spring Session 2종, service_client·service_route, grant_type nullable) |
+| **service-client** | Lib | ServiceClient·ServiceRoute 도메인, OAuth 클라이언트 등록·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
 | **auth-common-lib** | Lib | Passport 도메인, @PassportAuth 어노테이션, ArgumentResolver. 외부 마이크로서비스가 의존하는 공유 라이브러리 |
 
 ## 인증 흐름
@@ -177,6 +182,47 @@ com.econo.auth.core
 
 > `LoginUseCase`, `LoginService`, `TokenIssuer`는 SAS 도입으로 제거됨.
 
+## service-client 패키지 구조 (헥사고날)
+
+```
+com.econo.auth.client
+├── config/
+│   └── ServiceClientAutoConfiguration   # @AutoConfiguration + @ComponentScan + @EnableJpaRepositories + @EntityScan
+├── domain/
+│   ├── ServiceClient                    # Aggregate Root — OAuth 클라이언트 도메인 객체
+│   ├── ServiceRoute                     # Gateway 라우팅 정보 (record)
+│   └── GrantType                        # OAuth 그랜트 타입 enum (AUTHORIZATION_CODE, CLIENT_CREDENTIALS)
+├── application/
+│   ├── port/out/
+│   │   ├── ServiceClientRepository      # ServiceClient 아웃바운드 포트
+│   │   ├── ServiceRouteRepository       # ServiceRoute 아웃바운드 포트
+│   │   ├── SasClientRegistrar           # SAS 클라이언트 등록 아웃바운드 포트
+│   │   └── SasRedirectUriManager        # SAS redirectUri 조회·갱신 아웃바운드 포트 (SAS 의존 격리)
+│   └── usecase/
+│       ├── RegisterOAuthClientService   # OAuth 클라이언트 등록 서비스
+│       └── ClientRedirectUriService     # redirectUri 관리 서비스 (ClientInfo record 포함)
+├── adapter/out/
+│   ├── persistence/
+│   │   ├── ServiceClientJpaEntity       # service_client 테이블 JPA 엔티티
+│   │   ├── ServiceClientJpaRepository   # Spring Data JPA 인터페이스
+│   │   ├── ServiceClientRepositoryAdapter  # ServiceClientRepository 포트 구현체
+│   │   ├── ServiceRouteJpaEntity        # service_route 테이블 JPA 엔티티
+│   │   ├── ServiceRouteJpaRepository    # Spring Data JPA 인터페이스
+│   │   └── ServiceRouteRepositoryAdapter   # ServiceRouteRepository 포트 구현체
+│   └── sas/
+│       ├── SasClientRegistrarAdapter    # SasClientRegistrar 포트 구현체
+│       └── SasRedirectUriManagerAdapter # SasRedirectUriManager 포트 구현체 (RegisteredClientRepository 직접 의존 격리)
+└── exception/
+    ├── InvalidClientException           # @ResponseStatus 없음 — 클라이언트 미존재 (GlobalExceptionHandler가 404 CLIENT_NOT_FOUND로 매핑)
+    ├── RedirectUriRequiredException     # @ResponseStatus(400) — redirectUri 누락·한도 초과·유효하지 않은 URI
+    ├── UnsupportedGrantTypeException    # @ResponseStatus(400) — 미지원 그랜트 타입
+    └── DuplicateClientNameException     # @ResponseStatus(409) — 클라이언트 이름 중복
+```
+
+> `GrantType.fromString`은 알 수 없는 비-null 값에 대해 `IllegalArgumentException`을 throw한다. `AdminClientController`가 이를 catch하여 `UnsupportedGrantTypeException`으로 변환한다.
+
+> `ServiceClientAutoConfiguration`은 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.client.adapter.out.persistence` 패키지를 직접 스캔한다. `InfraConfig`(auth-infra)는 `com.econo.auth.infra` 패키지만 스캔하며, service-client 패키지는 포함하지 않는다.
+
 ## 핵심 설계 결정
 
 ### 1. Gateway 책임 분리
@@ -244,6 +290,17 @@ auth-api는 로그인 UI를 제공하지 않는다. `/api/v1/auth/login`은 JSON
 | 400 BAD_REQUEST | INVALID_PASSWORD_POLICY | 비밀번호 정책 위반 |
 | 400 BAD_REQUEST | INVALID_LOGIN_ID_FORMAT | loginId 형식 위반 (IllegalArgumentException) |
 
+### service-client (ServiceClient 도메인)
+
+> 정의: `services/libs/service-client/src/main/java/com/econo/auth/client/exception/`
+
+| HTTP 상태 | 에러 코드 | 발생 조건 |
+|-----------|-----------|-----------|
+| 404 NOT_FOUND | CLIENT_NOT_FOUND | clientId로 클라이언트를 찾을 수 없음 (`InvalidClientException`) |
+| 400 BAD_REQUEST | REDIRECT_URI_REQUIRED | `authorization_code` 클라이언트에 redirectUri 누락, redirectUri 한도 초과, 유효하지 않은 URI (`RedirectUriRequiredException`) |
+| 400 BAD_REQUEST | UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType 값 (`UnsupportedGrantTypeException`. `GrantType.fromString`이 `IllegalArgumentException` throw → `AdminClientController`가 변환) |
+| 409 CONFLICT | DUPLICATE_CLIENT_NAME | clientName 중복 (`DuplicateClientNameException`) |
+
 ### auth-api — Admin API (AdminClientController)
 
 > 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/AdminClientController.java`
@@ -281,6 +338,10 @@ services/libs/auth-infra/src/test/java/com/econo/auth/infra/
 └── member/adapter/out/
     ├── persistence/MemberRepositoryAdapterTest.java  # @DataJpaTest + Testcontainer
     └── security/BCryptPasswordHasherAdapterTest.java
+
+services/libs/service-client/src/test/java/com/econo/auth/client/
+└── application/usecase/
+    └── RegisterOAuthClientServiceTest.java  # RegisterOAuthClientService 단위 테스트 (Mockito)
 
 services/apis/auth-api/src/test/java/com/econo/auth/api/
 ├── adapter/in/web/
