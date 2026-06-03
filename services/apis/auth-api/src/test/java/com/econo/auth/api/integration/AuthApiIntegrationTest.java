@@ -470,8 +470,7 @@ class AuthApiIntegrationTest {
 			mockMvc.perform(
 					post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(body));
 			mockMvc
-					.perform(
-							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(body))
+					.perform(post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(body))
 					.andExpect(status().isConflict());
 		}
 

@@ -7,4 +7,5 @@ include("services:apis:auth-api")
 // === Libs (공유 라이브러리) ===
 include("services:libs:auth-core")
 include("services:libs:auth-infra")
+include("services:libs:service-client")
 // auth-common-lib → 독립 레포로 분리: github.com/JNU-econovation/econo-passport

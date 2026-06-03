@@ -1,7 +1,7 @@
 package com.econo.auth.api.config;
 
-import com.econo.auth.api.application.ClientRedirectUriService;
-import com.econo.auth.api.application.port.out.ServiceClientRepository;
+import com.econo.auth.client.application.port.out.ServiceClientRepository;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashSet;
 import java.util.List;

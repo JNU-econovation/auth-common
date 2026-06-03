@@ -5,12 +5,13 @@ import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.econo.auth.api.application.ClientRedirectUriService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
 import com.econo.auth.api.config.SecurityConfig;
-import com.econo.auth.api.exception.RedirectUriRequiredException;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService.ClientInfo;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
+import com.econo.auth.client.exception.RedirectUriRequiredException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Set;
@@ -31,9 +32,9 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * AdminClientController 웹 레이어 테스트 — OAuth 클라이언트 등록 API
  *
- * <p>plan: POST /api/v1/clients — OAuth 클라이언트 등록 (public) plan: GET /api/v1/routes —
- * Gateway용 라우트 목록 (public) plan: GET /api/v1/clients/{clientId} — Basic Auth 인증 plan:
- * POST|DELETE|PUT /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증
+ * <p>plan: POST /api/v1/clients — OAuth 클라이언트 등록 (public) plan: GET /api/v1/routes — Gateway용 라우트
+ * 목록 (public) plan: GET /api/v1/clients/{clientId} — Basic Auth 인증 plan: POST|DELETE|PUT
+ * /api/v1/clients/{clientId}/redirect-uris — Basic Auth 인증
  */
 @WebMvcTest(AdminClientController.class)
 @Import(SecurityConfig.class)
@@ -78,9 +79,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.clientId").value("client-uuid-123"))
 					.andExpect(jsonPath("$.clientSecret").doesNotExist());
@@ -103,9 +102,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.clientId").value("client-uuid-456"))
 					.andExpect(jsonPath("$.clientSecret").value("raw-secret-xyz"));
@@ -129,9 +126,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errorCode").value("REDIRECT_URI_REQUIRED"));
 		}
@@ -152,9 +147,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.clientId").value("cid"))
 					.andExpect(jsonPath("$.clientSecret").value("secret"));
@@ -175,9 +168,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_GRANT_TYPE"));
 		}
@@ -202,9 +193,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.clientId").value("client-uuid-789"))
 					.andExpect(jsonPath("$.clientSecret").value("raw-secret-abc"))
@@ -226,9 +215,7 @@ class AdminClientControllerTest {
 			// when & then
 			mockMvc
 					.perform(
-							post("/api/v1/clients")
-									.contentType(MediaType.APPLICATION_JSON)
-									.content(requestBody))
+							post("/api/v1/clients").contentType(MediaType.APPLICATION_JSON).content(requestBody))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
 		}
@@ -306,13 +293,10 @@ class AdminClientControllerTest {
 			given(registeredClientRepository.findByClientId(CLIENT_ID)).willReturn(mockClient);
 			given(passwordEncoder.matches(RAW_SECRET, "$2a$12$hashedvalue")).willReturn(true);
 
-			org.springframework.security.oauth2.server.authorization.client.RegisteredClient
-					serviceClient = mock(RegisteredClient.class);
-			given(serviceClient.getClientId()).willReturn(CLIENT_ID);
-			given(serviceClient.getClientName()).willReturn("테스트 클라이언트");
-			given(serviceClient.getRedirectUris())
-					.willReturn(Set.of("https://app.econovation.kr/callback"));
-			given(redirectUriService.findByClientId(CLIENT_ID)).willReturn(serviceClient);
+			given(redirectUriService.findByClientId(CLIENT_ID))
+					.willReturn(
+							new ClientInfo(
+									CLIENT_ID, "테스트 클라이언트", Set.of("https://app.econovation.kr/callback")));
 
 			// when & then
 			mockMvc

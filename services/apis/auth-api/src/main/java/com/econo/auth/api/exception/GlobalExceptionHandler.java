@@ -1,5 +1,9 @@
 package com.econo.auth.api.exception;
 
+import com.econo.auth.client.exception.DuplicateClientNameException;
+import com.econo.auth.client.exception.InvalidClientException;
+import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.UnsupportedGrantTypeException;
 import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
 import com.econo.auth.core.member.exception.MemberNotFoundException;

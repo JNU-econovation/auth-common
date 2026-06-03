@@ -1,10 +1,11 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.api.application.ClientRedirectUriService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
-import com.econo.auth.api.domain.GrantType;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
+import com.econo.auth.client.domain.GrantType;
+import com.econo.auth.client.exception.UnsupportedGrantTypeException;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -137,8 +138,13 @@ public class AdminClientController {
 	})
 	@PostMapping("/clients")
 	public ResponseEntity<?> registerClient(@Valid @RequestBody RegisterClientRequest request) {
-		// GrantType 파싱 + 비즈니스 검증은 도메인/서비스 레이어에 위임
-		GrantType grantType = GrantType.fromString(request.grantType());
+		// GrantType 파싱 — IllegalArgumentException을 어댑터 계층 예외로 변환
+		GrantType grantType;
+		try {
+			grantType = GrantType.fromString(request.grantType());
+		} catch (IllegalArgumentException ex) {
+			throw new UnsupportedGrantTypeException(request.grantType());
+		}
 		RegisterOAuthClientCommand command =
 				new RegisterOAuthClientCommand(
 						grantType,
@@ -201,10 +207,9 @@ public class AdminClientController {
 									"FORBIDDEN_CLIENT_MISMATCH", "경로의 clientId와 인증 clientId가 일치하지 않습니다."));
 		}
 
-		var client = redirectUriService.findByClientId(clientId);
+		ClientRedirectUriService.ClientInfo client = redirectUriService.findByClientId(clientId);
 		return ResponseEntity.ok(
-				new ClientDetailResponse(
-						client.getClientId(), client.getClientName(), client.getRedirectUris()));
+				new ClientDetailResponse(client.clientId(), client.clientName(), client.redirectUris()));
 	}
 
 	@Operation(
