@@ -1,6 +1,6 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.core.member.domain.MemberStatus;
+import com.econo.auth.member.domain.MemberStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

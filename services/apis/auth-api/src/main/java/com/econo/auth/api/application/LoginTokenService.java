@@ -1,8 +1,8 @@
 package com.econo.auth.api.application;
 
-import com.econo.auth.core.member.application.port.out.MemberRepository;
-import com.econo.auth.core.member.domain.Member;
-import com.econo.auth.core.member.exception.MemberNotFoundException;
+import com.econo.auth.member.application.port.out.MemberRepository;
+import com.econo.auth.member.domain.Member;
+import com.econo.auth.member.exception.MemberNotFoundException;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,9 +69,7 @@ public class LoginTokenService {
 	 */
 	public TokenPair reissue(Long memberId) {
 		Member member =
-				memberRepository
-						.findById(memberId)
-						.orElseThrow(() -> new MemberNotFoundException(memberId));
+				memberRepository.findById(memberId).orElseThrow(() -> MemberNotFoundException.of(memberId));
 		return issue(member);
 	}
 

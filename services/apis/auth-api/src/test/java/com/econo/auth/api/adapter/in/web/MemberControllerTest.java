@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.econo.auth.api.config.SecurityConfig;
-import com.econo.auth.core.member.application.port.in.SignupUseCase;
-import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
-import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
+import com.econo.auth.member.application.port.in.SignupUseCase;
+import com.econo.auth.member.exception.InvalidPasswordPolicyException;
+import com.econo.auth.member.exception.MemberAlreadyExistsException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

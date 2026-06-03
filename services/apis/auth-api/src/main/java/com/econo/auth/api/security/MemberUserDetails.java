@@ -1,6 +1,6 @@
 package com.econo.auth.api.security;
 
-import com.econo.auth.core.member.domain.Member;
+import com.econo.auth.member.domain.Member;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;

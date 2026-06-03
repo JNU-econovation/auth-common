@@ -4,9 +4,9 @@ import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
 import com.econo.auth.client.exception.UnsupportedGrantTypeException;
-import com.econo.auth.core.member.exception.InvalidPasswordPolicyException;
-import com.econo.auth.core.member.exception.MemberAlreadyExistsException;
-import com.econo.auth.core.member.exception.MemberNotFoundException;
+import com.econo.auth.member.exception.InvalidPasswordPolicyException;
+import com.econo.auth.member.exception.MemberAlreadyExistsException;
+import com.econo.auth.member.exception.MemberNotFoundException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -58,10 +58,10 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
-	 * loginId 중복 예외 처리
+	 * 회원 미존재 예외 처리 — MemberNotFoundException → 404 MEMBER_NOT_FOUND
 	 *
 	 * @param ex 예외
-	 * @return 409 MEMBER_ALREADY_EXISTS
+	 * @return 404 MEMBER_NOT_FOUND
 	 */
 	@ExceptionHandler(MemberNotFoundException.class)
 	public ResponseEntity<ApiError> handleMemberNotFound(MemberNotFoundException ex) {
@@ -103,7 +103,7 @@ public class GlobalExceptionHandler {
 	 * 잘못된 인자 예외 처리 — SignupService.validateLoginId() 등에서 발생
 	 *
 	 * @param ex 예외
-	 * @return 400 INVALID_LOGIN_ID_FORMAT
+	 * @return 400 INVALID_ARGUMENT
 	 */
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {

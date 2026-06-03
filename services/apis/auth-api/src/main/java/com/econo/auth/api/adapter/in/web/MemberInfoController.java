@@ -1,7 +1,7 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.core.member.application.port.out.MemberRepository;
-import com.econo.auth.core.member.domain.Member;
+import com.econo.auth.member.application.port.out.MemberRepository;
+import com.econo.auth.member.domain.Member;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

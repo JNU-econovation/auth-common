@@ -9,6 +9,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     // SasClientRegistrarAdapter: RegisteredClient, RegisteredClientRepository
     implementation("org.springframework.boot:spring-boot-starter-oauth2-authorization-server")
-    // JpaAuditingConfig 공유 (auth-infra에 @EnableJpaAuditing 선언됨)
-    implementation(project(":services:libs:auth-infra"))
+    // JpaAuditingConfig 공유 (common-infra에 @EnableJpaAuditing AutoConfiguration 선언됨)
+    implementation(project(":services:libs:common-infra"))
 }

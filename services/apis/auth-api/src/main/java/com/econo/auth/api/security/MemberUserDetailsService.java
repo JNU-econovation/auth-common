@@ -1,6 +1,6 @@
 package com.econo.auth.api.security;
 
-import com.econo.auth.core.member.application.port.out.MemberRepository;
+import com.econo.auth.member.application.port.out.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -11,8 +11,7 @@ import org.springframework.stereotype.Service;
  * Spring Security {@link UserDetailsService} 구현 — loginId로 회원 로드
  *
  * <p>{@link MemberRepository#findByLoginId(String)}로 회원을 조회하고 {@link MemberUserDetails}로 래핑하여 반환한다.
- * {@link com.econo.auth.core.member.application.usecase.LoginService}의 로직을 Spring Security 인증
- * 파이프라인으로 흡수한다.
+ * {@code LoginService}의 로직을 Spring Security 인증 파이프라인으로 흡수한다.
  */
 @Service
 @RequiredArgsConstructor
