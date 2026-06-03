@@ -11,7 +11,7 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 |------|-----|
 | 패키지 루트 | `com.econo.auth.client` |
 | Gradle 의존 경로 | `implementation(project(":services:libs:service-client"))` |
-| 주요 연관 모듈 | `auth-infra` (JpaAuditing 공유), `auth-api` (소비자) |
+| 주요 연관 모듈 | `common-infra` (JpaAuditing 공유), `auth-api` (소비자) |
 | AutoConfiguration | `com.econo.auth.client.config.ServiceClientAutoConfiguration` |
 | API 엔드포인트 | 해당 없음 — libs 모듈. 소비자: `AdminClientController` (`/api/v1/clients`, `/api/v1/routes`) |
 
@@ -24,7 +24,7 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 - `clientSecret`(BCrypt 해시)은 SAS `RegisteredClient`에 저장되며 `service_client` 테이블에는 저장되지 않는다. 원본 secret은 등록 응답에서 1회만 반환한다.
 - `apiKeyHash` 필드는 항상 null이다. 향후 API Key 채널 도입 시 부활 예정.
 - `GrantType.fromString`은 null 입력 시 null을 반환한다. 알 수 없는 비-null 값이면 `IllegalArgumentException`을 throw하며, `AdminClientController`가 catch하여 `UnsupportedGrantTypeException`으로 변환한다.
-- ⚠️ `ServiceClientAutoConfiguration`이 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.client.adapter.out.persistence`를 직접 스캔한다. `InfraConfig`(auth-infra)에서 이 패키지를 선언하면 중복 스캔 충돌이 발생한다.
+- ⚠️ `ServiceClientAutoConfiguration`이 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.client.adapter.out.persistence`를 직접 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
 - `SasRedirectUriManager` 포트를 통해 SAS `RegisteredClientRepository` 직접 의존을 `SasRedirectUriManagerAdapter`로 격리한다. application 계층은 SAS 클래스를 직접 import하지 않는다.
 - `ClientRedirectUriService.extractAllowedOrigins`는 모든 등록 클라이언트의 redirectUri에서 scheme+host+port 기준으로 CORS 허용 오리진을 추출한다. Gateway의 `DynamicCorsConfigurationSource`가 이 메서드를 호출한다.
 
@@ -64,5 +64,5 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 
 | 모듈 | Gradle path | 관계 |
 |------|-------------|------|
-| auth-infra | `:services:libs:auth-infra` | JpaAuditingConfig 공유 (`@EnableJpaAuditing` 선언 위치) |
+| common-infra | `:services:libs:common-infra` | JpaAuditingConfig 공유 (`@EnableJpaAuditing` AutoConfiguration 선언 위치) |
 | auth-api | `:services:apis:auth-api` | 소비자 — `AdminClientController`, `GlobalExceptionHandler`, `DynamicCorsConfigurationSource` |

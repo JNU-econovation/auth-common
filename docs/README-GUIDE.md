@@ -10,7 +10,7 @@
 
 | 순서 | 섹션 | 내용 |
 |------|------|------|
-| 1 | **Quick Reference** | 패키지 경로 (`com.econo.auth.xxx`), Gradle 의존 경로 (`implementation(project(":services:libs:auth-core"))`), 주요 연관 모듈, API 엔드포인트 |
+| 1 | **Quick Reference** | 패키지 경로 (`com.econo.auth.xxx`), Gradle 의존 경로 (`implementation(project(":services:libs:member"))`), 주요 연관 모듈, API 엔드포인트 |
 | 2 | **비즈니스 규칙** | 코드만 봐서는 알 수 없는 제약, 엣지 케이스, ⚠️ 주의사항 |
 | 3 | **코드 진입점** | Service, Repository, Entity, Errors, Controller 파일 경로 |
 | 4 | **에러 코드** | 에러 파일 경로 포인터 (예: `> 에러 정의: services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/PassportException.java`) |
@@ -75,7 +75,7 @@ services/apis/auth-api/
 
 | 금지 내용 | Source of Truth | 허용되는 대체 |
 |----------|----------------|-------------|
-| DB 테이블 스키마 | JPA `@Entity` 클래스 (`*.java`) | 한 줄 포인터: `> Entity 정의: services/libs/auth-infra/src/main/java/.../MemberEntity.java` |
+| DB 테이블 스키마 | JPA `@Entity` 클래스 (`*.java`) | 한 줄 포인터: `> Entity 정의: services/libs/member/src/main/java/com/econo/auth/member/adapter/out/persistence/MemberJpaEntity.java` |
 | 파일 구조 트리 | `ls` / `glob` | — |
 | Gradle 의존성 전체 목록 | `build.gradle.kts` | — |
 | Enum·상수 전체 값 목록 | `Roles.java` 같은 상수 클래스 | 한 줄 포인터: `> Role 상수 정의: services/libs/auth-common-lib/src/main/java/com/econo/common/auth/core/passport/Roles.java` |
