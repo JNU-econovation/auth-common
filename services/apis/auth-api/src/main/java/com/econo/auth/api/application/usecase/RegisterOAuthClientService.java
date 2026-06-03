@@ -8,16 +8,13 @@ import com.econo.auth.api.domain.ServiceClient;
 import com.econo.auth.api.domain.ServiceRoute;
 import com.econo.auth.api.exception.DuplicateClientNameException;
 import com.econo.auth.api.exception.RedirectUriRequiredException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,8 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>SAS 인프라 의존은 {@link SasClientRegistrar} 포트 뒤로 격리되어 있다.
  *
  * <ul>
- *   <li>authorization_code: PKCE 필수 공개 클라이언트
- *   <li>client_credentials: BCrypt secret, SHA-256 api_key_hash
+ *   <li>authorization_code: PKCE 필수 공개 클라이언트. clientSecret 미발급.
+ *   <li>client_credentials: BCrypt secret 발급. apiKeyHash는 항상 null.
  * </ul>
  */
 @Service
@@ -46,14 +43,14 @@ public class RegisterOAuthClientService {
 	/**
 	 * OAuth 클라이언트 등록 명령
 	 *
-	 * @param grantType 그랜트 타입
+	 * @param grantType 그랜트 타입. null이면 서비스에서 CLIENT_CREDENTIALS 디폴트 적용.
 	 * @param clientName 클라이언트 이름
 	 * @param redirectUris 리다이렉트 URI (authorization_code 전용)
 	 * @param upstreamUrl 업스트림 서비스 URL (선택)
 	 * @param pathPrefix 경로 접두사 (선택)
 	 */
 	public record RegisterOAuthClientCommand(
-			GrantType grantType,
+			@Nullable GrantType grantType,
 			String clientName,
 			Set<String> redirectUris,
 			String upstreamUrl,
@@ -86,9 +83,10 @@ public class RegisterOAuthClientService {
 
 		String clientId = UUID.randomUUID().toString();
 		String rawSecret = null;
-		String apiKeyHash = null;
+		GrantType resolved =
+				command.grantType() != null ? command.grantType() : GrantType.CLIENT_CREDENTIALS;
 
-		if (command.grantType() == GrantType.AUTHORIZATION_CODE) {
+		if (resolved == GrantType.AUTHORIZATION_CODE) {
 			if (command.redirectUris() == null || command.redirectUris().isEmpty()) {
 				throw new RedirectUriRequiredException();
 			}
@@ -96,14 +94,13 @@ public class RegisterOAuthClientService {
 					clientId, command.clientName(), command.redirectUris());
 		} else {
 			rawSecret = generateSecret();
-			apiKeyHash = sha256Hex(rawSecret);
 			String bcryptSecret = "{bcrypt}" + passwordEncoder.encode(rawSecret);
 			sasClientRegistrar.registerClientCredentialsClient(
 					clientId, command.clientName(), bcryptSecret);
 		}
 
 		serviceClientRepository.save(
-				ServiceClient.create(clientId, command.clientName(), command.grantType(), apiKeyHash));
+				ServiceClient.create(clientId, command.clientName(), resolved, null));
 
 		String routeId = null;
 		if (command.upstreamUrl() != null) {
@@ -125,9 +122,6 @@ public class RegisterOAuthClientService {
 	}
 
 	private void validateCommand(RegisterOAuthClientCommand command) {
-		if (command.grantType() == null) {
-			throw new IllegalArgumentException("grantType은 필수입니다.");
-		}
 		if (command.clientName() == null) {
 			throw new IllegalArgumentException("clientName은 필수입니다.");
 		}
@@ -137,15 +131,5 @@ public class RegisterOAuthClientService {
 		byte[] bytes = new byte[SECRET_BYTE_LENGTH];
 		new SecureRandom().nextBytes(bytes);
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-	}
-
-	private String sha256Hex(String input) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-			return HexFormat.of().formatHex(hash);
-		} catch (NoSuchAlgorithmException e) {
-			throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
-		}
 	}
 }

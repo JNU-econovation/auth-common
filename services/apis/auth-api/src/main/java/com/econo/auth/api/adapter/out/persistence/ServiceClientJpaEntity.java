@@ -36,7 +36,7 @@ public class ServiceClientJpaEntity {
 	private String clientName;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "grant_type", nullable = false, length = 30)
+	@Column(name = "grant_type", nullable = true, length = 30)
 	private GrantType grantType;
 
 	@Column(name = "api_key_hash", length = 64)

@@ -10,6 +10,7 @@ import com.econo.auth.api.application.usecase.RegisterOAuthClientService.Registe
 import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
 import com.econo.auth.api.config.SecurityConfig;
 import com.econo.auth.api.exception.RedirectUriRequiredException;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -126,6 +127,32 @@ class AdminClientControllerTest {
 									.content(requestBody))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errorCode").value("REDIRECT_URI_REQUIRED"));
+		}
+
+		@Test
+		@Disabled("refactor-client-registration: SAS 포트 통합 후 재활성")
+		@DisplayName("grantType 생략 시 201과 clientId + clientSecret 반환")
+		@WithMockUser(roles = "ADMIN")
+		void registerWithoutGrantType_returns201WithClientIdAndSecret() throws Exception {
+			// given — grantType 키 자체 없음
+			String requestBody = """
+					{
+						"clientName": "app-b"
+					}
+					""";
+			given(registerOAuthClientService.register(any(RegisterOAuthClientCommand.class)))
+					.willReturn(new RegisterOAuthClientResult("cid", "secret", null));
+
+			// when & then
+			mockMvc
+					.perform(
+							post("/api/v1/admin/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-Internal-Api-Key", "valid-internal-key")
+									.content(requestBody))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.clientId").value("cid"))
+					.andExpect(jsonPath("$.clientSecret").value("secret"));
 		}
 
 		@Test

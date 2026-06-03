@@ -60,7 +60,8 @@ public class AdminClientController {
 	/**
 	 * OAuth 클라이언트 등록 요청 DTO
 	 *
-	 * @param grantType 그랜트 타입 (authorization_code, client_credentials)
+	 * @param grantType 그랜트 타입 (authorization_code, client_credentials). <strong>생략 가능</strong> — 생략 시
+	 *     client_credentials 디폴트 적용.
 	 * @param clientName 클라이언트 이름
 	 * @param redirectUris 리다이렉트 URI 목록 (authorization_code 전용, null이면 빈 Set)
 	 * @param upstreamUrl 업스트림 서비스 URL (선택)
@@ -113,6 +114,7 @@ public class AdminClientController {
 							+ "- `authorization_code`: PKCE 필수 공개 클라이언트. `redirectUris` 필수. clientSecret 미발급.\n"
 							+ "- `client_credentials`: 비밀 클라이언트. clientSecret **1회만** 응답에 포함(이후 재조회 불가). "
 							+ "`upstreamUrl` + `pathPrefix` 지정 시 Gateway 동적 라우트 자동 등록.\n\n"
+							+ "grantType 생략 가능. 생략 시 `client_credentials`로 처리하여 clientSecret 발급.\n\n"
 							+ "**인증:** `X-Internal-Api-Key` 헤더 필수 (서버 내부망 전용)")
 	@ApiResponses({
 		@ApiResponse(responseCode = "201", description = "클라이언트 등록 성공"),
@@ -121,8 +123,8 @@ public class AdminClientController {
 				description =
 						"| 코드 | 설명 |\n"
 								+ "|------|------|\n"
-								+ "| REDIRECT_URI_REQUIRED | authorization_code인데 redirectUris 없음 |\n"
-								+ "| UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType |\n"
+								+ "| REDIRECT_URI_REQUIRED | authorization_code 타입이 **명시된** 경우에만 발생 |\n"
+								+ "| UNSUPPORTED_GRANT_TYPE | null이 아닌 알 수 없는 값일 때만 발생 |\n"
 								+ "| VALIDATION_FAILED | clientName이 빈 문자열 |",
 				content = @Content),
 		@ApiResponse(
