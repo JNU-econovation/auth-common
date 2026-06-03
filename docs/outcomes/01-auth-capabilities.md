@@ -90,7 +90,6 @@ GET /oauth2/jwks
 
 ```
 POST /api/v1/admin/clients
-X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 
 {
   "grantType": "authorization_code",
@@ -102,7 +101,6 @@ X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 
 ```
 POST /api/v1/admin/clients
-X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 
 {
   "grantType": "client_credentials",
@@ -119,7 +117,6 @@ X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 
 ```
 GET /api/v1/admin/routes
-X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 → { "routes": [{ "routeId": "...", "clientId": "...", "upstreamUrl": "...", "pathPrefix": "..." }] }
 ```
 
@@ -135,7 +132,7 @@ X-Internal-Api-Key: <AUTH_INTERNAL_API_KEY>
 | `/api/v1/auth/logout` | POST | 없음 | 로그아웃 |
 | `/api/v1/members/batch` | POST | Gateway | 회원 정보 일괄 조회 |
 | `/oauth2/jwks` | GET | 없음 | RS256 공개키 |
-| `/api/v1/admin/clients` | POST | Internal API Key | OAuth 클라이언트 등록 |
-| `/api/v1/admin/clients/{id}` | GET | Internal API Key | 클라이언트 조회 |
-| `/api/v1/admin/clients/{id}/redirect-uris` | POST/PUT/DELETE | Internal API Key | redirectUri 관리 |
-| `/api/v1/admin/routes` | GET | Internal API Key | 라우트 목록 |
+| `/api/v1/admin/clients` | POST | 없음 (public) | OAuth 클라이언트 등록 |
+| `/api/v1/admin/clients/{id}` | GET | Basic Auth (clientId:clientSecret) | 클라이언트 조회 |
+| `/api/v1/admin/clients/{id}/redirect-uris` | POST/PUT/DELETE | Basic Auth (clientId:clientSecret) | redirectUri 관리 |
+| `/api/v1/admin/routes` | GET | 없음 (public) | 라우트 목록 |

@@ -244,7 +244,14 @@ auth-api는 로그인 UI를 제공하지 않는다. `/api/v1/auth/login`은 JSON
 | 400 BAD_REQUEST | INVALID_PASSWORD_POLICY | 비밀번호 정책 위반 |
 | 400 BAD_REQUEST | INVALID_LOGIN_ID_FORMAT | loginId 형식 위반 (IllegalArgumentException) |
 
-> 정의: `services/libs/auth-core/src/main/java/com/econo/auth/core/member/exception/`
+### auth-api — Admin API (AdminClientController)
+
+> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/AdminClientController.java`
+
+| HTTP 상태 | 에러 코드 | 발생 조건 |
+|-----------|-----------|-----------|
+| 401 UNAUTHORIZED | INVALID_CLIENT_CREDENTIALS | Authorization 헤더 누락, Base64 디코딩 실패, clientId 미존재, BCrypt 불일치, `authorization_code` 클라이언트(clientSecret 없음). 401 응답 시 `WWW-Authenticate: Basic realm="admin"` 헤더 포함 |
+| 403 FORBIDDEN | FORBIDDEN_CLIENT_MISMATCH | path `{clientId}` ≠ Basic Auth에서 추출한 clientId |
 
 > Bean Validation 오류(VALIDATION_FAILED)는 auth-api 웹 레이어에서 처리.
 

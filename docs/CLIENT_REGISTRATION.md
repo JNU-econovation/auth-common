@@ -1,7 +1,10 @@
 # OAuth 클라이언트 등록 가이드
 
 `POST /api/v1/admin/clients` — OAuth 클라이언트를 등록한다.
-모든 Admin API는 `X-Internal-Api-Key` 헤더 인증 필수 (서버 내부망 전용).
+등록 및 라우트 조회 endpoint는 인증 불필요 (public). redirectUri 관리 4개 endpoint는
+`Authorization: Basic base64(clientId:clientSecret)` 헤더 필수 (서버 내부망 전용).
+
+> **중요:** `clientSecret`은 등록 응답에서 단 1회만 노출된다. 분실 시 재등록 필요.
 
 ---
 
@@ -23,7 +26,6 @@
 
 ```bash
 curl -X POST http://auth-api:8081/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: <KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "clientName": "app-b"
@@ -42,7 +44,6 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients \
 
 ```bash
 curl -X POST http://auth-api:8081/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: <KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "authorization_code",
@@ -58,13 +59,15 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients \
 }
 ```
 
-> `clientSecret`은 authorization_code 타입에서 발급되지 않는다 (`@JsonInclude(NON_NULL)` — 필드 자체가 응답에 포함되지 않음).
+> `clientSecret`은 authorization_code 타입 클라이언트에 대해 생성되지 않는다.
+> 응답 바디에 필드가 포함되지 않는다 (`@JsonInclude(NON_NULL)` 적용).
+
+> **주의:** `authorization_code` 클라이언트는 clientSecret이 없으므로 Basic Auth가 필요한 redirectUri 관리 endpoint에 접근할 수 없다. 접근 시도 시 `401 INVALID_CLIENT_CREDENTIALS`를 반환한다.
 
 ### client_credentials (서버 간 호출 + Gateway 라우팅)
 
 ```bash
 curl -X POST http://auth-api:8081/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: <KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",
@@ -89,20 +92,36 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients \
 
 ---
 
+## Basic Auth 헤더 구성 방법
+
+redirectUri 관리 4개 endpoint를 호출하려면 등록 응답의 `clientSecret`을 사용해 Basic Auth 헤더를 구성해야 한다.
+
+```bash
+# clientId:clientSecret 을 Base64 인코딩
+CLIENT_ID="e2d130b5-..."
+CLIENT_SECRET="hMgV6hWvEq..."
+BASIC_TOKEN=$(echo -n "${CLIENT_ID}:${CLIENT_SECRET}" | base64)
+
+# Authorization 헤더 구성
+-H "Authorization: Basic ${BASIC_TOKEN}"
+```
+
+---
+
 ## redirectUri 관리
 
 ### 조회
 
 ```bash
 curl http://auth-api:8081/api/v1/admin/clients/{clientId} \
-  -H "X-Internal-Api-Key: <KEY>"
+  -H "Authorization: Basic base64(clientId:clientSecret)"
 ```
 
 ### 추가 (기존 유지)
 
 ```bash
 curl -X POST http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uri": "https://new.econovation.kr/callback"}'
 ```
@@ -111,7 +130,7 @@ curl -X POST http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris 
 
 ```bash
 curl -X DELETE http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uri": "https://old.econovation.kr/callback"}'
 ```
@@ -120,7 +139,7 @@ curl -X DELETE http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uri
 
 ```bash
 curl -X PUT http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Authorization: Basic base64(clientId:clientSecret)" \
   -H "Content-Type: application/json" \
   -d '{"uris": ["https://app.econovation.kr/callback", "http://localhost:3000/callback"]}'
 ```
@@ -134,7 +153,8 @@ curl -X PUT http://auth-api:8081/api/v1/admin/clients/{clientId}/redirect-uris \
 | 400 | `REDIRECT_URI_REQUIRED` | `grantType=authorization_code`를 명시했는데 `redirectUris`가 비어있음. `grantType` 생략(디폴트) 시에는 발생하지 않음 |
 | 400 | `UNSUPPORTED_GRANT_TYPE` | `grantType`이 null이 아닌데 `authorization_code` / `client_credentials` 이외의 값인 경우 |
 | 400 | `VALIDATION_FAILED` | `clientName`이 빈 문자열 |
-| 401 | `UNAUTHORIZED` | `X-Internal-Api-Key` 없거나 틀림 |
+| 401 | `INVALID_CLIENT_CREDENTIALS` | Authorization 헤더 누락, Base64 디코딩 실패, clientId 미존재, BCrypt 불일치, `authorization_code` 클라이언트(clientSecret 없음). 응답 헤더: `WWW-Authenticate: Basic realm="admin"` |
+| 403 | `FORBIDDEN_CLIENT_MISMATCH` | path `{clientId}` ≠ Basic Auth에서 추출한 clientId |
 | 409 | `DUPLICATE_RESOURCE` | `clientName` 또는 `pathPrefix` 중복 |
 
 ---

@@ -131,7 +131,6 @@ public ResponseEntity<?> getSettings(
 
 ```bash
 curl -X POST https://gateway.econovation.kr/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: $AUTH_INTERNAL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",

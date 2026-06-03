@@ -128,19 +128,24 @@ api-gateway가 JWT 서명 검증에 사용하는 공개키. 직접 호출 불필
 
 ---
 
-## OAuth 클라이언트 관리 (X-Internal-Api-Key 헤더 필수)
+## OAuth 클라이언트 관리
+
+등록(`POST /clients`) 및 라우트 조회(`GET /routes`)는 인증 불필요 (public).
+redirectUri 관리 4개 endpoint는 `Authorization: Basic base64(clientId:clientSecret)` 헤더 필수.
 
 > 자세한 내용: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
 
 ```bash
-# 클라이언트 등록
+# 클라이언트 등록 (public — 인증 불필요)
 curl -X POST http://localhost:8081/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Content-Type: application/json" \
   -d '{"grantType": "authorization_code", "clientName": "EEOS 웹", "redirectUris": ["https://app.econovation.kr/callback"]}'
 
-# redirectUri 추가
+# redirectUri 추가 (Basic Auth 필요 — clientId:clientSecret 을 Base64 인코딩)
+BASIC_TOKEN=$(echo -n "{clientId}:{clientSecret}" | base64)
 curl -X POST http://localhost:8081/api/v1/admin/clients/{clientId}/redirect-uris \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Authorization: Basic ${BASIC_TOKEN}" \
+  -H "Content-Type: application/json" \
   -d '{"uri": "https://app2.econovation.kr/callback"}'
 ```
 
@@ -155,7 +160,6 @@ curl -X POST http://localhost:8081/api/v1/admin/clients/{clientId}/redirect-uris
 | `RSA_PRIVATE_KEY` | PKCS#8 PEM 개인키 | 필수 |
 | `RSA_PUBLIC_KEY` | X.509 PEM 공개키 | 필수 |
 | `AUTH_ISSUER_URI` | JWT `iss` 클레임 (Gateway 공개 URL) | `http://localhost:8080` |
-| `AUTH_INTERNAL_API_KEY` | Admin API 인증 키 | 필수 |
 | `COOKIE_DOMAIN` | 쿠키 도메인 (`.econovation.kr`) | 빈값 |
 | `COOKIE_SECURE` | HTTPS 전용 쿠키 | `false` |
 | `AT_EXPIRY_SECONDS` | AT 유효시간 (초) | `3600` (1시간) |
@@ -180,7 +184,6 @@ DB_USERNAME=auth DB_PASSWORD=auth1234 \
 RSA_PRIVATE_KEY="$(cat private-pkcs8.pem)" \
 RSA_PUBLIC_KEY="$(cat public.pem)" \
 AUTH_ISSUER_URI=http://localhost:8081 \
-AUTH_INTERNAL_API_KEY=local-test-key \
 COOKIE_SECURE=false \
 ./gradlew :services:apis:auth-api:bootRun --args='--server.port=8081'
 ```

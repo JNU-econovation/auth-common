@@ -129,7 +129,8 @@ Body: {
 
 ### 🛠️ OAuth 클라이언트 관리 (Admin)
 
-> 모든 요청에 `X-Internal-Api-Key: <KEY>` 헤더 필수
+등록(`POST /clients`) 및 라우트 조회(`GET /routes`)는 인증 불필요 (public).
+클라이언트 조회 및 redirectUri 관리(4개 endpoint)는 `Authorization: Basic base64(clientId:clientSecret)` 헤더 필수.
 
 #### 클라이언트 등록
 ```
@@ -156,7 +157,7 @@ POST /api/v1/admin/clients
 }
 ```
 
-#### redirectUri 관리
+#### redirectUri 관리 (인증: Basic Auth — clientId:clientSecret)
 ```
 POST   /api/v1/admin/clients/{clientId}/redirect-uris  // 추가
 DELETE /api/v1/admin/clients/{clientId}/redirect-uris  // 삭제
@@ -202,13 +203,13 @@ GET    /api/v1/admin/clients/{clientId}                // 조회
 
 ```bash
 curl -X POST http://auth-api:8081/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: <KEY>" \
+  -H "Content-Type: application/json" \
   -d '{
     "clientName": "내 새 서비스",
     "upstreamUrl": "http://my-service:8080",
     "pathPrefix": "/api/my-service"
   }'
-# → clientId, clientSecret 반환 (저장)
+# → clientId, clientSecret 반환 (clientSecret은 1회만 노출 — 반드시 즉시 저장)
 ```
 
 ### Step 2. Gateway 라우팅 추가

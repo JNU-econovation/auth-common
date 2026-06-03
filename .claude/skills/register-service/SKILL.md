@@ -26,10 +26,9 @@ description: |
 시작 전 다음을 확인한다:
 
 1. **auth-api 주소** — `AUTH_API_ADMIN_URL` 환경변수 또는 사용자에게 물어본다 (기본: `http://localhost:8081`)
-2. **auth-api Internal API Key** — `AUTH_INTERNAL_API_KEY` 환경변수 또는 사용자에게 물어본다
-3. **서비스 업스트림 URL** — 서비스가 실행되는 주소 (예: `http://new-service:8080`)
-4. **서비스 경로 접두사** — Gateway에서 이 서비스로 라우팅할 경로 (예: `/api/new-service`)
-5. **서비스 프로젝트 경로** — econo-passport를 추가할 서비스의 소스 경로
+2. **서비스 업스트림 URL** — 서비스가 실행되는 주소 (예: `http://new-service:8080`)
+3. **서비스 경로 접두사** — Gateway에서 이 서비스로 라우팅할 경로 (예: `/api/new-service`)
+4. **서비스 프로젝트 경로** — econo-passport를 추가할 서비스의 소스 경로
 
 ---
 
@@ -37,7 +36,6 @@ description: |
 
 ```bash
 curl -X POST ${AUTH_API_URL:-http://localhost:8081}/api/v1/admin/clients \
-  -H "X-Internal-Api-Key: ${AUTH_INTERNAL_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
     "grantType": "client_credentials",
@@ -164,7 +162,7 @@ curl -b /tmp/test-cookies.txt \
 
 ## 완료 체크리스트
 
-- [ ] auth-api에 client_credentials 클라이언트 등록 (`clientId`, `clientSecret` 저장)
+- [ ] auth-api에 client_credentials 클라이언트 등록 (`clientId`, `clientSecret` 저장 — clientSecret은 등록 응답에서 1회만 노출 — 반드시 즉시 저장)
 - [ ] `GatewayRoutingConfig`에 라우트 추가 + Gateway 재기동
 - [ ] 서비스에 econo-passport 의존성 추가
 - [ ] `PassportAuthenticationFilter` Security 체인에 등록
