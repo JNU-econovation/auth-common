@@ -58,7 +58,7 @@ public class Member implements Serializable {
 	}
 
 	public boolean isAdmin() {
-		return "ADMIN".equals(role);
+		return "ADMIN".equals(role) || "SUPER_ADMIN".equals(role);
 	}
 
 	/** 역할이 변경된 새 Member 인스턴스 반환 (불변 객체 패턴) */
