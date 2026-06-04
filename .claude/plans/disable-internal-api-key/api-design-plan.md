@@ -446,8 +446,8 @@ private String buildBasicAuthHeader(String clientId, String rawSecret) {
 
 ```
 기존: "모든 엔드포인트는 X-Internal-Api-Key 헤더 인증 필요 (서버 간 내부망 전용)."
-신규: "등록(POST /clients) 및 라우트 조회(GET /routes)는 인증 불필요 (public). 
-      클라이언트 조회 및 redirectUri 관리(4개 엔드포인트)는 
+신규: "등록(POST /clients) 및 라우트 조회(GET /routes)는 인증 불필요 (public).
+      클라이언트 조회 및 redirectUri 관리(4개 엔드포인트)는
       Authorization: Basic base64(clientId:clientSecret) 헤더 필수 (서버 내부망 전용)."
 ```
 
