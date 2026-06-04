@@ -47,4 +47,12 @@ public class MemberRepositoryAdapter implements MemberRepository {
 		}
 		return memberJpaRepository.findAllByIdIn(ids).stream().map(MemberJpaEntity::toDomain).toList();
 	}
+
+	@Override
+	@Transactional
+	public void updateRole(Long memberId, String role) {
+		memberJpaRepository
+				.findById(memberId)
+				.ifPresent(entity -> memberJpaRepository.save(entity.withRole(role)));
+	}
 }

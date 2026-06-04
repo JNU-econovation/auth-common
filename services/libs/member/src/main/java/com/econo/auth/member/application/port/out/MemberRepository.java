@@ -45,4 +45,12 @@ public interface MemberRepository {
 	 * @return 조회된 회원 목록 (없는 ID는 제외됨)
 	 */
 	List<Member> findAllByIds(List<Long> ids);
+
+	/**
+	 * 회원 역할(role) 업데이트
+	 *
+	 * @param memberId 회원 PK
+	 * @param role 변경할 역할 (USER, ADMIN 등)
+	 */
+	void updateRole(Long memberId, String role);
 }

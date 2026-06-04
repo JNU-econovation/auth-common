@@ -17,6 +17,7 @@ public class Member implements Serializable {
 	private final String hashedPassword;
 	private final Integer generation;
 	private final MemberStatus status;
+	private final String role;
 	private final LocalDateTime createdAt;
 
 	private Member(
@@ -26,6 +27,7 @@ public class Member implements Serializable {
 			String hashedPassword,
 			Integer generation,
 			MemberStatus status,
+			String role,
 			LocalDateTime createdAt) {
 		this.id = id;
 		this.name = name;
@@ -33,36 +35,16 @@ public class Member implements Serializable {
 		this.hashedPassword = hashedPassword;
 		this.generation = generation;
 		this.status = status;
+		this.role = role != null ? role : "USER";
 		this.createdAt = createdAt;
 	}
 
-	/**
-	 * 신규 회원 생성 팩토리 메서드
-	 *
-	 * @param name 이름
-	 * @param loginId 로그인 아이디
-	 * @param hashedPassword 해시된 비밀번호
-	 * @param generation 기수
-	 * @param status 활동 상태
-	 * @return 새로 생성된 Member 인스턴스
-	 */
 	public static Member create(
 			String name, String loginId, String hashedPassword, Integer generation, MemberStatus status) {
-		return new Member(null, name, loginId, hashedPassword, generation, status, LocalDateTime.now());
+		return new Member(
+				null, name, loginId, hashedPassword, generation, status, "USER", LocalDateTime.now());
 	}
 
-	/**
-	 * JPA 엔티티 복원용 팩토리 메서드
-	 *
-	 * @param id 회원 ID
-	 * @param name 이름
-	 * @param loginId 로그인 아이디
-	 * @param hashedPassword 해시된 비밀번호
-	 * @param generation 기수
-	 * @param status 활동 상태
-	 * @param createdAt 생성 시각
-	 * @return 복원된 Member 인스턴스
-	 */
 	public static Member restore(
 			Long id,
 			String name,
@@ -70,7 +52,17 @@ public class Member implements Serializable {
 			String hashedPassword,
 			Integer generation,
 			MemberStatus status,
+			String role,
 			LocalDateTime createdAt) {
-		return new Member(id, name, loginId, hashedPassword, generation, status, createdAt);
+		return new Member(id, name, loginId, hashedPassword, generation, status, role, createdAt);
+	}
+
+	public boolean isAdmin() {
+		return "ADMIN".equals(role);
+	}
+
+	/** 역할이 변경된 새 Member 인스턴스 반환 (불변 객체 패턴) */
+	public Member withRole(String newRole) {
+		return new Member(id, name, loginId, hashedPassword, generation, status, newRole, createdAt);
 	}
 }

@@ -50,15 +50,15 @@ public class GatewayRoutingConfig {
 	/**
 	 * Gateway 라우트 정의.
 	 *
-	 * <p><strong>주의:</strong> {@code /api/v1/clients/**}, {@code /api/v1/routes/**} 라우트를 이 파일에 추가하지 말
-	 * 것. 클라이언트 관리 endpoint는 내부망 전용이며, Gateway 외부 라우트에 노출 시 public 등록 endpoint ({@code POST
-	 * /api/v1/clients})에 대한 도배(flood) 공격 위험이 있다. ADR-0010 참조.
+	 * <p>라우트 우선순위: 더 구체적인 경로를 먼저 선언한다. {@code /api/v1/admin/**}와 {@code /api/v1/members/**}는
+	 * auth-api로, 나머지 {@code /api/**}는 eeos로 라우팅된다.
 	 */
 	@Bean
 	public RouteLocator routes(RouteLocatorBuilder builder) {
 		return builder
 				.routes()
 				.route("auth-api", r -> r.path("/api/v1/auth/**").uri(authApiUri))
+				.route("auth-admin", r -> r.path("/api/v1/admin/**").uri(authApiUri))
 				.route("auth-members", r -> r.path("/api/v1/members/**").uri(authApiUri))
 				.route("sas-oauth2", r -> r.path("/oauth2/**").uri(authApiUri))
 				.route("sas-well-known", r -> r.path("/.well-known/**").uri(authApiUri))

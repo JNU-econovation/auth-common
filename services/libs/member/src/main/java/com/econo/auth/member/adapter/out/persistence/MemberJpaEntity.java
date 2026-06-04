@@ -48,16 +48,13 @@ public class MemberJpaEntity {
 	@Column(name = "status", nullable = false, length = 2)
 	private MemberStatus status;
 
+	@Column(name = "role", nullable = false, length = 20)
+	private String role = "USER";
+
 	@CreatedDate
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
-	/**
-	 * 도메인 Member → JPA 엔티티 변환
-	 *
-	 * @param member 도메인 Member
-	 * @return MemberJpaEntity 인스턴스
-	 */
 	public static MemberJpaEntity from(Member member) {
 		MemberJpaEntity entity = new MemberJpaEntity();
 		entity.name = member.getName();
@@ -65,15 +62,16 @@ public class MemberJpaEntity {
 		entity.hashedPassword = member.getHashedPassword();
 		entity.generation = member.getGeneration();
 		entity.status = member.getStatus();
+		entity.role = member.getRole();
 		return entity;
 	}
 
-	/**
-	 * JPA 엔티티 → 도메인 Member 변환
-	 *
-	 * @return 도메인 Member 인스턴스
-	 */
 	public Member toDomain() {
-		return Member.restore(id, name, loginId, hashedPassword, generation, status, createdAt);
+		return Member.restore(id, name, loginId, hashedPassword, generation, status, role, createdAt);
+	}
+
+	public MemberJpaEntity withRole(String newRole) {
+		this.role = newRole;
+		return this;
 	}
 }

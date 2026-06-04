@@ -56,12 +56,12 @@ public class SecurityConfig {
 												"/api/v1/auth/logout",
 												"/api/v1/auth/reissue",
 												"/api/v1/admin/jwks", // Gateway JWT 검증용 (내부 직접 호출)
+												"/api/v1/internal/**", // CLI 전용 내부 API (X-Internal-Api-Key 보호)
 												"/.well-known/**") // OIDC Discovery
 										.permitAll()
-										.requestMatchers("/api/v1/clients/**", "/api/v1/routes/**")
-										.permitAll()
 										// Gateway가 AT 검증 후 전달 — auth-api 내부는 Gateway 인증에 의존
-										.requestMatchers("/api/v1/members/**")
+										// admin 역할 체크는 컨트롤러의 X-User-Passport 파싱으로 처리
+										.requestMatchers("/api/v1/admin/**", "/api/v1/members/**")
 										.permitAll()
 										.anyRequest()
 										.authenticated())

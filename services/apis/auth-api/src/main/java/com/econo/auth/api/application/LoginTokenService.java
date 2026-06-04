@@ -94,7 +94,7 @@ public class LoginTokenService {
 						.claim("name", member.getName())
 						.claim("generation", member.getGeneration())
 						.claim("status", member.getStatus().name())
-						.claim("roles", List.of("USER"))
+						.claim("roles", List.of(member.getRole()))
 						.claim(TOKEN_TYPE_CLAIM, ACCESS)
 						.build();
 		return jwtEncoder
