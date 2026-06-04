@@ -169,10 +169,17 @@ public class AdminClientController {
 
 	record ClientDetailResponse(String clientId, String clientName, Set<String> redirectUris) {}
 
+	// auth-api 전체에서 공유하는 Passport 파싱 유틸
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	record PassportClaims(List<String> roles) {
-		boolean isAdmin() {
-			return roles != null && roles.contains("ADMIN");
+	public record PassportClaims(Long memberId, List<String> roles) {
+
+		/** ADMIN 또는 SUPER_ADMIN이면 true */
+		public boolean isAdmin() {
+			return roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
+		}
+
+		public boolean isSuperAdmin() {
+			return roles != null && roles.contains("SUPER_ADMIN");
 		}
 	}
 

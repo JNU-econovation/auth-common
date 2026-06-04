@@ -5,6 +5,8 @@ import com.econo.auth.member.domain.Member;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,5 +56,34 @@ public class MemberRepositoryAdapter implements MemberRepository {
 		memberJpaRepository
 				.findById(memberId)
 				.ifPresent(entity -> memberJpaRepository.save(entity.withRole(role)));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Member> findPaged(int page, int size, String role) {
+		PageRequest pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+		if (role == null || role.isBlank()) {
+			return memberJpaRepository.findAllBy(pageable).stream()
+					.map(MemberJpaEntity::toDomain)
+					.toList();
+		}
+		return memberJpaRepository.findAllByRole(role, pageable).stream()
+				.map(MemberJpaEntity::toDomain)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public long count(String role) {
+		if (role == null || role.isBlank()) {
+			return memberJpaRepository.count();
+		}
+		return memberJpaRepository.countByRole(role);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public long countByRole(String role) {
+		return memberJpaRepository.countByRole(role);
 	}
 }
