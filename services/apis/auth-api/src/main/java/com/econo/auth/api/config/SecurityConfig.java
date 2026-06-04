@@ -55,7 +55,7 @@ public class SecurityConfig {
 												"/api/v1/auth/login",
 												"/api/v1/auth/logout",
 												"/api/v1/auth/reissue",
-												"/oauth2/jwks", // Gateway JWT 검증용
+												"/api/v1/admin/jwks", // Gateway JWT 검증용 (내부 직접 호출)
 												"/.well-known/**") // OIDC Discovery
 										.permitAll()
 										.requestMatchers("/api/v1/clients/**", "/api/v1/routes/**")

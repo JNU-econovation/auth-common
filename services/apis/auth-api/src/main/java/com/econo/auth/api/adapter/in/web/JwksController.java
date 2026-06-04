@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * JWKS 엔드포인트 — api-gateway의 JWT 서명 검증용 공개키 제공
  *
- * <p>SAS 인가 서버 없이 직접 {@code /oauth2/jwks}를 구현한다.
+ * <p>gateway가 {@code AUTH_JWKS_URI}로 내부 직접 호출한다. 외부 노출 금지.
  */
 @Hidden
 @RestController
@@ -24,7 +24,7 @@ public class JwksController {
 
 	private final JWKSource<SecurityContext> jwkSource;
 
-	@GetMapping("/oauth2/jwks")
+	@GetMapping("/api/v1/admin/jwks")
 	public Map<String, Object> jwks() {
 		try {
 			JWKSelector selector = new JWKSelector(new JWKMatcher.Builder().build());

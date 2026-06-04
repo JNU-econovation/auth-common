@@ -15,10 +15,6 @@ spring:
           uri: ${AUTH_API_URI:http://localhost:8081}
           predicates:
             - Path=/api/v1/auth/**
-        - id: sas-oauth2
-          uri: ${AUTH_API_URI:http://localhost:8081}
-          predicates:
-            - Path=/oauth2/**
         - id: sas-well-known
           uri: ${AUTH_API_URI:http://localhost:8081}
           predicates:
@@ -44,7 +40,7 @@ management:
     health:
       show-details: never
 
-AUTH_JWKS_URI: ${AUTH_JWKS_URI:http://localhost:8081/oauth2/jwks}
+AUTH_JWKS_URI: ${AUTH_JWKS_URI:http://localhost:8081/api/v1/admin/jwks}
 AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:http://localhost:8081}
 EEOS_API_URI: ${EEOS_API_URI:http://localhost:8080}
 
@@ -54,7 +50,6 @@ gateway:
     - /api/v1/auth/login
     - /api/v1/auth/logout
     - /api/v1/auth/reissue
-    - /oauth2/**
     - /.well-known/**
     - /userinfo
     - /actuator/**

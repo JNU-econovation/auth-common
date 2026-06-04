@@ -41,19 +41,4 @@ public class SasClientRegistrarAdapter implements SasClientRegistrar {
 		redirectUris.forEach(builder::redirectUri);
 		registeredClientRepository.save(builder.build());
 	}
-
-	@Override
-	public void registerClientCredentialsClient(
-			String clientId, String clientName, String bcryptHashedSecret) {
-		RegisteredClient registeredClient =
-				RegisteredClient.withId(UUID.randomUUID().toString())
-						.clientId(clientId)
-						.clientName(clientName)
-						.clientSecret(bcryptHashedSecret)
-						.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-						.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-						.scope("read")
-						.build();
-		registeredClientRepository.save(registeredClient);
-	}
 }

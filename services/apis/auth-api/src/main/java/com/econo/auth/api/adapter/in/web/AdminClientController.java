@@ -1,11 +1,9 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.api.application.ClientRedirectUriService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
-import com.econo.auth.api.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
-import com.econo.auth.api.domain.GrantType;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
+import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,11 +12,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import java.beans.ConstructorProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,29 +54,17 @@ public class AdminClientController {
 	/**
 	 * OAuth 클라이언트 등록 요청 DTO
 	 *
-	 * @param grantType 그랜트 타입 (authorization_code, client_credentials)
 	 * @param clientName 클라이언트 이름
-	 * @param redirectUris 리다이렉트 URI 목록 (authorization_code 전용, null이면 빈 Set)
+	 * @param redirectUris 허용 redirect URI 목록 (필수)
 	 */
-	public record RegisterClientRequest(
-			String grantType, @NotBlank String clientName, Set<String> redirectUris) {
-
-		@ConstructorProperties({"grantType", "clientName", "redirectUris"})
-		public RegisterClientRequest {
-			if (redirectUris == null) {
-				redirectUris = Collections.emptySet();
-			}
-		}
-	}
+	public record RegisterClientRequest(@NotBlank String clientName, Set<String> redirectUris) {}
 
 	/**
 	 * OAuth 클라이언트 등록 응답 DTO
 	 *
 	 * @param clientId 등록된 클라이언트 ID
-	 * @param clientSecret 원본 시크릿 (client_credentials 전용)
 	 */
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	public record RegisterClientResponse(String clientId, String clientSecret) {}
+	public record RegisterClientResponse(String clientId) {}
 
 	/** 에러 응답 DTO */
 	public record ErrorResponse(String errorCode, String message, LocalDateTime timestamp) {
@@ -92,10 +76,8 @@ public class AdminClientController {
 	@Operation(
 			summary = "OAuth 클라이언트 등록",
 			description =
-					"새 OAuth 클라이언트를 등록하고 clientId를 발급한다.\n\n"
-							+ "**grantType별 동작:**\n"
-							+ "- `authorization_code`: PKCE 필수 공개 클라이언트. `redirectUris` 필수. clientSecret 미발급.\n"
-							+ "- `client_credentials`: 비밀 클라이언트. clientSecret **1회만** 응답에 포함(이후 재조회 불가).\n\n"
+					"새 OAuth 클라이언트(프론트엔드/모바일)를 등록하고 clientId를 발급한다.\n\n"
+							+ "항상 authorization_code (PKCE) 클라이언트로 등록된다. `redirectUris` 필수.\n\n"
 							+ "**인증:** `X-Internal-Api-Key` 헤더 필수 (서버 내부망 전용)")
 	@ApiResponses({
 		@ApiResponse(responseCode = "201", description = "클라이언트 등록 성공"),
@@ -104,8 +86,7 @@ public class AdminClientController {
 				description =
 						"| 코드 | 설명 |\n"
 								+ "|------|------|\n"
-								+ "| REDIRECT_URI_REQUIRED | authorization_code인데 redirectUris 없음 |\n"
-								+ "| UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType |\n"
+								+ "| REDIRECT_URI_REQUIRED | redirectUris가 없음 |\n"
 								+ "| VALIDATION_FAILED | clientName이 빈 문자열 |",
 				content = @Content),
 		@ApiResponse(
@@ -128,13 +109,12 @@ public class AdminClientController {
 					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
 		}
 
-		GrantType grantType = GrantType.fromString(request.grantType());
 		RegisterOAuthClientCommand command =
-				new RegisterOAuthClientCommand(grantType, request.clientName(), request.redirectUris());
+				new RegisterOAuthClientCommand(request.clientName(), request.redirectUris());
 
 		RegisterOAuthClientResult result = registerOAuthClientService.register(command);
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(new RegisterClientResponse(result.clientId(), result.clientSecret()));
+				.body(new RegisterClientResponse(result.clientId()));
 	}
 
 	// ── redirectUri 관리 ────────────────────────────────────────────
@@ -150,8 +130,7 @@ public class AdminClientController {
 		}
 		var client = redirectUriService.findByClientId(clientId);
 		return ResponseEntity.ok(
-				new ClientDetailResponse(
-						client.getClientId(), client.getClientName(), client.getRedirectUris()));
+				new ClientDetailResponse(client.clientId(), client.clientName(), client.redirectUris()));
 	}
 
 	@Operation(
