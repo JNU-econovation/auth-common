@@ -13,15 +13,19 @@ JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이
 
 [1단계] 로그인
   POST /api/v1/auth/login
-  Body: {"loginId": "user01", "password": "Econo1234!"}
-  Header: Client-Type: WEB  (또는 APP)
+  Body: {"loginId": "user01", "password": "Econo1234!", "clientId": "econovation-web"}
+        ← clientId는 WEB 전용 선택 필드 (APP에서 전달해도 무시)
+  Header: Client-Type: WEB  (또는 APP; 생략 시 WEB)
 
-  WEB 응답:
-    Set-Cookie: at=<JWT>; HttpOnly; Domain=.econovation.kr; Max-Age=3600
-    Set-Cookie: rt=<JWT>; HttpOnly; Domain=.econovation.kr; Max-Age=2592000
-    Body: {"accessExpiredTime": 1780242839681}
+  WEB 응답 — 302 리다이렉트 (clientId 기반):
+    HTTP 302 Found
+    Location: <clientId에 등록된 redirect_uri>  (미전달·미등록 시 auth.redirect.default-url)
+    Set-Cookie: at=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=3600
+    Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=2592000
+    Body: 없음
+    ※ 토큰은 Location URL에 포함되지 않는다 (쿠키 전용).
 
-  APP 응답:
+  APP 응답 — 200 OK:
     Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "..."}
 
 [2단계] API 호출 (Gateway 경유)
@@ -63,18 +67,23 @@ JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이
 |---------|------|------|------|
 | `loginId` | Body (JSON) | ✅ | 로그인 아이디 |
 | `password` | Body (JSON) | ✅ | 비밀번호 |
+| `clientId` | Body (JSON) | - | OAuth 클라이언트 ID. WEB 전용 — 등록된 redirect_uri 조회에 사용. 없거나 미등록 시 `auth.redirect.default-url`로 fallback. APP에서 전달해도 무시. |
 | `Client-Type` | Header | - | `WEB`(기본) 또는 `APP` |
 
-**WEB 응답:**
+**WEB 응답 — 302 Found:**
 ```
-HTTP 200
+HTTP 302 Found
+Location: https://app.econovation.kr/callback   ← clientId 등록 redirect_uri (또는 default-url)
 Set-Cookie: at=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=3600
 Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=2592000
-
-{"accessExpiredTime": 1780242839681}
+(Body 없음)
 ```
+- clientId 미전달 / 미등록 / redirect_uri 없음 → `auth.redirect.default-url`로 302 (4xx 거부 없음).
+- redirect_uri 복수 등록 시: 알파벳 오름차순 정렬 후 첫 번째 사용.
+- 토큰은 Location URL에 포함되지 않는다 (쿠키 전용, open redirect 구조적 불가능).
+- 자세한 설계 근거: [ADR-0012](../../docs/adr/0012-backend-decided-login-redirect.md)
 
-**APP 응답:**
+**APP 응답 — 200 OK:**
 ```json
 {
   "accessToken": "<JWT>",
@@ -160,6 +169,8 @@ curl -X POST http://localhost:8081/api/v1/clients/{clientId}/redirect-uris \
 | `RSA_PRIVATE_KEY` | PKCS#8 PEM 개인키 | 필수 |
 | `RSA_PUBLIC_KEY` | X.509 PEM 공개키 | 필수 |
 | `AUTH_ISSUER_URI` | JWT `iss` 클레임 (Gateway 공개 URL) | `http://localhost:8080` |
+| `REDIRECT_DEFAULT_URL` | WEB 로그인 302 fallback 목적지 (`auth.redirect.default-url`). clientId 미전달·미등록·redirect_uri 없음·인프라 오류 시 사용 (fail-safe) | `http://localhost:3000` |
+| `FRONTEND_LOGIN_URL` | SAS `/oauth2/authorize` 미인증 진입 시 리다이렉트할 SPA 로그인 URL (`auth.frontend-login-url`) | `http://localhost:3000/login` |
 | `COOKIE_DOMAIN` | 쿠키 도메인 (`.econovation.kr`) | 빈값 |
 | `COOKIE_SECURE` | HTTPS 전용 쿠키 | `false` |
 | `AT_EXPIRY_SECONDS` | AT 유효시간 (초) | `3600` (1시간) |

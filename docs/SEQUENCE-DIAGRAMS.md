@@ -8,13 +8,15 @@ sequenceDiagram
     participant GW as api-gateway
     participant AUTH as auth-api
 
-    C->>GW: POST /api/v1/auth/login (loginId, password)
+    C->>GW: POST /api/v1/auth/login (loginId, password, clientId)
     Note over GW: /api/v1/auth/** permittedPath → 검증 SKIP
     GW->>AUTH: 요청 전달
     AUTH->>AUTH: BCrypt 비밀번호 검증
-    AUTH-->>GW: 200 OK
-    GW-->>C: Set-Cookie: at (HttpOnly, Domain=.econovation.kr, 1h)
-    GW-->>C: Set-Cookie: rt (HttpOnly, Domain=.econovation.kr, 30d)
+    AUTH->>AUTH: AT + RT JWT 발급
+    Note over AUTH: ⚠️ AT + RT 쿠키 세팅 (response.addHeader — sendRedirect 전 필수)
+    AUTH->>AUTH: LoginRedirectResolver.resolve(clientId)<br/>clientId 등록 → redirect_uri<br/>미전달·미등록·오류 → default-url (fail-safe)
+    AUTH-->>C: 302 Found<br/>Location: redirect_uri (또는 default-url)<br/>Set-Cookie: at (HttpOnly, SameSite=None, 1h)<br/>Set-Cookie: rt (HttpOnly, SameSite=None, 30d)
+    Note over C: 토큰은 Location URL에 포함되지 않음<br/>(쿠키 전용 — open redirect 구조적 불가능)
 ```
 
 ## 2. API 호출 — SSO 자동 동작
