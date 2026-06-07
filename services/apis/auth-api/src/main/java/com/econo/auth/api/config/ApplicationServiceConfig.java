@@ -1,5 +1,7 @@
 package com.econo.auth.api.config;
 
+import com.econo.auth.api.application.LoginRedirectResolver;
+import com.econo.auth.client.application.usecase.ClientRedirectUriService;
 import com.econo.auth.member.application.port.out.MemberRepository;
 import com.econo.auth.member.application.port.out.PasswordHasher;
 import com.econo.auth.member.application.usecase.SignupService;
@@ -26,5 +28,17 @@ public class ApplicationServiceConfig {
 	public SignupService signupService(
 			MemberRepository memberRepository, PasswordHasher passwordHasher) {
 		return new SignupService(memberRepository, passwordHasher);
+	}
+
+	/**
+	 * LoginRedirectResolver 빈 등록
+	 *
+	 * @param clientRedirectUriService ClientRedirectUriService 포트 구현체
+	 * @return LoginRedirectResolver 인스턴스
+	 */
+	@Bean
+	public LoginRedirectResolver loginRedirectResolver(
+			ClientRedirectUriService clientRedirectUriService) {
+		return new LoginRedirectResolver(clientRedirectUriService);
 	}
 }

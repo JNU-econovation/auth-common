@@ -1,7 +1,7 @@
 package com.econo.auth.api.filter;
 
-import com.econo.auth.api.adapter.in.web.LoginResponse;
 import com.econo.auth.api.adapter.in.web.TokenCookieManager;
+import com.econo.auth.api.application.LoginRedirectResolver;
 import com.econo.auth.api.application.LoginTokenService;
 import com.econo.auth.api.application.LoginTokenService.TokenPair;
 import com.econo.auth.api.security.MemberUserDetails;
@@ -26,8 +26,9 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 /**
  * JSON 로그인 필터 — 인증 성공 시 AT/RT JWT를 발급한다 (세션 없음)
  *
- * <p>{@code Client-Type: WEB} (기본): AT → body, RT → HttpOnly 쿠키<br>
- * {@code Client-Type: APP}: AT + RT 모두 → body
+ * <p>{@code Client-Type: WEB} (기본): AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 302 리다이렉트
+ * <br>
+ * {@code Client-Type: APP}: AT + RT 모두 → body (200 OK)
  */
 @Slf4j
 public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
@@ -39,16 +40,22 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 	private final ObjectMapper objectMapper;
 	private final LoginTokenService loginTokenService;
 	private final TokenCookieManager cookieManager;
+	private final LoginRedirectResolver loginRedirectResolver;
+	private final String defaultRedirectUrl;
 
 	public JsonLoginAuthenticationFilter(
 			AuthenticationManager authenticationManager,
 			ObjectMapper objectMapper,
 			LoginTokenService loginTokenService,
-			TokenCookieManager cookieManager) {
+			TokenCookieManager cookieManager,
+			LoginRedirectResolver loginRedirectResolver,
+			String defaultRedirectUrl) {
 		super(LOGIN_MATCHER, authenticationManager);
 		this.objectMapper = objectMapper;
 		this.loginTokenService = loginTokenService;
 		this.cookieManager = cookieManager;
+		this.loginRedirectResolver = loginRedirectResolver;
+		this.defaultRedirectUrl = defaultRedirectUrl;
 		setSecurityContextRepository(new NullSecurityContextRepository());
 	}
 
@@ -60,6 +67,7 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 					objectMapper.readValue(request.getInputStream(), LoginRequest.class);
 			String loginId = loginRequest.loginId() != null ? loginRequest.loginId() : "";
 			String password = loginRequest.password() != null ? loginRequest.password() : "";
+			request.setAttribute("clientId", loginRequest.clientId());
 			return getAuthenticationManager()
 					.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(loginId, password));
 		} catch (IOException e) {
@@ -81,22 +89,25 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		String clientType = request.getHeader(CLIENT_TYPE_HEADER);
 		boolean isApp = "APP".equalsIgnoreCase(clientType);
 
-		LoginResponse body;
 		if (isApp) {
-			// APP: AT + RT 모두 body
-			body =
-					LoginResponse.app(tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+			// APP: AT + RT 모두 body (200 OK)
+			var body =
+					com.econo.auth.api.adapter.in.web.LoginResponse.app(
+							tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+			response.setStatus(HttpServletResponse.SC_OK);
+			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+			response.setCharacterEncoding("UTF-8");
+			objectMapper.writeValue(response.getWriter(), body);
 		} else {
-			// WEB: AT + RT 모두 HttpOnly 쿠키 (Domain=.econovation.kr → 서브도메인 간 SSO 자동)
+			// WEB: AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 302 리다이렉트
+			// 쿠키 헤더 추가는 sendRedirect(응답 커밋) 전에 반드시 수행
 			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
-			body = LoginResponse.web(tokens.accessExpiredAt()); // body엔 만료시간만
-		}
 
-		response.setStatus(HttpServletResponse.SC_OK);
-		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
-		objectMapper.writeValue(response.getWriter(), body);
+			String clientId = (String) request.getAttribute("clientId");
+			String target = loginRedirectResolver.resolve(clientId, defaultRedirectUrl);
+			response.sendRedirect(target);
+		}
 	}
 
 	@Override
@@ -115,5 +126,5 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		objectMapper.writeValue(response.getWriter(), body);
 	}
 
-	private record LoginRequest(String loginId, String password) {}
+	private record LoginRequest(String loginId, String password, String clientId) {}
 }

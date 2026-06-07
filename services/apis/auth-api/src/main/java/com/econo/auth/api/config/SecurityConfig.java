@@ -1,12 +1,14 @@
 package com.econo.auth.api.config;
 
 import com.econo.auth.api.adapter.in.web.TokenCookieManager;
+import com.econo.auth.api.application.LoginRedirectResolver;
 import com.econo.auth.api.application.LoginTokenService;
 import com.econo.auth.api.filter.JsonLoginAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,11 +28,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 /**
  * SecurityFilterChain — JWT Stateless 인증
  *
- * <p>세션 없이 JWT 기반으로 동작한다. {@link JsonLoginAuthenticationFilter}가 성공 시 AT/RT를 발급한다.
+ * <p>세션 없이 JWT 기반으로 동작한다. {@link JsonLoginAuthenticationFilter}가 성공 시 AT/RT를 발급한다. WEB 분기는 302
+ * 리다이렉트(clientId로 redirect_uri 조회), APP 분기는 200 OK + body.
  */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
+@EnableConfigurationProperties(AuthRedirectProperties.class)
 public class SecurityConfig {
 
 	private final ObjectMapper objectMapper;
@@ -44,7 +48,10 @@ public class SecurityConfig {
 			@org.springframework.beans.factory.annotation.Autowired(required = false)
 					LoginTokenService loginTokenService,
 			@org.springframework.beans.factory.annotation.Autowired(required = false)
-					TokenCookieManager cookieManager)
+					TokenCookieManager cookieManager,
+			@org.springframework.beans.factory.annotation.Autowired(required = false)
+					LoginRedirectResolver loginRedirectResolver,
+			AuthRedirectProperties redirectProperties)
 			throws Exception {
 		http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.csrf(AbstractHttpConfigurer::disable)
@@ -67,10 +74,18 @@ public class SecurityConfig {
 										.authenticated())
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint()));
 
-		if (memberAuthenticationManager != null && loginTokenService != null && cookieManager != null) {
+		if (memberAuthenticationManager != null
+				&& loginTokenService != null
+				&& cookieManager != null
+				&& loginRedirectResolver != null) {
 			JsonLoginAuthenticationFilter loginFilter =
 					new JsonLoginAuthenticationFilter(
-							memberAuthenticationManager, objectMapper, loginTokenService, cookieManager);
+							memberAuthenticationManager,
+							objectMapper,
+							loginTokenService,
+							cookieManager,
+							loginRedirectResolver,
+							redirectProperties.getDefaultUrl());
 			http.addFilterBefore(loginFilter, UsernamePasswordAuthenticationFilter.class);
 		}
 

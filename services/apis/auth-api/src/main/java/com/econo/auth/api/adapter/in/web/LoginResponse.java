@@ -15,7 +15,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LoginResponse(String accessToken, Long accessExpiredTime, String refreshToken) {
 
-	/** WEB: AT는 쿠키로 발급됨. body에는 만료시간만 (프론트가 갱신 타이밍 파악용) */
+	/**
+	 * WEB: AT는 쿠키로 발급됨. body에는 만료시간만 (프론트가 갱신 타이밍 파악용)
+	 *
+	 * @deprecated WEB 로그인 분기가 302 리다이렉트로 전환되어 body 직렬화가 불필요해짐.
+	 */
+	@Deprecated
 	public static LoginResponse web(long accessExpiredTime) {
 		return new LoginResponse(null, accessExpiredTime, null);
 	}
