@@ -22,4 +22,12 @@ public interface ServiceClientRepository {
 
 	/** 등록된 모든 클라이언트의 registered_client_id 목록 (CORS 오리진 추출용) */
 	java.util.List<String> findAllRegisteredClientIds();
+
+	/**
+	 * 소유자 회원 ID별 등록 클라이언트 수 조회
+	 *
+	 * @param ownerId 소유자 회원 ID
+	 * @return 해당 회원이 소유한 클라이언트 수
+	 */
+	long countByOwnerId(Long ownerId);
 }

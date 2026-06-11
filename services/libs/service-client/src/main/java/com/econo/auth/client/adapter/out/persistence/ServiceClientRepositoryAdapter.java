@@ -30,4 +30,10 @@ public class ServiceClientRepositoryAdapter implements ServiceClientRepository {
 	public java.util.List<String> findAllRegisteredClientIds() {
 		return serviceClientJpaRepository.findAllRegisteredClientIds();
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public long countByOwnerId(Long ownerId) {
+		return serviceClientJpaRepository.countByOwnerId(ownerId);
+	}
 }

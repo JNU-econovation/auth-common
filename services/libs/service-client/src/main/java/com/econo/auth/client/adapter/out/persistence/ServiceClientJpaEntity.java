@@ -42,6 +42,12 @@ public class ServiceClientJpaEntity {
 	@Column(name = "api_key_hash", length = 64)
 	private String apiKeyHash;
 
+	@Column(name = "owner_id", nullable = true)
+	private Long ownerId;
+
+	@Column(name = "client_secret_hash", nullable = true, length = 72)
+	private String clientSecretHash;
+
 	@CreatedDate
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -58,6 +64,8 @@ public class ServiceClientJpaEntity {
 		entity.clientName = serviceClient.getClientName();
 		entity.grantType = serviceClient.getGrantType();
 		entity.apiKeyHash = serviceClient.getApiKeyHash();
+		entity.ownerId = serviceClient.getOwnerId();
+		entity.clientSecretHash = serviceClient.getClientSecretHash();
 		return entity;
 	}
 
@@ -67,6 +75,7 @@ public class ServiceClientJpaEntity {
 	 * @return 도메인 ServiceClient 인스턴스
 	 */
 	public ServiceClient toDomain() {
-		return ServiceClient.create(registeredClientId, clientName, grantType, apiKeyHash);
+		return ServiceClient.create(
+				registeredClientId, clientName, grantType, apiKeyHash, ownerId, clientSecretHash);
 	}
 }
