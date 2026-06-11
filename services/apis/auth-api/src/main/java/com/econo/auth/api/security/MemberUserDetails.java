@@ -34,13 +34,13 @@ public class MemberUserDetails implements UserDetails, Serializable {
 	}
 
 	/**
-	 * 부여된 권한 반환 — 현재 {@code ROLE_USER} 고정
+	 * 부여된 권한 반환 — 회원의 role을 {@code ROLE_} 접두사 권한으로 변환
 	 *
-	 * @return 권한 컬렉션
+	 * @return 권한 컬렉션 (예: role이 {@code ADMIN}이면 {@code ROLE_ADMIN})
 	 */
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+		return List.of(new SimpleGrantedAuthority("ROLE_" + member.getRole()));
 	}
 
 	/**
