@@ -4,8 +4,9 @@ import com.econo.auth.client.application.usecase.ClientRedirectUriService;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientService;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.econo.common.auth.core.passport.Passport;
+import com.econo.common.auth.core.passport.Roles;
+import com.econo.common.auth.web.annotation.PassportAuth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,10 +15,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,14 +27,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * OAuth 클라이언트 관리 REST 컨트롤러 (Admin)
  *
- * <p>Gateway가 JWT를 검증하고 X-User-Passport 헤더를 주입한다. 컨트롤러는 Passport의 ADMIN 역할 여부만 확인한다.
+ * <p>Gateway가 JWT를 검증하고 X-User-Passport 헤더를 주입한다. ADMIN 또는 SUPER_ADMIN 역할이 필요하다.
  */
 @Slf4j
 @Tag(
@@ -47,11 +44,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdminClientController {
 
-	private static final String PASSPORT_HEADER = "X-User-Passport";
-
 	private final RegisterOAuthClientService registerOAuthClientService;
 	private final ClientRedirectUriService redirectUriService;
-	private final ObjectMapper objectMapper;
 
 	public record RegisterClientRequest(@NotBlank String clientName, Set<String> redirectUris) {}
 
@@ -84,13 +78,8 @@ public class AdminClientController {
 	})
 	@PostMapping("/clients")
 	public ResponseEntity<?> registerClient(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@Valid @RequestBody RegisterClientRequest request) {
-		if (!isAdmin(passportHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
-
 		RegisterOAuthClientCommand command =
 				new RegisterOAuthClientCommand(request.clientName(), request.redirectUris());
 		RegisterOAuthClientResult result = registerOAuthClientService.register(command);
@@ -103,12 +92,8 @@ public class AdminClientController {
 			security = @SecurityRequirement(name = "bearerAuth"))
 	@GetMapping("/clients/{clientId}")
 	public ResponseEntity<?> getClient(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId) {
-		if (!isAdmin(passportHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
 		var client = redirectUriService.findByClientId(clientId);
 		return ResponseEntity.ok(
 				new ClientDetailResponse(client.clientId(), client.clientName(), client.redirectUris()));
@@ -120,13 +105,9 @@ public class AdminClientController {
 			security = @SecurityRequirement(name = "bearerAuth"))
 	@PostMapping("/clients/{clientId}/redirect-uris")
 	public ResponseEntity<?> addRedirectUri(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
 			@RequestBody RedirectUriRequest request) {
-		if (!isAdmin(passportHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
 		var updated = redirectUriService.addRedirectUri(clientId, request.uri());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
@@ -134,13 +115,9 @@ public class AdminClientController {
 	@Operation(summary = "redirectUri 제거", security = @SecurityRequirement(name = "bearerAuth"))
 	@DeleteMapping("/clients/{clientId}/redirect-uris")
 	public ResponseEntity<?> removeRedirectUri(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
 			@RequestBody RedirectUriRequest request) {
-		if (!isAdmin(passportHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
 		var updated = redirectUriService.removeRedirectUri(clientId, request.uri());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
@@ -148,13 +125,9 @@ public class AdminClientController {
 	@Operation(summary = "redirectUri 전체 교체", security = @SecurityRequirement(name = "bearerAuth"))
 	@PutMapping("/clients/{clientId}/redirect-uris")
 	public ResponseEntity<?> replaceRedirectUris(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
 			@RequestBody RedirectUrisReplaceRequest request) {
-		if (!isAdmin(passportHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
 		var updated = redirectUriService.replaceRedirectUris(clientId, request.uris());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
@@ -168,30 +141,4 @@ public class AdminClientController {
 	record RedirectUrisResponse(String clientId, Set<String> redirectUris) {}
 
 	record ClientDetailResponse(String clientId, String clientName, Set<String> redirectUris) {}
-
-	// auth-api 전체에서 공유하는 Passport 파싱 유틸
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	public record PassportClaims(Long memberId, List<String> roles) {
-
-		/** ADMIN 또는 SUPER_ADMIN이면 true */
-		public boolean isAdmin() {
-			return roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
-		}
-
-		public boolean isSuperAdmin() {
-			return roles != null && roles.contains("SUPER_ADMIN");
-		}
-	}
-
-	private boolean isAdmin(String passportHeader) {
-		if (passportHeader == null || passportHeader.isBlank()) return false;
-		try {
-			String json = new String(Base64.getDecoder().decode(passportHeader), StandardCharsets.UTF_8);
-			PassportClaims claims = objectMapper.readValue(json, PassportClaims.class);
-			return claims.isAdmin();
-		} catch (Exception e) {
-			log.warn("X-User-Passport 파싱 실패: {}", e.getMessage());
-			return false;
-		}
-	}
 }

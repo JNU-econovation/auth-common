@@ -70,6 +70,9 @@ public class SecurityConfig {
 										// admin 역할 체크는 컨트롤러의 X-User-Passport 파싱으로 처리
 										.requestMatchers("/api/v1/admin/**", "/api/v1/members/**")
 										.permitAll()
+										// 셀프 등록 — X-User-Passport 기반 인증을 컨트롤러에서 직접 처리
+										.requestMatchers("/api/v1/clients/**")
+										.permitAll()
 										.anyRequest()
 										.authenticated())
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint()));

@@ -1,5 +1,6 @@
 package com.econo.auth.api.exception;
 
+import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
@@ -7,6 +8,7 @@ import com.econo.auth.client.exception.UnsupportedGrantTypeException;
 import com.econo.auth.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.member.exception.MemberAlreadyExistsException;
 import com.econo.auth.member.exception.MemberNotFoundException;
+import com.econo.common.auth.core.passport.PassportException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +42,31 @@ public class GlobalExceptionHandler {
 
 	/** 필드 에러 */
 	public record FieldError(String field, String message) {}
+
+	/**
+	 * Passport 인증/인가 예외 처리
+	 *
+	 * <ul>
+	 *   <li>401(UNAUTHORIZED) → AUTH_UNAUTHORIZED
+	 *   <li>403(FORBIDDEN) → FORBIDDEN
+	 *   <li>그 외 → e.getHttpStatus() + e.getErrorCode()
+	 * </ul>
+	 *
+	 * @param e PassportException
+	 * @return 상태 코드에 맞는 ApiError
+	 */
+	@ExceptionHandler(PassportException.class)
+	public ResponseEntity<ApiError> handlePassportException(PassportException e) {
+		String errorCode;
+		if (e.getHttpStatus() == HttpStatus.UNAUTHORIZED) {
+			errorCode = "AUTH_UNAUTHORIZED";
+		} else if (e.getHttpStatus() == HttpStatus.FORBIDDEN) {
+			errorCode = "FORBIDDEN";
+		} else {
+			errorCode = e.getErrorCode();
+		}
+		return ResponseEntity.status(e.getHttpStatus()).body(new ApiError(errorCode, e.getMessage()));
+	}
 
 	/**
 	 * Bean Validation 오류 처리
@@ -158,6 +185,18 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiError> handleDuplicateClientName(DuplicateClientNameException ex) {
 		return ResponseEntity.status(HttpStatus.CONFLICT)
 				.body(new ApiError("DUPLICATE_CLIENT_NAME", ex.getMessage()));
+	}
+
+	/**
+	 * 클라이언트 등록 한도 초과 예외 처리
+	 *
+	 * @param ex 예외
+	 * @return 422 CLIENT_LIMIT_EXCEEDED
+	 */
+	@ExceptionHandler(ClientLimitExceededException.class)
+	public ResponseEntity<ApiError> handleClientLimitExceeded(ClientLimitExceededException ex) {
+		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+				.body(new ApiError("CLIENT_LIMIT_EXCEEDED", ex.getMessage()));
 	}
 
 	/**

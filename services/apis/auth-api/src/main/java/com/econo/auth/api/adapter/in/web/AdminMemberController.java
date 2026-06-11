@@ -1,9 +1,10 @@
 package com.econo.auth.api.adapter.in.web;
 
-import com.econo.auth.api.adapter.in.web.AdminClientController.PassportClaims;
 import com.econo.auth.member.application.port.out.MemberRepository;
 import com.econo.auth.member.domain.Member;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.econo.common.auth.core.passport.Passport;
+import com.econo.common.auth.core.passport.Roles;
+import com.econo.common.auth.web.annotation.PassportAuth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -11,9 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,11 +49,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdminMemberController {
 
-	private static final String PASSPORT_HEADER = "X-User-Passport";
 	private static final Set<String> VALID_ROLES = Set.of("USER", "ADMIN", "SUPER_ADMIN");
 
 	private final MemberRepository memberRepository;
-	private final ObjectMapper objectMapper;
 
 	// ── Response DTO ─────────────────────────────────────────
 
@@ -96,15 +92,10 @@ public class AdminMemberController {
 	})
 	@GetMapping
 	public ResponseEntity<?> listMembers(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size,
 			@RequestParam(required = false) String role) {
-
-		PassportClaims claims = parsePassport(passportHeader);
-		if (claims == null || !claims.isAdmin()) {
-			return ResponseEntity.status(403).body(new ErrorResponse("FORBIDDEN", "관리자 권한이 필요합니다."));
-		}
 
 		List<MemberSummary> content =
 				memberRepository.findPaged(page, size, role).stream().map(MemberSummary::from).toList();
@@ -135,18 +126,12 @@ public class AdminMemberController {
 	})
 	@PatchMapping("/{memberId}/role")
 	public ResponseEntity<?> updateRole(
-			@RequestHeader(value = PASSPORT_HEADER, required = false) String passportHeader,
+			@PassportAuth(requiredRoles = {Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable Long memberId,
 			@RequestBody RoleUpdateRequest request) {
 
-		PassportClaims claims = parsePassport(passportHeader);
-		if (claims == null || !claims.isSuperAdmin()) {
-			return ResponseEntity.status(403)
-					.body(new ErrorResponse("FORBIDDEN", "SUPER_ADMIN 권한이 필요합니다."));
-		}
-
 		// 본인 역할 변경 불가
-		if (claims.memberId() != null && claims.memberId().equals(memberId)) {
+		if (passport.getMemberId() != null && passport.getMemberId().equals(memberId)) {
 			return ResponseEntity.status(403)
 					.body(new ErrorResponse("FORBIDDEN_SELF_ROLE_CHANGE", "본인의 역할은 변경할 수 없습니다."));
 		}
@@ -182,17 +167,4 @@ public class AdminMemberController {
 	}
 
 	record MemberRoleResponse(Long memberId, String role) {}
-
-	// ── 헬퍼 ─────────────────────────────────────────────────
-
-	private PassportClaims parsePassport(String passportHeader) {
-		if (passportHeader == null || passportHeader.isBlank()) return null;
-		try {
-			String json = new String(Base64.getDecoder().decode(passportHeader), StandardCharsets.UTF_8);
-			return objectMapper.readValue(json, PassportClaims.class);
-		} catch (Exception e) {
-			log.warn("X-User-Passport 파싱 실패: {}", e.getMessage());
-			return null;
-		}
-	}
 }

@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation("com.github.JNU-econovation:econo-passport:1.0.3")
     implementation(project(":services:libs:member"))
     implementation(project(":services:libs:service-client"))
     implementation("org.springframework.boot:spring-boot-starter-web")
