@@ -36,7 +36,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *   <li>토큰 재발급 WEB/APP (POST /api/v1/auth/reissue)
  *   <li>로그아웃 (POST /api/v1/auth/logout)
  *   <li>JWKS 공개키 (GET /oauth2/jwks)
- *   <li>OAuth 클라이언트 등록/관리 (POST /api/v1/clients)
+ *   <li>OAuth 클라이언트 등록/관리 (POST /api/v1/admin/clients)
+ *   <li>OAuth 클라이언트 셀프 등록 (POST /api/v1/clients)
+ *   <li>APP 로그인 redirectUrl 응답 검증
  * </ul>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -445,6 +447,87 @@ class AuthApiIntegrationTest {
 			assertThat(result.getResponse().getCookie("at")).isNull();
 			assertThat(result.getResponse().getCookie("rt")).isNull();
 		}
+
+		@Test
+		@DisplayName("clientId 없는 APP 로그인 → redirectUrl = default-url(http://localhost:3000)")
+		void app_login_without_clientId_returns_default_redirectUrl() throws Exception {
+			signup("appuser03");
+
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "APP")
+									.content(
+											"""
+											{"loginId":"appuser03","password":"Econo1234!"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.accessToken").isNotEmpty())
+					.andExpect(jsonPath("$.refreshToken").isNotEmpty())
+					.andExpect(jsonPath("$.redirectUrl").value("http://localhost:3000"));
+		}
+
+		@Test
+		@DisplayName("미등록 clientId로 APP 로그인 → 로그인 성공 + redirectUrl = default-url")
+		void app_login_unregistered_clientId_returns_default_redirectUrl() throws Exception {
+			signup("appuser04");
+
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "APP")
+									.content(
+											"""
+											{"loginId":"appuser04","password":"Econo1234!","clientId":"nonexistent-client-id"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.accessToken").isNotEmpty())
+					.andExpect(jsonPath("$.redirectUrl").value("http://localhost:3000"));
+		}
+
+		@Test
+		@DisplayName("APP 로그인 응답에 항상 redirectUrl 필드가 존재함 (non-null)")
+		void app_login_response_always_contains_redirectUrl_field() throws Exception {
+			signup("appuser05");
+
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "APP")
+									.content(
+											"""
+											{"loginId":"appuser05","password":"Econo1234!"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.redirectUrl").exists())
+					.andExpect(jsonPath("$.redirectUrl").isNotEmpty());
+		}
+
+		@Test
+		@DisplayName("WEB 로그인 응답 body에 redirectUrl 필드가 없음 (WEB 분기 불변)")
+		void web_login_response_does_not_contain_redirectUrl_in_body() throws Exception {
+			signup("appuser06");
+
+			MvcResult result =
+					mockMvc
+							.perform(
+									post("/api/v1/auth/login")
+											.contentType(MediaType.APPLICATION_JSON)
+											.header("Client-Type", "WEB")
+											.content(
+													"""
+													{"loginId":"appuser06","password":"Econo1234!"}
+													"""))
+							.andExpect(status().is3xxRedirection())
+							.andReturn();
+
+			// WEB 분기는 302 리다이렉트, body 없음
+			String body = result.getResponse().getContentAsString();
+			assertThat(body).doesNotContain("redirectUrl");
+		}
 	}
 
 	// ──────────────────────────────────────────────────────────
@@ -590,6 +673,228 @@ class AuthApiIntegrationTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
+	// OAuth 클라이언트 셀프 등록
+	// ──────────────────────────────────────────────────────────
+
+	static final String USER_PASSPORT =
+			Base64.getEncoder()
+					.encodeToString(
+							"{\"memberId\":100,\"roles\":[\"USER\"],\"issuedAt\":\"2026-01-01T00:00:00\",\"expiresAt\":\"2099-01-01T00:00:00\"}"
+									.getBytes(StandardCharsets.UTF_8));
+
+	@Nested
+	@DisplayName("POST /api/v1/clients — 셀프 등록 E2E")
+	class SelfClientRegistrationTest {
+
+		@Test
+		@DisplayName("인증된 회원(USER)으로 셀프 등록 성공 → 201 + clientId + clientSecret 반환")
+		void selfRegister_withAuthenticatedUser_returns201AndBothFields() throws Exception {
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+											{
+												"clientName": "셀프등록앱E2E",
+												"redirectUris": ["https://self-app.example.com/callback"]
+											}
+											"""))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.clientId").isNotEmpty())
+					.andExpect(jsonPath("$.clientSecret").isNotEmpty());
+		}
+
+		@Test
+		@DisplayName("셀프 등록 응답의 clientSecret은 BCrypt 해시가 아닌 평문 형식")
+		void selfRegister_responseSecretIsPlaintext_notBcryptHash() throws Exception {
+			MvcResult result =
+					mockMvc
+							.perform(
+									post("/api/v1/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.header("X-User-Passport", USER_PASSPORT)
+											.content(
+													"""
+													{
+														"clientName": "시크릿검증앱E2E",
+														"redirectUris": ["https://secret-check.example.com/callback"]
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			String responseBody = result.getResponse().getContentAsString();
+			String clientSecret =
+					objectMapper.readValue(responseBody, java.util.Map.class).get("clientSecret").toString();
+
+			// 응답의 secret은 평문 — BCrypt 해시 접두사로 시작하면 안 됨
+			assertThat(clientSecret).doesNotStartWith("$2a$");
+		}
+
+		@Test
+		@DisplayName("X-User-Passport 없이 셀프 등록 시 401 반환")
+		void selfRegister_withoutPassport_returns401() throws Exception {
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content(
+											"""
+											{
+												"clientName": "비인증앱E2E",
+												"redirectUris": ["https://unauth.example.com/callback"]
+											}
+											"""))
+					.andExpect(status().isUnauthorized());
+		}
+
+		@Test
+		@DisplayName("동일 memberId로 5개 등록 후 6번째 등록 시 422 CLIENT_LIMIT_EXCEEDED")
+		void selfRegister_sixthRegistration_returns422ClientLimitExceeded() throws Exception {
+			// 다른 테스트와 격리된 전용 memberId(9001) 사용 — DB가 공유되므로 memberId=100은 오염될 수 있음
+			String limitTestPassport =
+					Base64.getEncoder()
+							.encodeToString(
+									"{\"memberId\":9001,\"roles\":[\"USER\"],\"issuedAt\":\"2026-01-01T00:00:00\",\"expiresAt\":\"2099-01-01T00:00:00\"}"
+											.getBytes(StandardCharsets.UTF_8));
+
+			// 동일 ownerId(9001)로 5개 등록
+			for (int i = 1; i <= 5; i++) {
+				mockMvc
+						.perform(
+								post("/api/v1/clients")
+										.contentType(MediaType.APPLICATION_JSON)
+										.header("X-User-Passport", limitTestPassport)
+										.content(
+												String.format(
+														"""
+														{
+															"clientName": "한도테스트앱%d",
+															"redirectUris": ["https://limit%d.example.com/callback"]
+														}
+														""",
+														i, i)))
+						.andExpect(status().isCreated());
+			}
+
+			// 6번째 등록 시도 → 422
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", limitTestPassport)
+									.content(
+											"""
+											{
+												"clientName": "한도초과앱",
+												"redirectUris": ["https://over-limit.example.com/callback"]
+											}
+											"""))
+					.andExpect(status().isUnprocessableEntity())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_LIMIT_EXCEEDED"));
+		}
+
+		@Test
+		@DisplayName("redirectUris 빈 Set으로 셀프 등록 시 400 REDIRECT_URI_REQUIRED")
+		void selfRegister_withoutRedirectUris_returns400() throws Exception {
+			// @NotNull로 null은 컨트롤러에서 차단(VALIDATION_FAILED),
+			// 빈 Set은 서비스에서 RedirectUriRequiredException → REDIRECT_URI_REQUIRED
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+											{
+												"clientName": "리다이렉트없는E2E앱",
+												"redirectUris": []
+											}
+											"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("REDIRECT_URI_REQUIRED"));
+		}
+
+		@Test
+		@DisplayName("clientName 중복 셀프 등록 시 409 DUPLICATE_CLIENT_NAME")
+		void selfRegister_duplicateClientName_returns409() throws Exception {
+			String body =
+					"""
+					{
+						"clientName": "중복셀프앱E2E",
+						"redirectUris": ["https://dup-self.example.com/callback"]
+					}
+					""";
+
+			// 첫 번째 등록 성공
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(body))
+					.andExpect(status().isCreated());
+
+			// 두 번째 등록 → 409
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(body))
+					.andExpect(status().isConflict())
+					.andExpect(jsonPath("$.errorCode").value("DUPLICATE_CLIENT_NAME"));
+		}
+
+		@Test
+		@DisplayName("셀프 등록 후 APP 로그인 시 해당 client의 redirectUrl이 body에 포함됨")
+		void selfRegister_then_appLogin_returns_registeredRedirectUrl() throws Exception {
+			signup("selfthenlogin01");
+
+			// 1. 셀프 등록
+			MvcResult regResult =
+					mockMvc
+							.perform(
+									post("/api/v1/clients")
+											.contentType(MediaType.APPLICATION_JSON)
+											.header("X-User-Passport", USER_PASSPORT)
+											.content(
+													"""
+													{
+														"clientName": "로그인리다이렉트셀프앱E2E",
+														"redirectUris": ["https://self-redirect.example.com/callback"]
+													}
+													"""))
+							.andExpect(status().isCreated())
+							.andReturn();
+
+			String clientId =
+					objectMapper
+							.readValue(regResult.getResponse().getContentAsString(), java.util.Map.class)
+							.get("clientId")
+							.toString();
+
+			// 2. 등록된 clientId로 APP 로그인
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "APP")
+									.content(
+											String.format(
+													"""
+													{"loginId":"selfthenlogin01","password":"Econo1234!","clientId":"%s"}
+													""",
+													clientId)))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.accessToken").isNotEmpty())
+					.andExpect(jsonPath("$.redirectUrl").value("https://self-redirect.example.com/callback"));
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
 	// OAuth 클라이언트 등록 (Admin API)
 	// ──────────────────────────────────────────────────────────
 
@@ -726,8 +1031,8 @@ class AuthApiIntegrationTest {
 		}
 
 		@Test
-		@DisplayName("ADMIN 역할 없이 redirectUri 추가 → 403")
-		void add_redirect_uri_without_admin_returns_403() throws Exception {
+		@DisplayName("Passport 없이 redirectUri 추가 → 401")
+		void add_redirect_uri_without_passport_returns_401() throws Exception {
 			// 1. 클라이언트 등록 (ADMIN으로)
 			MvcResult regResult =
 					mockMvc
@@ -748,13 +1053,13 @@ class AuthApiIntegrationTest {
 							.get("clientId")
 							.toString();
 
-			// 2. 일반 유저로 시도 → 403
+			// 2. Passport 없이 시도 → 401 (미인증)
 			mockMvc
 					.perform(
 							post("/api/v1/admin/clients/" + clientId + "/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"uri\":\"https://dev.econovation.kr/callback\"}"))
-					.andExpect(status().isForbidden());
+					.andExpect(status().isUnauthorized());
 		}
 	}
 

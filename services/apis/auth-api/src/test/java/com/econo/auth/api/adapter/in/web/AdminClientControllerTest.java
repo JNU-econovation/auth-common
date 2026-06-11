@@ -11,6 +11,7 @@ import com.econo.auth.client.application.usecase.RegisterOAuthClientService;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientCommand;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientService.RegisterOAuthClientResult;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.common.auth.config.AuthAutoConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /** AdminClientController 웹 레이어 테스트 */
 @WebMvcTest(AdminClientController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, AuthAutoConfiguration.class})
 class AdminClientControllerTest {
 
 	@Autowired private MockMvc mockMvc;
@@ -121,8 +122,8 @@ class AdminClientControllerTest {
 		}
 
 		@Test
-		@DisplayName("Passport 헤더 없이 요청 시 403 반환")
-		void register_withoutPassport_returns403() throws Exception {
+		@DisplayName("Passport 헤더 없이 요청 시 401 반환")
+		void register_withoutPassport_returns401() throws Exception {
 			String requestBody =
 					"""
 					{
@@ -136,7 +137,7 @@ class AdminClientControllerTest {
 							post("/api/v1/admin/clients")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content(requestBody))
-					.andExpect(status().isForbidden());
+					.andExpect(status().isUnauthorized());
 		}
 
 		@Test
@@ -208,11 +209,11 @@ class AdminClientControllerTest {
 		}
 
 		@Test
-		@DisplayName("Passport 없이 요청 시 403 반환")
-		void getClient_withoutPassport_returns403() throws Exception {
+		@DisplayName("Passport 없이 요청 시 401 반환")
+		void getClient_withoutPassport_returns401() throws Exception {
 			mockMvc
 					.perform(get("/api/v1/admin/clients/client-uuid-123"))
-					.andExpect(status().isForbidden());
+					.andExpect(status().isUnauthorized());
 		}
 	}
 
@@ -238,14 +239,14 @@ class AdminClientControllerTest {
 		}
 
 		@Test
-		@DisplayName("Passport 없이 요청 시 403 반환")
-		void addRedirectUri_withoutPassport_returns403() throws Exception {
+		@DisplayName("Passport 없이 요청 시 401 반환")
+		void addRedirectUri_withoutPassport_returns401() throws Exception {
 			mockMvc
 					.perform(
 							post("/api/v1/admin/clients/client-uuid-123/redirect-uris")
 									.contentType(MediaType.APPLICATION_JSON)
 									.content("{\"uri\":\"https://new.example.com/cb\"}"))
-					.andExpect(status().isForbidden());
+					.andExpect(status().isUnauthorized());
 		}
 	}
 

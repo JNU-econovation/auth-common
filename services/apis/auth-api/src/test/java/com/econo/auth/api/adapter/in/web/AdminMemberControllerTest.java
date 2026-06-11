@@ -9,6 +9,7 @@ import com.econo.auth.api.config.SecurityConfig;
 import com.econo.auth.member.application.port.out.MemberRepository;
 import com.econo.auth.member.domain.Member;
 import com.econo.auth.member.domain.MemberStatus;
+import com.econo.common.auth.config.AuthAutoConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -26,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /** AdminMemberController 웹 레이어 테스트 */
 @WebMvcTest(AdminMemberController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, AuthAutoConfiguration.class})
 class AdminMemberControllerTest {
 
 	@Autowired private MockMvc mockMvc;
@@ -112,9 +113,9 @@ class AdminMemberControllerTest {
 		}
 
 		@Test
-		@DisplayName("Passport 없이 요청 시 403 반환")
-		void listMembers_withoutPassport_returns403() throws Exception {
-			mockMvc.perform(get("/api/v1/admin/members")).andExpect(status().isForbidden());
+		@DisplayName("Passport 없이 요청 시 401 반환")
+		void listMembers_withoutPassport_returns401() throws Exception {
+			mockMvc.perform(get("/api/v1/admin/members")).andExpect(status().isUnauthorized());
 		}
 	}
 
