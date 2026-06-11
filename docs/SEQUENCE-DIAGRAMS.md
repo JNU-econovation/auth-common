@@ -93,12 +93,14 @@ sequenceDiagram
     participant GW as api-gateway
     participant AUTH as auth-api
 
-    APP->>GW: POST /api/v1/auth/login (Client-Type: APP)
+    APP->>GW: POST /api/v1/auth/login (Client-Type: APP, Body: {loginId, password, clientId})
     Note over GW: permittedPath → SKIP, auth-api로 라우팅
     GW->>AUTH: 전달
-    AUTH-->>APP: Body {accessToken, refreshToken}
-
-    Note over APP: 토큰을 앱이 직접 보관
+    AUTH->>AUTH: BCrypt 비밀번호 검증
+    AUTH->>AUTH: AT + RT JWT 발급
+    AUTH->>AUTH: LoginRedirectResolver.resolve(clientId)<br/>clientId 등록 → redirect_uri<br/>미전달·미등록·오류 → default-url
+    AUTH-->>APP: Body {accessToken, accessExpiredTime, refreshToken, redirectUrl}
+    Note over APP: 토큰을 앱이 직접 보관<br/>redirectUrl로 이동 (앱 판단)
 
     APP->>GW: GET /api/... (Authorization: Bearer AT)
     Note over GW: Bearer 헤더 우선 처리 → RS256 검증 → X-User-Passport 주입
@@ -111,7 +113,32 @@ sequenceDiagram
     AUTH-->>APP: Body {accessToken, refreshToken}
 ```
 
-## 6. 전체 아키텍처
+## 6. SSO 클라이언트 셀프 등록
+
+```mermaid
+sequenceDiagram
+    participant C as 회원 (브라우저/앱)
+    participant GW as api-gateway
+    participant AUTH as auth-api
+    participant DB as PostgreSQL
+
+    C->>GW: POST /api/v1/clients (clientName, redirectUris)<br/>Authorization: Bearer AT (at 쿠키)
+    Note over GW: RS256 검증 → X-User-Passport 주입
+    GW->>AUTH: POST /api/v1/clients + X-User-Passport 헤더
+    AUTH->>AUTH: PassportHeaderParser.extractMemberId(X-User-Passport)<br/>memberId 없음 → 401 AUTH_UNAUTHORIZED
+    AUTH->>DB: countByOwnerId(memberId) ≥ 5?
+    DB-->>AUTH: count
+    Note over AUTH: ≥ 5 → 422 CLIENT_LIMIT_EXCEEDED
+    AUTH->>DB: existsByClientName(clientName)?
+    DB-->>AUTH: 중복이면 → 409 DUPLICATE_CLIENT_NAME
+    AUTH->>AUTH: clientId = UUID.random()<br/>rawSecret = UUID.random()<br/>secretHash = BCrypt(rawSecret)
+    AUTH->>DB: SAS JdbcRegisteredClientRepository<br/>authorization_code + PKCE 클라이언트 등록
+    AUTH->>DB: service_client INSERT<br/>(owner_id=memberId, client_secret_hash=secretHash)
+    AUTH-->>C: 201 {clientId, clientSecret}
+    Note over C: clientSecret은 이 응답에서만 노출.<br/>저장 필수 — 재조회 불가
+```
+
+## 7. 전체 아키텍처
 
 ```mermaid
 graph TB

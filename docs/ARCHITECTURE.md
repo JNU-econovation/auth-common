@@ -51,6 +51,7 @@ api-gateway ──→ auth-common-lib
 
 auth-api ──→ member
          ──→ service-client
+         ──→ econo-passport (JitPack, com.github.JNU-econovation:econo-passport:1.0.3)
 
 member ──→ common-infra   (JpaAuditing AutoConfiguration 전이)
 
@@ -64,10 +65,10 @@ auth-common-lib (독립, 외부 서비스에 배포)
 | 모듈 | 유형 | 역할 |
 |------|------|------|
 | **api-gateway** | App | 클라이언트 요청 수신, Bearer JWT RS256 검증 → Passport 생성 → 헤더 전달. SAS OAuth 엔드포인트를 auth-api로 프록시 |
-| **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 302(WEB, `LoginRedirectResolver` 담당) 또는 200+body(APP). Authorization Code + PKCE(경로 B) → 토큰 발급 |
+| **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 302(WEB) 또는 200+body+redirectUrl(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. |
 | **member** | Lib | Member 도메인·유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 5종. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. |
 | **common-infra** | Lib | `@EnableJpaAuditing` AutoConfiguration. `member`·`service-client` 모듈에 JPA Auditing을 일원화 제공. |
-| **service-client** | Lib | ServiceClient·ServiceRoute 도메인, OAuth 클라이언트 등록·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
+| **service-client** | Lib | ServiceClient·ServiceRoute 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
 | **auth-common-lib** | Lib | Passport 도메인, @PassportAuth 어노테이션, ArgumentResolver. 외부 마이크로서비스가 의존하는 공유 라이브러리 |
 
 ## 인증 흐름
@@ -110,9 +111,11 @@ WEB(`Client-Type` 헤더 없거나 `APP`이 아닌 경우)과 APP(`Client-Type: 
   ※ user-supplied URL이 없으므로 open redirect가 구조적으로 불가능하다.
 
   [APP 분기]
-    → LoginResponse.app(AT, expiredAt, RT) → body 직렬화
+    → LoginRedirectResolver.resolve(clientId, defaultUrl) → redirectUrl 결정
+        (WEB과 동일한 로직 — clientId 미전달·미등록·redirect_uri 빈 Set·기타 오류 → default-url)
+    → LoginResponse.app(AT, expiredAt, RT, redirectUrl) → body 직렬화
   → HTTP 200 OK
-     Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "..."}
+     Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "...", "redirectUrl": "..."}
 ```
 
 ### [흐름 B] Bearer 토큰 → Passport 변환 (API 요청)
@@ -244,10 +247,11 @@ com.econo.auth.client
     ├── InvalidClientException           # @ResponseStatus 없음 — 클라이언트 미존재 (GlobalExceptionHandler가 404 CLIENT_NOT_FOUND로 매핑)
     ├── RedirectUriRequiredException     # @ResponseStatus(400) — redirectUri 누락·한도 초과·유효하지 않은 URI
     ├── UnsupportedGrantTypeException    # @ResponseStatus(400) — 미지원 그랜트 타입
-    └── DuplicateClientNameException     # @ResponseStatus(409) — 클라이언트 이름 중복
+    ├── DuplicateClientNameException     # @ResponseStatus(409) — 클라이언트 이름 중복
+    └── ClientLimitExceededException     # @ResponseStatus(422) — 1인 5개 등록 한도 초과 (셀프 등록 전용)
 ```
 
-> `GrantType.fromString`은 알 수 없는 비-null 값에 대해 `IllegalArgumentException`을 throw한다. `AdminClientController`가 이를 catch하여 `UnsupportedGrantTypeException`으로 변환한다.
+> `GrantType`은 `RegisterOAuthClientService`에서 `GrantType.AUTHORIZATION_CODE` 고정으로 사용한다. 컨트롤러 계층에서 grantType을 입력 받지 않으므로 `GrantType.fromString`은 호출되지 않는다.
 
 > `ServiceClientAutoConfiguration`은 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.client.adapter.out.persistence` 패키지를 직접 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
 
@@ -292,13 +296,22 @@ Gateway가 JWT 클레임에서 `generation`과 `status`를 Passport에 미러링
 
 auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는 외부 SPA가 담당한다.
 
-- **경로 A** (`POST /api/v1/auth/login`): JSON 자격증명을 수신하여 AT/RT JWT를 직접 발급한다. WEB 클라이언트는 쿠키(at, rt) 세팅 후 `clientId`에 등록된 redirect_uri로 302하고, APP 클라이언트는 200 OK + body로 응답한다. clientId가 없거나 미등록이면 `auth.redirect.default-url`로 fail-safe 302한다 (ADR-0012 참조).
+- **경로 A** (`POST /api/v1/auth/login`): JSON 자격증명을 수신하여 AT/RT JWT를 직접 발급한다. WEB 클라이언트는 쿠키(at, rt) 세팅 후 `clientId`에 등록된 redirect_uri로 302하고, APP 클라이언트는 200 OK + body(accessToken, refreshToken, redirectUrl)로 응답한다. clientId가 없거나 미등록이면 `auth.redirect.default-url`로 fail-safe 302(WEB) 또는 default-url을 redirectUrl 필드로 반환(APP)한다 (ADR-0012 참조).
 - **경로 B** (`GET /oauth2/authorize` → `POST /oauth2/token`): SAS 기반 Authorization Code + PKCE 흐름. 미인증 상태로 `/oauth2/authorize`에 진입하면 `auth.frontend-login-url`(SPA 로그인 URL)로 302 리다이렉트된다.
-- `auth.frontend-login-url`(경로 B 전용 — SAS 미인증 진입 리다이렉트)과 `auth.redirect.default-url`(경로 A WEB fallback 목적지)은 역할이 다르므로 별도로 관리한다.
+- `auth.frontend-login-url`(경로 B 전용 — SAS 미인증 진입 리다이렉트)과 `auth.redirect.default-url`(경로 A fallback 목적지)은 역할이 다르므로 별도로 관리한다.
 
 ### 10. RSA 키 고정 kid
 
 `jwkSource()` 빈은 `keyID("econo-auth-rsa-key-v1")` 고정 kid를 사용한다. 기동마다 kid가 바뀌면 기발급 토큰의 JWKS 키 매칭이 영구 실패한다.
+
+### 11. 클라이언트 등록 이중 경로 — 셀프서비스 + 어드민
+
+클라이언트 등록은 두 경로가 공존한다. 자세한 설계 근거: [ADR-0013](./adr/0013-passport-member-self-registration.md)
+
+- **셀프 등록** (`POST /api/v1/clients`): econo-passport `@PassportAuth`로 `X-User-Passport`에서 `memberId`를 추출하여 인증. ADMIN 역할 불필요. 헤더 누락 또는 invalid → 401. 1인 5개 제한. `owner_id`·`client_secret_hash` 저장.
+- **어드민 등록** (`POST /api/v1/admin/clients`): econo-passport `@PassportAuth(requiredRoles = {ADMIN, SUPER_ADMIN})`로 인증·인가. 헤더 누락·invalid → 401, 역할 부족 → 403. `owner_id=NULL`, `client_secret_hash=NULL`.
+- 두 경로 모두 SAS에 `authorization_code + PKCE`, `ClientAuthenticationMethod.NONE` 클라이언트로 등록한다.
+- `clientSecret`은 셀프 등록 시 발급·보관(service_client.client_secret_hash BCrypt 해시)하지만, 현재 이를 소비하는 in-scope 엔드포인트가 없다. 향후 redirect-uri 셀프관리 도입 시 활성화 예정.
 
 ## 에러 코드 체계
 
@@ -332,9 +345,17 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 | HTTP 상태 | 에러 코드 | 발생 조건 |
 |-----------|-----------|-----------|
 | 404 NOT_FOUND | CLIENT_NOT_FOUND | clientId로 클라이언트를 찾을 수 없음 (`InvalidClientException`) |
-| 400 BAD_REQUEST | REDIRECT_URI_REQUIRED | `authorization_code` 클라이언트에 redirectUri 누락, redirectUri 한도 초과, 유효하지 않은 URI (`RedirectUriRequiredException`) |
-| 400 BAD_REQUEST | UNSUPPORTED_GRANT_TYPE | 지원하지 않는 grantType 값 (`UnsupportedGrantTypeException`. `GrantType.fromString`이 `IllegalArgumentException` throw → `AdminClientController`가 변환) |
+| 400 BAD_REQUEST | REDIRECT_URI_REQUIRED | redirectUri 누락·비어있음 (`RedirectUriRequiredException`) |
 | 409 CONFLICT | DUPLICATE_CLIENT_NAME | clientName 중복 (`DuplicateClientNameException`) |
+| 422 UNPROCESSABLE_ENTITY | CLIENT_LIMIT_EXCEEDED | 1인 5개 등록 한도 초과 (`ClientLimitExceededException` — 셀프 등록 전용) |
+
+### auth-api — 셀프 등록 API (ClientController)
+
+> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/ClientController.java`
+
+| HTTP 상태 | 에러 코드 | 발생 조건 |
+|-----------|-----------|-----------|
+| 401 UNAUTHORIZED | AUTH_UNAUTHORIZED | `X-User-Passport` 헤더 누락 또는 `memberId` 파싱 실패 |
 
 ### auth-api — Admin API (AdminClientController)
 
@@ -342,8 +363,8 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 
 | HTTP 상태 | 에러 코드 | 발생 조건 |
 |-----------|-----------|-----------|
-| 401 UNAUTHORIZED | INVALID_CLIENT_CREDENTIALS | Authorization 헤더 누락, Base64 디코딩 실패, clientId 미존재, BCrypt 불일치, `authorization_code` 클라이언트(clientSecret 없음). 401 응답 시 `WWW-Authenticate: Basic realm="admin"` 헤더 포함 |
-| 403 FORBIDDEN | FORBIDDEN_CLIENT_MISMATCH | path `{clientId}` ≠ Basic Auth에서 추출한 clientId |
+| 401 UNAUTHORIZED | AUTH_UNAUTHORIZED | `X-User-Passport` 헤더 누락 또는 invalid passport (econo-passport unauthorized) |
+| 403 FORBIDDEN | FORBIDDEN | ADMIN/SUPER_ADMIN 역할 부족 (econo-passport forbidden) |
 
 > Bean Validation 오류(VALIDATION_FAILED)는 auth-api 웹 레이어에서 처리.
 
@@ -380,12 +401,14 @@ services/apis/auth-api/src/test/java/com/econo/auth/api/
 │   ├── MemberControllerTest.java          # @WebMvcTest 웹 레이어 테스트
 │   ├── AdminClientControllerTest.java     # @WebMvcTest AdminClientController 테스트
 │   ├── AdminMemberControllerTest.java     # @WebMvcTest AdminMemberController 테스트
-│   └── AdminRoleControllerTest.java       # @WebMvcTest AdminRoleController 테스트
+│   ├── AdminRoleControllerTest.java       # @WebMvcTest AdminRoleController 테스트
+│   ├── ClientControllerTest.java          # @WebMvcTest ClientController 셀프 등록 테스트
+│   └── LoginResponseTest.java             # LoginResponse 직렬화 단위 테스트 (redirectUrl 포함)
 ├── application/
 │   ├── LoginTokenServiceTest.java         # LoginTokenService 단위 테스트 (Mockito)
 │   └── LoginRedirectResolverTest.java     # LoginRedirectResolver 단위 테스트 (Mockito) — clientId 기반 6개 시나리오
 └── integration/
-    ├── AuthApiIntegrationTest.java        # @SpringBootTest E2E (회원가입·로그아웃·WEB/APP 로그인)
+    ├── AuthApiIntegrationTest.java        # @SpringBootTest E2E (회원가입·로그아웃·WEB/APP 로그인·셀프 등록)
     └── SasAuthorizationServerIntegrationTest.java  # @SpringBootTest SAS 흐름 E2E
 
 services/apis/api-gateway/src/test/java/com/econo/auth/gateway/

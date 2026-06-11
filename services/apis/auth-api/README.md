@@ -14,7 +14,7 @@ JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이
 [1단계] 로그인
   POST /api/v1/auth/login
   Body: {"loginId": "user01", "password": "Econo1234!", "clientId": "econovation-web"}
-        ← clientId는 WEB 전용 선택 필드 (APP에서 전달해도 무시)
+        ← clientId는 선택 필드. WEB·APP 모두 등록된 redirect_uri 조회에 사용됨
   Header: Client-Type: WEB  (또는 APP; 생략 시 WEB)
 
   WEB 응답 — 302 리다이렉트 (clientId 기반):
@@ -26,7 +26,7 @@ JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이
     ※ 토큰은 Location URL에 포함되지 않는다 (쿠키 전용).
 
   APP 응답 — 200 OK:
-    Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "..."}
+    Body: {"accessToken": "...", "accessExpiredTime": ..., "refreshToken": "...", "redirectUrl": "..."}
 
 [2단계] API 호출 (Gateway 경유)
   WEB:
@@ -67,7 +67,7 @@ JWT 기반 인증 서버. 로그인 / 재발급 / 로그아웃 / OAuth 클라이
 |---------|------|------|------|
 | `loginId` | Body (JSON) | ✅ | 로그인 아이디 |
 | `password` | Body (JSON) | ✅ | 비밀번호 |
-| `clientId` | Body (JSON) | - | OAuth 클라이언트 ID. WEB 전용 — 등록된 redirect_uri 조회에 사용. 없거나 미등록 시 `auth.redirect.default-url`로 fallback. APP에서 전달해도 무시. |
+| `clientId` | Body (JSON) | - | OAuth 클라이언트 ID. WEB·APP 모두 등록된 redirect_uri 조회에 사용. WEB은 302 Location, APP은 응답 body의 `redirectUrl`로 전달. 없거나 미등록 시 `auth.redirect.default-url`로 fallback. |
 | `Client-Type` | Header | - | `WEB`(기본) 또는 `APP` |
 
 **WEB 응답 — 302 Found:**
@@ -88,9 +88,11 @@ Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; M
 {
   "accessToken": "<JWT>",
   "accessExpiredTime": 1780242839681,
-  "refreshToken": "<JWT>"
+  "refreshToken": "<JWT>",
+  "redirectUrl": "https://app.econovation.kr/callback"
 }
 ```
+- `redirectUrl`: clientId에 등록된 redirect_uri(또는 `auth.redirect.default-url`). `LoginRedirectResolver`가 결정. `@JsonInclude(NON_NULL)` 적용 — clientId 미전달 시 필드 자체가 null일 수 있다.
 
 ---
 
@@ -139,23 +141,43 @@ api-gateway가 JWT 서명 검증에 사용하는 공개키. 직접 호출 불필
 
 ## OAuth 클라이언트 관리
 
-등록(`POST /clients`) 및 라우트 조회(`GET /routes`)는 인증 불필요 (public).
-redirectUri 관리 4개 endpoint는 `Authorization: Basic base64(clientId:clientSecret)` 헤더 필수.
+클라이언트 등록 경로는 두 가지다. 두 경로 모두 econo-passport 라이브러리(`@PassportAuth`, `PassportArgumentResolver`)가 `X-User-Passport` 헤더를 파싱·검증한다.
 
-> 자세한 내용: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
+| 경로 | 엔드포인트 | 인증 |
+|------|-----------|------|
+| **셀프 등록** | `POST /api/v1/clients` | X-User-Passport (Gateway 주입, memberId 필수) — ADMIN 역할 불필요 |
+| **어드민 등록** | `POST /api/v1/admin/clients` | X-User-Passport ADMIN 또는 SUPER_ADMIN role 필수 |
+
+**에러 코드 요약:**
+
+| HTTP | 코드 | 발생 조건 |
+|------|------|-----------|
+| 400 | `AUTH_BAD_REQUEST` | `X-User-Passport` Base64/JSON 파싱 불가 |
+| 401 | `AUTH_UNAUTHORIZED` | `X-User-Passport` 헤더 누락 또는 invalid passport |
+| 403 | `FORBIDDEN` | 어드민 경로에서 ADMIN/SUPER_ADMIN 역할 부족 |
+
+> 전체 에러 코드 및 비즈니스 규칙: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
 
 ```bash
-# 클라이언트 등록 (public — 인증 불필요)
+# 셀프 등록 (인증된 회원 — X-User-Passport 필수, Gateway 경유 시 자동 주입)
 curl -X POST http://localhost:8081/api/v1/clients \
   -H "Content-Type: application/json" \
-  -d '{"grantType": "authorization_code", "clientName": "EEOS 웹", "redirectUris": ["https://app.econovation.kr/callback"]}'
+  -H "X-User-Passport: <passport>" \
+  -d '{
+    "clientName": "EEOS 웹",
+    "redirectUris": ["https://app.econovation.kr/callback"]
+  }'
+# → 201 {"clientId": "...", "clientSecret": "... (1회만 노출)"}
+# 회원당 최대 5개. 초과 시 422 CLIENT_LIMIT_EXCEEDED.
 
-# redirectUri 추가 (Basic Auth 필요 — clientId:clientSecret 을 Base64 인코딩)
-BASIC_TOKEN=$(echo -n "{clientId}:{clientSecret}" | base64)
-curl -X POST http://localhost:8081/api/v1/clients/{clientId}/redirect-uris \
-  -H "Authorization: Basic ${BASIC_TOKEN}" \
+# 어드민 등록 (ADMIN 또는 SUPER_ADMIN role 필요)
+curl -X POST http://localhost:8081/api/v1/admin/clients \
   -H "Content-Type: application/json" \
-  -d '{"uri": "https://app2.econovation.kr/callback"}'
+  -H "X-User-Passport: <admin-passport>" \
+  -d '{
+    "clientName": "내부 서비스",
+    "redirectUris": ["https://internal.econovation.kr/callback"]
+  }'
 ```
 
 ---

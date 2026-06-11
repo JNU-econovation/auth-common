@@ -1,6 +1,6 @@
 # ADR-0010: Admin API 인증을 Internal API Key에서 ClientSecret Self-Service로 전환
 
-- **상태:** Accepted
+- **상태:** Superseded by [ADR-0013](./0013-passport-member-self-registration.md)
 - **결정일:** 2026-06-03
 - **결정자:** Bellmin (kim.jongmin@cashwalk.io)
 

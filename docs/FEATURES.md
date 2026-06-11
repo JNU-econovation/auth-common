@@ -64,26 +64,30 @@ econovation 인증 인프라가 제공하는 기능을 정리한 문서입니다
 ```
 POST /api/v1/auth/login
 Header: Client-Type: WEB  (생략 시 기본값)
-Body: {"loginId": "...", "password": "..."}
+Body: {"loginId": "...", "password": "...", "clientId": "..."}  ← clientId 선택
 
-응답:
+응답 (302):
+  Location: <clientId 등록 redirect_uri 또는 auth.redirect.default-url>
   Set-Cookie: at=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=3600
   Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=2592000
-  Body: {"accessExpiredTime": 1780242839681}
+  Body: 없음
 ```
 - AT, RT 모두 HttpOnly 쿠키로 발급 → JavaScript 접근 불가 (XSS 보호)
 - `Domain=.econovation.kr` 설정 시 모든 서브도메인 공유 → **SSO 자동**
 - AT 만료: 1시간 / RT 만료: 30일
+- `clientId` 미전달·미등록 시 `auth.redirect.default-url`로 302 (에러 아님, fail-safe)
 
 #### APP 로그인 (모바일 / 서버)
 ```
 POST /api/v1/auth/login
 Header: Client-Type: APP
-Body: {"loginId": "...", "password": "..."}
+Body: {"loginId": "...", "password": "...", "clientId": "..."}  ← clientId 선택
 
 응답 Body:
-  {"accessToken": "<JWT>", "accessExpiredTime": ..., "refreshToken": "<JWT>"}
+  {"accessToken": "<JWT>", "accessExpiredTime": ..., "refreshToken": "<JWT>", "redirectUrl": "..."}
 ```
+- `redirectUrl`: clientId에 등록된 redirect_uri(또는 `auth.redirect.default-url`). 앱이 직접 이동 여부를 결정.
+
 
 ### 🔄 토큰 재발급
 
@@ -127,43 +131,41 @@ Body: {
 
 ---
 
-### 🛠️ OAuth 클라이언트 관리 (Admin)
+### 🛠️ OAuth 클라이언트 관리
 
-등록(`POST /clients`) 및 라우트 조회(`GET /routes`)는 인증 불필요 (public).
-클라이언트 조회 및 redirectUri 관리(4개 endpoint)는 `Authorization: Basic base64(clientId:clientSecret)` 헤더 필수.
+클라이언트 등록 경로는 두 가지다. 모두 authorization_code + PKCE 클라이언트로 등록된다.
 
-#### 클라이언트 등록
+#### 셀프 등록 (인증된 에코노 회원 누구나)
 ```
 POST /api/v1/clients
+Header: X-User-Passport (Gateway 자동 주입 — memberId 필수)
+Body: {"clientName": "EEOS 웹", "redirectUris": ["https://app.econovation.kr/callback"]}
 
-// grantType 생략 → client_credentials 디폴트 (가장 단순)
-{
-  "clientName": "app-b"
-}
+응답 201: {"clientId": "...", "clientSecret": "... (1회만 노출)"}
+```
+- 회원당 최대 5개. 초과 시 422 `CLIENT_LIMIT_EXCEEDED`.
+- `clientSecret`은 BCrypt 해시로 저장. 분실 시 재등록 필요.
+- 헤더 누락 또는 invalid passport → 401 `AUTH_UNAUTHORIZED`. Base64/JSON 파싱 불가 → 400 `AUTH_BAD_REQUEST`.
+- Passport 파싱·검증은 econo-passport 라이브러리(`@PassportAuth`)가 담당한다.
 
-// SPA/웹앱 (authorization_code 명시)
-{
-  "grantType": "authorization_code",
-  "clientName": "EEOS 웹",
-  "redirectUris": ["https://app.econovation.kr/callback"]
-}
+#### 어드민 등록 (ADMIN 또는 SUPER_ADMIN role 필요)
+```
+POST /api/v1/admin/clients
+Header: X-User-Passport (ADMIN 또는 SUPER_ADMIN role 포함)
+Body: {"clientName": "내부 서비스", "redirectUris": ["https://internal.econovation.kr/callback"]}
+```
+- 헤더 누락 또는 invalid passport → 401 `AUTH_UNAUTHORIZED`
+- ADMIN/SUPER_ADMIN 역할 부족 → 403 `FORBIDDEN`
 
-// 서버간 + 라우팅 등록
-{
-  "grantType": "client_credentials",
-  "clientName": "새 서비스",
-  "upstreamUrl": "http://new-service:8080",  // Gateway 라우팅 대상
-  "pathPrefix": "/api/new"                    // 경로 접두사
-}
+#### redirectUri 관리 (ADMIN 또는 SUPER_ADMIN role 필요)
+```
+POST   /api/v1/admin/clients/{clientId}/redirect-uris  // 추가
+DELETE /api/v1/admin/clients/{clientId}/redirect-uris  // 삭제
+PUT    /api/v1/admin/clients/{clientId}/redirect-uris  // 전체 교체
+GET    /api/v1/admin/clients/{clientId}                // 조회
 ```
 
-#### redirectUri 관리 (인증: Basic Auth — clientId:clientSecret)
-```
-POST   /api/v1/clients/{clientId}/redirect-uris  // 추가
-DELETE /api/v1/clients/{clientId}/redirect-uris  // 삭제
-PUT    /api/v1/clients/{clientId}/redirect-uris  // 전체 교체
-GET    /api/v1/clients/{clientId}                // 조회
-```
+> 자세한 내용: [docs/CLIENT_REGISTRATION.md](./CLIENT_REGISTRATION.md)
 
 ---
 
@@ -201,15 +203,18 @@ GET    /api/v1/clients/{clientId}                // 조회
 
 ### Step 1. auth-api에 클라이언트 등록
 
+인증된 에코노 회원이 셀프 등록하거나, 관리자가 어드민 API로 등록한다.
+
 ```bash
-curl -X POST http://auth-api:8081/api/v1/clients \
+# 셀프 등록 (Gateway 경유 — X-User-Passport 자동 주입)
+curl -X POST http://gateway:8080/api/v1/clients \
   -H "Content-Type: application/json" \
+  -H "Cookie: at=<JWT>" \
   -d '{
     "clientName": "내 새 서비스",
-    "upstreamUrl": "http://my-service:8080",
-    "pathPrefix": "/api/my-service"
+    "redirectUris": ["https://my-service.econovation.kr/callback"]
   }'
-# → clientId, clientSecret 반환 (clientSecret은 1회만 노출 — 반드시 즉시 저장)
+# → 201 {"clientId": "...", "clientSecret": "..."} (clientSecret은 1회만 노출 — 반드시 즉시 저장)
 ```
 
 ### Step 2. Gateway 라우팅 추가
