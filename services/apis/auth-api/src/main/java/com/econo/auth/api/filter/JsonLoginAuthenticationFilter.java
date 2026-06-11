@@ -1,5 +1,6 @@
 package com.econo.auth.api.filter;
 
+import com.econo.auth.api.adapter.in.web.LoginResponse;
 import com.econo.auth.api.adapter.in.web.TokenCookieManager;
 import com.econo.auth.api.application.LoginRedirectResolver;
 import com.econo.auth.api.application.LoginTokenService;
@@ -90,10 +91,12 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 		boolean isApp = "APP".equalsIgnoreCase(clientType);
 
 		if (isApp) {
-			// APP: AT + RT 모두 body (200 OK)
+			// APP: AT + RT 모두 body (200 OK) + redirectUrl
+			String clientId = (String) request.getAttribute("clientId");
+			String redirectUrl = loginRedirectResolver.resolve(clientId, defaultRedirectUrl);
 			var body =
-					com.econo.auth.api.adapter.in.web.LoginResponse.app(
-							tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken());
+					LoginResponse.app(
+							tokens.accessToken(), tokens.accessExpiredAt(), tokens.refreshToken(), redirectUrl);
 			response.setStatus(HttpServletResponse.SC_OK);
 			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 			response.setCharacterEncoding("UTF-8");
