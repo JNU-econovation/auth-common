@@ -1,6 +1,6 @@
 # ADR-0005: 정적 YAML 라우팅 채택 (동적 DB 폴링 제거)
 
-- **상태:** Accepted
+- **상태:** Superseded by [ADR-0016](./0016-dynamic-gateway-routing-reintroduction.md)
 - **결정일:** 2026-06-01
 - **결정자:** econovation 개발팀
 

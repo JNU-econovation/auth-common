@@ -4,6 +4,10 @@ import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNotFoundException;
+import com.econo.auth.client.exception.RoutePathConflictException;
+import com.econo.auth.client.exception.RouteProtectedException;
+import com.econo.auth.client.exception.RouteUpstreamInvalidException;
 import com.econo.auth.client.exception.UnsupportedGrantTypeException;
 import com.econo.auth.member.exception.InvalidPasswordPolicyException;
 import com.econo.auth.member.exception.MemberAlreadyExistsException;
@@ -197,6 +201,54 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiError> handleClientLimitExceeded(ClientLimitExceededException ex) {
 		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
 				.body(new ApiError("CLIENT_LIMIT_EXCEEDED", ex.getMessage()));
+	}
+
+	/**
+	 * 라우트 미존재 예외 처리 — 404 ROUTE_NOT_FOUND
+	 *
+	 * @param ex 예외
+	 * @return 404 ROUTE_NOT_FOUND
+	 */
+	@ExceptionHandler(RouteNotFoundException.class)
+	public ResponseEntity<ApiError> handleRouteNotFound(RouteNotFoundException ex) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(new ApiError("ROUTE_NOT_FOUND", ex.getMessage()));
+	}
+
+	/**
+	 * 라우트 경로 충돌 예외 처리 — 409 ROUTE_PATH_CONFLICT
+	 *
+	 * @param ex 예외
+	 * @return 409 ROUTE_PATH_CONFLICT
+	 */
+	@ExceptionHandler(RoutePathConflictException.class)
+	public ResponseEntity<ApiError> handleRoutePathConflict(RoutePathConflictException ex) {
+		return ResponseEntity.status(HttpStatus.CONFLICT)
+				.body(new ApiError("ROUTE_PATH_CONFLICT", ex.getMessage()));
+	}
+
+	/**
+	 * 라우트 업스트림 URL 검증 실패 예외 처리 — 400 ROUTE_UPSTREAM_INVALID
+	 *
+	 * @param ex 예외
+	 * @return 400 ROUTE_UPSTREAM_INVALID
+	 */
+	@ExceptionHandler(RouteUpstreamInvalidException.class)
+	public ResponseEntity<ApiError> handleRouteUpstreamInvalid(RouteUpstreamInvalidException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiError("ROUTE_UPSTREAM_INVALID", ex.getMessage()));
+	}
+
+	/**
+	 * 보호 경로 가로채기/삭제 시도 예외 처리 — 403 ROUTE_PROTECTED
+	 *
+	 * @param ex 예외
+	 * @return 403 ROUTE_PROTECTED
+	 */
+	@ExceptionHandler(RouteProtectedException.class)
+	public ResponseEntity<ApiError> handleRouteProtected(RouteProtectedException ex) {
+		return ResponseEntity.status(HttpStatus.FORBIDDEN)
+				.body(new ApiError("ROUTE_PROTECTED", ex.getMessage()));
 	}
 
 	/**

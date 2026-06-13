@@ -182,6 +182,49 @@ curl -X POST http://localhost:8081/api/v1/admin/clients \
 
 ---
 
+## 동적 게이트웨이 라우트 관리
+
+`ADMIN` 또는 `SUPER_ADMIN` 역할의 Passport가 필요하다. Gateway가 Bearer JWT를 검증하고 `X-User-Passport` 헤더를 자동 주입한다.
+
+> 전체 가이드: [docs/DYNAMIC_ROUTING.md](../../docs/DYNAMIC_ROUTING.md)
+
+### Admin API (`AdminRouteController`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| `POST` | `/api/v1/admin/routes` | 동적 라우트 등록 (201 Created) |
+| `GET` | `/api/v1/admin/routes` | 전체 라우트 목록 조회 (200 OK) |
+| `GET` | `/api/v1/admin/routes/{routeId}` | 단건 라우트 조회 (200 OK / 404) |
+| `PUT` | `/api/v1/admin/routes/{routeId}` | 라우트 수정 (200 OK) |
+| `DELETE` | `/api/v1/admin/routes/{routeId}` | 라우트 삭제 (204 No Content) |
+
+요청 바디 (`POST`/`PUT`):
+
+```json
+{
+  "pathPrefix": "/api/v2/my-service",
+  "upstreamUrl": "http://my-service:8080",
+  "enabled": true
+}
+```
+
+에러 코드 요약:
+
+| HTTP | 코드 | 발생 조건 |
+|------|------|-----------|
+| 400 | `ROUTE_UPSTREAM_INVALID` | upstreamUrl SSRF 검증 실패 |
+| 403 | `ROUTE_PROTECTED` | 보호 경로 패턴 충돌 |
+| 404 | `ROUTE_NOT_FOUND` | routeId 미존재 |
+| 409 | `ROUTE_PATH_CONFLICT` | pathPrefix 중복 |
+
+### 내부 라우트 조회 (`InternalRouteController`)
+
+`GET /api/v1/internal/routes` — api-gateway 기동 시 호출하는 내부 전용 엔드포인트. `X-Internal-Secret` 헤더로 보호한다 (`GATEWAY_INTERNAL_SECRET` 환경변수와 동일 값 필요).
+
+이 경로는 보호 경로(`ProtectedPathPolicyImpl`)에 `/api/v1/internal/**`로 등록되어 동적 라우트 등록이 차단된다. api-gateway의 `AuthApiRouteClient`(`DynamicRouteDefinitionRepository` 내부)가 `AUTH_API_URI`로 직접 WebClient 호출하여 Gateway 라우팅 테이블을 우회한다. Passport 불필요, `X-Internal-Secret` 헤더 검증으로 보호.
+
+---
+
 ## 환경 변수
 
 | 변수 | 설명 | 기본값 |
@@ -193,6 +236,8 @@ curl -X POST http://localhost:8081/api/v1/admin/clients \
 | `AUTH_ISSUER_URI` | JWT `iss` 클레임 (Gateway 공개 URL) | `http://localhost:8080` |
 | `REDIRECT_DEFAULT_URL` | WEB 로그인 302 fallback 목적지 (`auth.redirect.default-url`). clientId 미전달·미등록·redirect_uri 없음·인프라 오류 시 사용 (fail-safe) | `http://localhost:3000` |
 | `FRONTEND_LOGIN_URL` | SAS `/oauth2/authorize` 미인증 진입 시 리다이렉트할 SPA 로그인 URL (`auth.frontend-login-url`) | `http://localhost:3000/login` |
+| `GATEWAY_URI` | api-gateway 내부 주소 (라우트 refresh 콜백 호출용) | `http://localhost:8080` |
+| `GATEWAY_INTERNAL_SECRET` | api-gateway refresh 엔드포인트 인증 시크릿 (`GATEWAY_INTERNAL_SECRET`과 동일 값) | `dev-secret` |
 | `COOKIE_DOMAIN` | 쿠키 도메인 (`.econovation.kr`) | 빈값 |
 | `COOKIE_SECURE` | HTTPS 전용 쿠키 | `false` |
 | `AT_EXPIRY_SECONDS` | AT 유효시간 (초) | `3600` (1시간) |
