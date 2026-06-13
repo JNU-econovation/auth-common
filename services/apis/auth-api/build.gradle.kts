@@ -15,6 +15,18 @@ dependencies {
     testImplementation("org.testcontainers:postgresql")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.springframework.security:spring-security-test")
+    // 운영은 flyway 컨테이너가 마이그레이션을 적용하지만, 테스트는 docker-compose 없이
+    // 클래스패스의 마이그레이션으로 스키마를 구성하므로 flyway 를 테스트 전용으로 둔다.
+    testImplementation("org.flywaydb:flyway-core")
+}
+
+// 마이그레이션 SQL 의 단일 진실 소스는 레포 루트 db/migration 이다(어느 모듈도 소유하지 않음).
+// 운영: docker-compose 의 flyway 컨테이너가 볼륨 마운트로 적용.
+// 테스트: 아래에서 테스트 클래스패스의 db/migration 으로 복사해 @SpringBootTest 가 스키마를 만든다.
+tasks.named<Copy>("processTestResources") {
+    from("$rootDir/db/migration") {
+        into("db/migration")
+    }
 }
 
 // Jib — Docker 데몬 없이 OCI 이미지 빌드·푸시 (Dockerfile 불필요)

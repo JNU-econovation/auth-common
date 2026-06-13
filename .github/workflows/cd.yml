@@ -55,6 +55,18 @@ jobs:
             -Djib.to.auth.username=${{ secrets.DOCKERHUB_USERNAME }} \
             -Djib.to.auth.password=${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 마이그레이션 SQL 을 담은 flyway 이미지 빌드·푸시 (앱과 동일한 태그 체계).
+      # 앱처럼 이미지로 관리하므로, 서버는 docker compose pull 만으로 최신 마이그레이션을 받는다.
+      - name: Build & push migration image (flyway → Docker Hub)
+        env:
+          DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE }}
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker build -t "$DOCKERHUB_NAMESPACE/auth-migration:latest" \
+                       -t "$DOCKERHUB_NAMESPACE/auth-migration:${{ env.IMAGE_TAG }}" db
+          docker push "$DOCKERHUB_NAMESPACE/auth-migration:latest"
+          docker push "$DOCKERHUB_NAMESPACE/auth-migration:${{ env.IMAGE_TAG }}"
+
       # 자체 서버에 SSH 접속 → 최신 이미지 pull 후 compose 재기동
       # SSH 계정 홈의 ~/auth-common 에 docker-compose.yml 과 시크릿이 담긴 .env 를 미리 둔다.
       - name: Deploy over SSH

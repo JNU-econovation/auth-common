@@ -11,8 +11,9 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
-    enabled: true
-    locations: classpath:db/migration
+    # 운영 마이그레이션은 별도 flyway 컨테이너(docker-compose)가 적용한다.
+    # 앱은 스키마를 적용하지 않고 ddl-auto=validate 로 검증만 한다.
+    enabled: false
   servlet:
     session:
       cookie:

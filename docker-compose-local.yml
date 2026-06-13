@@ -18,5 +18,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # 로컬은 레포가 있으므로 이미지 빌드 없이 SQL 을 볼륨 마운트해 마이그레이션을 적용한다.
+  # 앱(bootRun)은 flyway 가 꺼져 있으니, 로컬 DB 스키마는 이 컨테이너가 만든다.
+  flyway:
+    image: flyway/flyway:10
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    command: >
+      -url=jdbc:postgresql://auth-postgres:5432/authdb
+      -user=auth
+      -password=auth1234
+      -connectRetries=10
+      migrate
+    volumes:
+      - ./db/migration:/flyway/sql
+
 volumes:
   auth-postgres-data:
