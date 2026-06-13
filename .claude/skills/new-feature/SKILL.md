@@ -112,4 +112,4 @@ gh run watch $(gh run list --repo {owner}/{repo} --branch {branch} \
 | 코드 컨벤션 | `docs/CONVENTION.md` |
 | 시퀀스 다이어그램 | `docs/SEQUENCE-DIAGRAMS.md` |
 | ADR 목록 | `docs/adr/` |
-| Flyway 마이그레이션 | `services/libs/member/src/main/resources/db/migration/` |
+| Flyway 마이그레이션 | `db/migration/` (레포 루트, 전역 관리 — ADR-0014) |

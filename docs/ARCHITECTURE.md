@@ -36,11 +36,14 @@ auth-common/                          # 루트 프로젝트
 │   │   ├── api-gateway/              # API Gateway 서버
 │   │   └── auth-api/                 # OIDC Authorization Server (SAS 1.x)
 │   └── libs/                         # 공유 라이브러리 (이 레포 로컬 모듈 3개)
-│       ├── member/                   # Member 도메인·유스케이스·JPA 어댑터·Flyway 마이그레이션
+│       ├── member/                   # Member 도메인·유스케이스·JPA 어댑터
 │       ├── common-infra/             # JPA Auditing AutoConfiguration (공통 인프라 설정)
 │       └── service-client/           # ServiceClient 도메인, 3계층 구조
 │   # Passport / @PassportAuth / PassportArgumentResolver 는
 │   # 외부 의존성 econo-passport (JitPack) 에서 제공 — 이 레포 모듈 아님
+├── db/                               # DB 마이그레이션 전역 관리 (어느 모듈도 소유 안 함)
+│   ├── migration/                    # Flyway SQL 단일 소스 (V1__..., V2__..., ...)
+│   └── Dockerfile                    # SQL 담은 flyway 이미지 빌드 (운영 배포용)
 ├── docs/                             # 문서 (ARCHITECTURE.md, CONVENTION.md, DOC-GUIDE.md, README-GUIDE.md, INFRASTRUCTURE.md)
 └── .claude/                          # Claude Code harness (agents, skills, commands)
 ```
@@ -67,7 +70,7 @@ econo-passport (외부 의존성 — JitPack 배포, 이 레포 모듈 아님)
 |------|------|------|
 | **api-gateway** | App | 클라이언트 요청 수신, Bearer JWT RS256 검증 → Passport 생성 → 헤더 전달. SAS OAuth 엔드포인트를 auth-api로 프록시 |
 | **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 302(WEB) 또는 200+body+redirectUrl(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. |
-| **member** | Lib | Member 도메인·유스케이스·출력 포트(repository)·예외·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 5종. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. |
+| **member** | Lib | Member 도메인·유스케이스·출력 포트(repository)·예외·JPA 어댑터·BCrypt 어댑터. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. (DB 마이그레이션은 모듈 밖 `db/migration`에서 전역 관리 — ADR-0014) |
 | **common-infra** | Lib | `@EnableJpaAuditing` AutoConfiguration. `member`·`service-client` 모듈에 JPA Auditing을 일원화 제공. |
 | **service-client** | Lib | ServiceClient 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
 

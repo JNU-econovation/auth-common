@@ -1,6 +1,8 @@
 # member
 
-Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션을 헥사고날 구조로 포함한다. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔하며, `common-infra`를 통해 JPA Auditing을 소비자에 전이 활성화한다.
+Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터를 헥사고날 구조로 포함한다. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔하며, `common-infra`를 통해 JPA Auditing을 소비자에 전이 활성화한다.
+
+> DB 마이그레이션은 이 모듈이 아니라 레포 루트 `db/migration`에서 전역 관리한다 (어느 모듈도 소유하지 않음). 자세한 내용은 `docs/INFRASTRUCTURE.md` 및 [ADR-0014](../../../docs/adr/0014-flyway-container-managed-migration.md).
 
 ---
 
@@ -43,7 +45,6 @@ Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스
 | BCrypt 어댑터 | `services/libs/member/src/main/java/com/econo/auth/member/adapter/out/security/` |
 | AutoConfiguration | `services/libs/member/src/main/java/com/econo/auth/member/config/MemberAutoConfiguration.java` |
 | 예외 | `services/libs/member/src/main/java/com/econo/auth/member/exception/` |
-| Flyway 마이그레이션 | `services/libs/member/src/main/resources/db/migration/` |
 
 ---
 
