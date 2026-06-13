@@ -10,23 +10,8 @@ spring:
             allowedHeaders: "*"
             allowCredentials: true
             maxAge: 3600
-      routes:
-        - id: auth-api
-          uri: ${AUTH_API_URI:http://localhost:8081}
-          predicates:
-            - Path=/api/v1/auth/**
-        - id: sas-well-known
-          uri: ${AUTH_API_URI:http://localhost:8081}
-          predicates:
-            - Path=/.well-known/**
-        - id: sas-userinfo
-          uri: ${AUTH_API_URI:http://localhost:8081}
-          predicates:
-            - Path=/userinfo
-        - id: eeos
-          uri: ${EEOS_API_URI:http://localhost:8080}
-          predicates:
-            - Path=/api/**
+      # 정적 YAML 라우트 선언 제거 — GatewayRoutingConfig(Java DSL)가 보호경로 정적 라우트를 관리하며,
+      # DynamicRouteDefinitionRepository가 service_route 테이블에서 동적 라우트를 로드한다.
   autoconfigure:
     exclude:
       - com.econo.common.auth.config.AuthAutoConfiguration
@@ -41,6 +26,7 @@ management:
       show-details: never
 
 gateway:
+  internal-secret: ${GATEWAY_INTERNAL_SECRET:dev-secret}
   permitted-paths:
     - /
     - /api/v1/auth/signup

@@ -7,15 +7,18 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 /**
- * Spring Cloud Gateway 정적 라우팅 설정
+ * Spring Cloud Gateway 정적 라우팅 설정 (보호 경로 전용)
  *
- * <p>라우트는 환경변수({@code AUTH_API_URI}, {@code EEOS_API_URI})로 외부화된다. 새 서비스 추가 시 이 파일에 라우트를 추가하고
- * 재배포한다.
+ * <p>auth-api 핵심 경로, Admin/Members/Clients API, Swagger, OAuth2, Well-Known 등 보호 경로만 정적으로 유지한다. 그 외
+ * 동적 서비스 라우트는 {@link DynamicRouteDefinitionRepository}가 auth-api REST 로드로 처리한다.
  *
  * <p>인증 불필요 경로({@link #permittedPaths})는 {@code application.yml}의 {@code gateway.permitted-paths}에서
  * 로드되며, {@link com.econo.auth.gateway.filter.BearerToPassportFilter}가 참조한다.
+ *
+ * <p>동적 라우트보다 높은 우선순위를 보장하기 위해 {@code @Order(1)}을 부여한다.
  */
 @Configuration
 @ConfigurationProperties(prefix = "gateway")
@@ -23,9 +26,6 @@ public class GatewayRoutingConfig {
 
 	@Value("${AUTH_API_URI:http://localhost:8081}")
 	private String authApiUri;
-
-	@Value("${EEOS_API_URI:http://localhost:8080}")
-	private String eeosApiUri;
 
 	/** application.yml의 gateway.permitted-paths에서 주입 */
 	private List<String> permittedPaths = List.of();
@@ -48,12 +48,13 @@ public class GatewayRoutingConfig {
 	}
 
 	/**
-	 * Gateway 라우트 정의.
+	 * 보호 경로 정적 라우트 정의 (동적 라우트보다 높은 우선순위).
 	 *
-	 * <p>라우트 우선순위: 더 구체적인 경로를 먼저 선언한다. {@code /api/v1/admin/**}, {@code /api/v1/clients/**}, {@code
-	 * /api/v1/members/**}는 auth-api로, 나머지 {@code /api/**}는 eeos로 라우팅된다.
+	 * <p>auth-api 핵심 경로(인증, OAuth2, Admin API 등)는 정적으로 고정하여 동적 라우트가 가로채지 못하도록 보장한다. 동적 서비스 라우트는
+	 * {@link DynamicRouteDefinitionRepository}가 처리한다.
 	 */
 	@Bean
+	@Order(1)
 	public RouteLocator routes(RouteLocatorBuilder builder) {
 		return builder
 				.routes()
@@ -70,12 +71,6 @@ public class GatewayRoutingConfig {
 						r ->
 								r.path("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs")
 										.uri(authApiUri))
-				.route(
-						"eeos",
-						r ->
-								r.path("/api/**")
-										.filters(f -> f.removeRequestHeader("Authorization"))
-										.uri(eeosApiUri))
 				.build();
 	}
 }
