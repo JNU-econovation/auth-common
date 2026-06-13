@@ -11,7 +11,7 @@
 
 ## 개요
 
-이 작업은 auth-api의 application 계층(`LoginTokenService`, `LoginRedirectResolver`, UseCase 인터페이스 2종)을 새 lib 모듈 `services/libs/login`로 추출하고 토큰 발급/검증을 도메인 포트(`TokenCodec`)로 추상화하는 **순수 리팩토링**이다. DB 스키마(테이블·컬럼·인덱스·제약조건)는 이번 작업에서 **단 하나도 변경하지 않는다.** 마이그레이션 파일 추가·수정·삭제 역시 **0건**이다.
+이 작업은 auth-api의 application 계층(`LoginTokenService`, `LoginRedirectResolver`, UseCase 인터페이스 2종)을 새 lib 모듈 `services/libs/login`로 추출하고 토큰 발급/검증을 도메인 포트(`TokenEncoder/TokenDecoder`)로 추상화하는 **순수 리팩토링**이다. DB 스키마(테이블·컬럼·인덱스·제약조건)는 이번 작업에서 **단 하나도 변경하지 않는다.** 마이그레이션 파일 추가·수정·삭제 역시 **0건**이다.
 
 사용 DB: PostgreSQL. 마이그레이션 도구: Flyway (`V{N}__{설명}.sql` 네이밍, `services/libs/member/src/main/resources/db/migration/`에 집중 관리). ORM: Spring Data JPA (Hibernate, `ddl-auto: validate`).
 
