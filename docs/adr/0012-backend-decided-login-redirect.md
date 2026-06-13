@@ -85,4 +85,4 @@
 
 - [ADR-0001](./0001-cookie-based-sso-over-pkce.md) — 쿠키 기반 SSO (경로 A의 토큰 전달 방식 근거)
 - [ADR-0002](./0002-gateway-as-auth-boundary.md) — Gateway를 인증 경계로 사용하는 결정
-- [.claude/plans/backend-decided-login-redirect/](../../.claude/plans/backend-decided-login-redirect/) — 본 결정의 todo / API / 구현 / DB 설계 plan
+- [.claude/plans/07-backend-decided-login-redirect/](../../.claude/plans/07-backend-decided-login-redirect/) — 본 결정의 todo / API / 구현 / DB 설계 plan

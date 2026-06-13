@@ -172,4 +172,4 @@ CREATE INDEX idx_service_client_owner_id
 - `services/libs/service-client/src/main/java/com/econo/auth/client/adapter/out/persistence/ServiceClientJpaEntity.java` — JPA 엔티티 현행 구조 (`client_secret_hash length=72` 기준)
 - `services/libs/service-client/src/main/java/com/econo/auth/client/adapter/out/sas/SasClientRegistrarAdapter.java` — NONE 방식 등록 확인 (SAS client_secret null 유지 근거)
 - `docs/CONVENTION.md` — 네이밍 컨벤션 (snake_case, BIGINT PK)
-- `.claude/plans/client-self-registration-and-app-redirect/implementation-plan.md` — B안 설계 기준 문서 (V7 마이그레이션 스크립트 초안 포함)
+- `.claude/plans/08-client-self-registration-and-app-redirect/implementation-plan.md` — B안 설계 기준 문서 (V7 마이그레이션 스크립트 초안 포함)

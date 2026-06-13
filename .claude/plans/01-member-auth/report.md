@@ -60,7 +60,7 @@
 
 ### 수정 (19)
 - **코드**: `auth-common-lib/Passport.java`(+테스트 3), `AuthApiApplication.java`, 루트 `build.gradle.kts`, `auth-api`·`api-gateway`·`auth-infra` `build.gradle.kts`.
-- **문서**: 루트 `README.md`, `docs/{ARCHITECTURE,CONVENTION,INFRASTRUCTURE}.md`, 모듈 README 5종, `plans/member-auth/todo.md`.
+- **문서**: 루트 `README.md`, `docs/{ARCHITECTURE,CONVENTION,INFRASTRUCTURE}.md`, 모듈 README 5종, `plans/01-member-auth/todo.md`.
 
 ---
 

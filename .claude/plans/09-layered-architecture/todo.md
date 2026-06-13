@@ -175,7 +175,7 @@
 
 ## 참고
 
-- `.claude/plans/layered-architecture/implementation-plan.md` — 모듈별 현재→목표 클래스 매핑 전체표, 신설 인터페이스 5종, Phase 1~5 단계별 순서
+- `.claude/plans/09-layered-architecture/implementation-plan.md` — 모듈별 현재→목표 클래스 매핑 전체표, 신설 인터페이스 5종, Phase 1~5 단계별 순서
 - `docs/ARCHITECTURE.md` — 현재 헥사고날 패키지 구조 기술 (member, service-client 섹션)
 - `docs/CONVENTION.md` — 현재 패키지 네이밍 컨벤션
 - `docs/adr/0013-passport-member-self-registration.md` — 최신 ADR (다음 번호: 0014)

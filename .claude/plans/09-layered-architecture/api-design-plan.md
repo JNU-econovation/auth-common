@@ -340,4 +340,4 @@ find services/apis/api-gateway/src/main/java -type d -name "filter" | grep prese
 - `services/apis/api-gateway/src/main/java/com/econo/auth/gateway/web/RootController.java` — 게이트웨이 헬스체크 (목표: `presentation.controller.RootController`)
 - `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/RootController.java` — auth-api 헬스체크 (목표: `presentation.controller.RootController`)
 - `docs/CONVENTION.md` — 현재 패키지/클래스 네이밍 컨벤션 (이번 작업 후 갱신 대상)
-- `.claude/plans/layered-architecture/implementation-plan.md` — 신설 usecase 5종 상세 설계 및 Phase별 이동 순서 (config/security 최종 확정본)
+- `.claude/plans/09-layered-architecture/implementation-plan.md` — 신설 usecase 5종 상세 설계 및 Phase별 이동 순서 (config/security 최종 확정본)
