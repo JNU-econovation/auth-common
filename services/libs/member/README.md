@@ -1,8 +1,8 @@
 # member
 
-Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터를 헥사고날 구조로 포함한다. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔하며, `common-infra`를 통해 JPA Auditing을 소비자에 전이 활성화한다.
+Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터를 3계층(application/persistence) + DIP 구조로 포함한다. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔하며, `common-infra`를 통해 JPA Auditing을 소비자에 전이 활성화한다.
 
-> DB 마이그레이션은 이 모듈이 아니라 레포 루트 `db/migration`에서 전역 관리한다 (어느 모듈도 소유하지 않음). 자세한 내용은 `docs/INFRASTRUCTURE.md` 및 [ADR-0014](../../../docs/adr/0014-flyway-container-managed-migration.md).
+> DB 마이그레이션은 이 모듈이 아니라 레포 루트 `db/migration`에서 전역 관리한다 (어느 모듈도 소유하지 않음). 자세한 내용은 `docs/INFRASTRUCTURE.md` 및 [ADR-0015](../../../docs/adr/0015-flyway-container-managed-migration.md).
 
 ---
 
@@ -28,23 +28,23 @@ Member 도메인 라이브러리. 회원 엔티티·회원가입 유스케이스
 - **loginId 중복**: `MemberRepository.existsByLoginId` 확인 후 중복이면 `MemberAlreadyExistsException.of(loginId)` throw.
 - **JPA Auditing**: `Member.createdAt` / `Member.updatedAt` 필드의 `@CreatedDate` / `@LastModifiedDate` 자동 채움은 `common-infra`의 `CommonInfraAutoConfiguration`(`@EnableJpaAuditing`)이 담당한다. `member`가 `common-infra`를 `api` 의존으로 선언하여 소비자(`auth-api`)에 자동 전이된다.
 - ⚠️ `SignupService`는 `@Component`가 아닌 일반 클래스다. `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 등록해야 한다.
-- ⚠️ `MemberAutoConfiguration`이 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.member.adapter.out.persistence`를 직접 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
+- ⚠️ `MemberAutoConfiguration`이 `@EnableJpaRepositories("com.econo.auth.member.persistence.repository")` / `@EntityScan("com.econo.auth.member.persistence.entity")`로 자기 모듈을 직접 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
 - `InvalidCredentialsException` 클래스는 보존되어 있으나, SAS 도입 이후 `GlobalExceptionHandler`에 핸들러가 등록되어 있지 않다. `JsonLoginAuthenticationFilter`가 로그인 실패 시 직접 401 응답을 반환한다.
 
 ---
 
 ## 코드 진입점
 
-| 구분 | 경로 |
-|------|------|
-| 도메인 | `services/libs/member/src/main/java/com/econo/auth/member/domain/` |
-| 인바운드 포트 | `services/libs/member/src/main/java/com/econo/auth/member/application/port/in/` |
-| 아웃바운드 포트 | `services/libs/member/src/main/java/com/econo/auth/member/application/port/out/` |
-| 유스케이스 | `services/libs/member/src/main/java/com/econo/auth/member/application/usecase/` |
-| JPA 어댑터 | `services/libs/member/src/main/java/com/econo/auth/member/adapter/out/persistence/` |
-| BCrypt 어댑터 | `services/libs/member/src/main/java/com/econo/auth/member/adapter/out/security/` |
-| AutoConfiguration | `services/libs/member/src/main/java/com/econo/auth/member/config/MemberAutoConfiguration.java` |
-| 예외 | `services/libs/member/src/main/java/com/econo/auth/member/exception/` |
+| 구분 | 경로 | 주요 클래스 |
+|------|------|------------|
+| 도메인 | `services/libs/member/src/main/java/com/econo/auth/member/application/domain/` | `Member`, `MemberStatus` |
+| 입력 포트 (유스케이스) | `services/libs/member/src/main/java/com/econo/auth/member/application/usecase/` | `SignupUseCase`, `MemberQueryUseCase` |
+| 출력 포트 | `services/libs/member/src/main/java/com/econo/auth/member/application/repository/` | `MemberRepository`, `PasswordHasher` |
+| 서비스 구현체 | `services/libs/member/src/main/java/com/econo/auth/member/application/service/` | `SignupService`, `MemberQueryService` |
+| JPA 엔티티 | `services/libs/member/src/main/java/com/econo/auth/member/persistence/entity/` | `MemberJpaEntity` |
+| JPA 어댑터·리포지토리 | `services/libs/member/src/main/java/com/econo/auth/member/persistence/repository/` | `MemberJpaRepository`, `MemberRepositoryAdapter`, `BCryptPasswordHasherAdapter` |
+| AutoConfiguration | `services/libs/member/src/main/java/com/econo/auth/member/config/MemberAutoConfiguration.java` | |
+| 예외 | `services/libs/member/src/main/java/com/econo/auth/member/exception/` | |
 
 ---
 

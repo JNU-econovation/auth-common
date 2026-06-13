@@ -55,7 +55,8 @@
 - `0011` — 어드민 UI 인증: JWT Passport ADMIN role 체계 도입
 - `0012` — 로그인 성공 후 리다이렉트를 백엔드가 clientId로 결정
 - `0013` — 클라이언트 등록을 Passport 회원 셀프서비스 모델로
-- `0014` — DB 마이그레이션을 모듈 밖으로 전역화하고 flyway 컨테이너로 적용
+- `0014` — 전체 모듈 패키지를 3계층(presentation/application/persistence) + 계층별 DIP로 통일
+- `0015` — DB 마이그레이션을 모듈 밖으로 전역화하고 flyway 컨테이너로 적용
 - `role-management.md` — 역할 관리 결정 노트
 
 > ADR 번호 0006·0008은 결번. 정적 라우팅(ADR-0005)과 동적 라우팅 가이드(`DYNAMIC_ROUTING.md`)는 방향이 상충하므로, 라우팅 작업 시 어느 쪽이 현재 결정인지 먼저 확인할 것.
@@ -78,19 +79,21 @@
 
 - **member** — Member 도메인·유스케이스·JPA 어댑터·BCrypt 어댑터 (3계층)
 - **service-client** — OAuth 클라이언트(ServiceClient)·라우팅(ServiceRoute) 도메인·등록 유스케이스·JPA/SAS 어댑터 (3계층)
+- **login** — AT/RT 발급·재발급·RT 검증(`LoginTokenUseCase`), clientId 기반 리다이렉트 결정(`LoginRedirectUseCase`). JWT 서명·검증은 `TokenEncoder/TokenDecoder` 출력 포트로 추상화, 구현체는 소비자 앱이 제공. `spring-security-oauth2` 의존 없음
 - **common-infra** — `@EnableJpaAuditing` AutoConfiguration을 `member`·`service-client`에 일원화 제공
 
 각 모듈의 역할과 상세는 해당 `services/{libs|apis}/{모듈}/README.md`를 참조한다.
 
 ### DB 마이그레이션 (전역 관리)
 
-Flyway SQL은 어느 모듈에도 속하지 않고 레포 루트 **`db/migration`**이 단일 소스다. 운영은 전용 flyway 컨테이너(`db/Dockerfile` 이미지)가, 로컬은 공식 이미지+볼륨이, 테스트는 클래스패스 복사로 같은 SQL을 적용한다. `auth-api`는 마이그레이션을 적용하지 않고(`spring.flyway.enabled=false`) `ddl-auto=validate`로 검증만 한다. 상세·근거: `docs/INFRASTRUCTURE.md`, ADR-0014.
+Flyway SQL은 어느 모듈에도 속하지 않고 레포 루트 **`db/migration`**이 단일 소스다. 운영은 전용 flyway 컨테이너(`db/Dockerfile` 이미지)가, 로컬은 공식 이미지+볼륨이, 테스트는 클래스패스 복사로 같은 SQL을 적용한다. `auth-api`는 마이그레이션을 적용하지 않고(`spring.flyway.enabled=false`) `ddl-auto=validate`로 검증만 한다. 상세·근거: `docs/INFRASTRUCTURE.md`, ADR-0015.
 
 ### 모듈 의존성
 
 ```
 api-gateway    ──→ econo-passport (JitPack)
-auth-api       ──→ member, service-client, econo-passport
+auth-api       ──→ member, service-client, login, econo-passport
+login          ──→ member, service-client
 member         ──→ common-infra   (api 의존: JPA Auditing 전이)
 service-client ──→ common-infra
 ```
