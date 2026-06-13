@@ -1,12 +1,8 @@
 package com.econo.auth.api.presentation.controller;
 
+import com.econo.auth.api.presentation.docs.MemberInfoApiDocs;
 import com.econo.auth.member.application.domain.Member;
 import com.econo.auth.member.application.usecase.MemberQueryUseCase;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -35,36 +31,16 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Gateway가 AT를 검증하고 X-User-Passport를 주입한 이후 도달하는 엔드포인트이므로 별도 인증 처리가 없다.
  */
-@Tag(name = "Members — Info", description = "회원 정보 조회 API (Gateway 인증 후 내부 서비스 호출용)")
 @RestController
 @RequestMapping("/api/v1/members")
 @RequiredArgsConstructor
-public class MemberInfoController {
+public class MemberInfoController implements MemberInfoApiDocs {
 
 	private static final int MAX_IDS = 1000;
 
 	private final MemberQueryUseCase memberQueryUseCase;
 
-	@Operation(
-			summary = "회원 정보 조회 (단건/다건 통합)",
-			description =
-					"IDs 목록으로 회원 정보를 조회한다. 단건도 동일한 엔드포인트를 사용한다.\n\n"
-							+ "```json\n"
-							+ "// 단건\n"
-							+ "{ \"ids\": [42] }\n\n"
-							+ "// 다건 (최대 "
-							+ MAX_IDS
-							+ "개)\n"
-							+ "{ \"ids\": [1, 2, 42] }\n"
-							+ "```\n\n"
-							+ "존재하지 않는 ID는 결과에서 조용히 제외된다.")
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "조회 성공 (결과가 0개여도 200)"),
-		@ApiResponse(
-				responseCode = "400",
-				description = "ids 빈 배열 또는 " + MAX_IDS + "개 초과",
-				content = @Content)
-	})
+	@Override
 	@PostMapping("/batch")
 	public ResponseEntity<List<MemberInfoResponse>> queryMembers(
 			@Valid @RequestBody MemberQueryRequest request) {

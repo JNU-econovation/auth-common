@@ -1,16 +1,11 @@
 package com.econo.auth.api.presentation.controller;
 
+import com.econo.auth.api.presentation.docs.AdminMemberApiDocs;
 import com.econo.auth.member.application.domain.Member;
 import com.econo.auth.member.application.usecase.MemberQueryUseCase;
 import com.econo.common.auth.core.passport.Passport;
 import com.econo.common.auth.core.passport.Roles;
 import com.econo.common.auth.web.annotation.PassportAuth;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,11 +38,10 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  */
 @Slf4j
-@Tag(name = "Admin — Member Management", description = "회원 목록 조회 및 역할 관리 API")
 @RestController
 @RequestMapping("/api/v1/admin/members")
 @RequiredArgsConstructor
-public class AdminMemberController {
+public class AdminMemberController implements AdminMemberApiDocs {
 
 	private static final Set<String> VALID_ROLES = Set.of("USER", "ADMIN", "SUPER_ADMIN");
 
@@ -82,14 +76,7 @@ public class AdminMemberController {
 
 	// ── Endpoints ────────────────────────────────────────────
 
-	@Operation(
-			summary = "회원 목록 조회",
-			description = "ADMIN 또는 SUPER_ADMIN 역할 필요. role 파라미터로 필터링 가능.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "조회 성공"),
-		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content)
-	})
+	@Override
 	@GetMapping
 	public ResponseEntity<?> listMembers(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
@@ -105,25 +92,7 @@ public class AdminMemberController {
 		return ResponseEntity.ok(new PagedMembersResponse(content, total, totalPages, page, size));
 	}
 
-	@Operation(
-			summary = "회원 역할 변경",
-			description =
-					"SUPER_ADMIN 전용. 부여/회수 모두 이 엔드포인트 사용.\n\n"
-							+ "**정책:**\n"
-							+ "- 본인 역할 변경 불가 (`FORBIDDEN_SELF_ROLE_CHANGE`)\n"
-							+ "- 마지막 SUPER_ADMIN 해제 불가 (`LAST_SUPER_ADMIN_CANNOT_BE_DEMOTED`)\n"
-							+ "- 유효 역할: `USER`, `ADMIN`, `SUPER_ADMIN`",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "역할 변경 성공"),
-		@ApiResponse(responseCode = "400", description = "유효하지 않은 역할", content = @Content),
-		@ApiResponse(
-				responseCode = "403",
-				description = "SUPER_ADMIN 역할 없음 또는 본인 변경 시도",
-				content = @Content),
-		@ApiResponse(responseCode = "404", description = "존재하지 않는 회원", content = @Content),
-		@ApiResponse(responseCode = "409", description = "마지막 SUPER_ADMIN 해제 시도", content = @Content)
-	})
+	@Override
 	@PatchMapping("/{memberId}/role")
 	public ResponseEntity<?> updateRole(
 			@PassportAuth(requiredRoles = {Roles.SUPER_ADMIN}) Passport passport,

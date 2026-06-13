@@ -28,6 +28,15 @@ auth-common 프로젝트의 코드 컨벤션.
   - [5.3 테스트 유형별 도구](#53-테스트-유형별-도구)
 - [6. 빌드](#6-빌드)
 - [7. 의존성 선언](#7-의존성-선언)
+- [8. API 문서화 (Swagger/OpenAPI)](#8-api-문서화-swaggeropenapi)
+  - [8.1 문서 어노테이션 분리 (docs 인터페이스)](#81-문서-어노테이션-분리-docs-인터페이스)
+  - [8.2 전역 설정 위치](#82-전역-설정-위치)
+  - [8.3 태그(@Tag)](#83-태그tag)
+  - [8.4 보안 스킴](#84-보안-스킴)
+  - [8.5 Gateway 주입 파라미터 숨김](#85-gateway-주입-파라미터-숨김)
+  - [8.6 필터 처리 엔드포인트](#86-필터-처리-엔드포인트)
+  - [8.7 응답 타입](#87-응답-타입)
+  - [8.8 비공개 엔드포인트](#88-비공개-엔드포인트)
 
 ---
 
@@ -337,3 +346,69 @@ api("org.springframework.boot:spring-boot-starter-web")         // 전이 의존
 compileOnly("org.projectlombok:lombok")                         // 컴파일 전용
 testImplementation("org.springframework.boot:spring-boot-starter-test") // 테스트 전용
 ```
+
+## 8. API 문서화 (Swagger/OpenAPI)
+
+springdoc-openapi 기반 API 문서 작성 규칙. 컨트롤러는 로직만, 문서는 분리한다.
+
+### 8.1 문서 어노테이션 분리 (docs 인터페이스)
+
+- Swagger 어노테이션(`@Operation`, `@ApiResponses`, `@Tag`, `@SecurityRequirement` 등)은 **컨트롤러에 직접 달지 않는다.** `presentation/docs/` 패키지의 전용 인터페이스에 정의한다.
+- 컨트롤러는 그 인터페이스를 `implements`하고 각 핸들러에 `@Override`만 단다. 컨트롤러에는 Spring 웹 어노테이션(`@PostMapping` 등)과 비즈니스 로직만 남긴다.
+- 인터페이스명 규칙: **`{Prefix}Controller` ↔ `{Prefix}ApiDocs`** (예: `ClientController` → `ClientApiDocs`)
+- 인터페이스 메서드 시그니처는 컨트롤러 메서드와 **동일하게** 유지한다. (인터페이스에서 참조해야 하는 DTO는 `public`으로 선언)
+
+```java
+// presentation/docs/ClientApiDocs.java
+@Tag(name = "Client")
+public interface ClientApiDocs {
+  @Operation(summary = "OAuth 클라이언트 셀프 등록", security = @SecurityRequirement(name = "cookieAuth"))
+  @ApiResponses({ @ApiResponse(responseCode = "201", description = "등록 성공") })
+  ResponseEntity<?> registerClient(Passport passport, SelfRegisterClientRequest request);
+}
+
+// presentation/controller/ClientController.java
+@RestController
+public class ClientController implements ClientApiDocs {
+  @Override
+  @PostMapping
+  public ResponseEntity<?> registerClient(@PassportAuth Passport passport, @Valid @RequestBody SelfRegisterClientRequest request) { ... }
+}
+```
+
+### 8.2 전역 설정 위치
+
+- OpenAPI 전역 정의와 커스터마이저는 `config/openapi/` 패키지에 둔다 (`OpenApiConfig`, `*OpenApiCustomizer`).
+
+### 8.3 태그(@Tag)
+
+- `name`은 **도메인 한 단어만** 사용한다. 하이픈·부가설명을 넣지 않는다. (예: `@Tag(name = "Admin")`, `@Tag(name = "Client")`)
+- 태그의 **설명·노출 순서**는 전역 `OpenApiConfig`의 `@OpenAPIDefinition(tags = {...})`에서 단일 관리한다.
+
+### 8.4 보안 스킴
+
+- 인증은 **쿠키 기반**으로 표기한다 — `cookieAuth` (apiKey, in: cookie, name: `at`). `OpenApiConfig`의 `@SecurityScheme`로 선언한다.
+- 인증이 필요한 엔드포인트는 `@SecurityRequirement(name = "cookieAuth")`를 단다. 공개 엔드포인트(가입 등)에는 달지 않는다.
+
+### 8.5 Gateway 주입 파라미터 숨김
+
+- `Passport`처럼 Gateway가 `X-User-Passport`로 주입하는 값은 클라이언트 입력이 아니므로 명세에 노출하지 않는다. `OpenApiConfig`에서 전역 1회 등록한다.
+
+```java
+@PostConstruct
+void ignorePassportParameter() {
+  SpringDocUtils.getConfig().addRequestWrapperToIgnore(Passport.class);
+}
+```
+
+### 8.6 필터 처리 엔드포인트
+
+- 컨트롤러가 아니라 Spring Security 필터가 처리하는 엔드포인트(로그인 등)는 springdoc이 자동 인식하지 못한다. `OpenApiCustomizer` 구현체(`config/openapi/`)로 명세를 직접 추가한다.
+
+### 8.7 응답 타입
+
+- 응답은 `Map<String, Object>` 대신 **DTO(record)**로 정의해 OpenAPI 스키마가 노출되게 한다.
+
+### 8.8 비공개 엔드포인트
+
+- 내부 전용(게이트웨이·CLI 전용) 엔드포인트는 `@Hidden`으로 문서에서 제외한다. (예: JWKS, Internal API Key 부트스트랩)
