@@ -58,6 +58,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(
 						auth ->
 								auth.requestMatchers(
+												"/", // 루트 헬스체크
 												"/api/v1/auth/signup",
 												"/api/v1/auth/login",
 												"/api/v1/auth/logout",
@@ -65,6 +66,10 @@ public class SecurityConfig {
 												"/api/v1/admin/jwks", // Gateway JWT 검증용 (내부 직접 호출)
 												"/api/v1/internal/**", // CLI 전용 내부 API (X-Internal-Api-Key 보호)
 												"/.well-known/**") // OIDC Discovery
+										.permitAll()
+										// Swagger / OpenAPI 문서 (게이트웨이 경유 공개 열람)
+										.requestMatchers(
+												"/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs")
 										.permitAll()
 										// Gateway가 AT 검증 후 전달 — auth-api 내부는 Gateway 인증에 의존
 										// admin 역할 체크는 컨트롤러의 X-User-Passport 파싱으로 처리

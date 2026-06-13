@@ -64,6 +64,12 @@ public class GatewayRoutingConfig {
 				.route("sas-oauth2", r -> r.path("/oauth2/**").uri(authApiUri))
 				.route("sas-well-known", r -> r.path("/.well-known/**").uri(authApiUri))
 				.route("sas-userinfo", r -> r.path("/userinfo").uri(authApiUri))
+				// auth-api Swagger / OpenAPI 문서 (게이트웨이 경유 공개 열람)
+				.route(
+						"auth-swagger",
+						r ->
+								r.path("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs")
+										.uri(authApiUri))
 				.route(
 						"eeos",
 						r ->
