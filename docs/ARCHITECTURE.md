@@ -38,7 +38,7 @@ auth-common/                          # 루트 프로젝트
 │   └── libs/                         # 공유 라이브러리
 │       ├── member/                   # Member 도메인·유스케이스·JPA 어댑터·Flyway 마이그레이션
 │       ├── common-infra/             # JPA Auditing AutoConfiguration (공통 인프라 설정)
-│       ├── service-client/           # ServiceClient·ServiceRoute 도메인, 헥사고날 구조
+│       ├── service-client/           # ServiceClient 도메인, 3계층 구조
 │       └── auth-common-lib/          # Passport, @PassportAuth (외부 서비스용)
 ├── docs/                             # 문서 (ARCHITECTURE.md, CONVENTION.md, DOC-GUIDE.md, README-GUIDE.md, INFRASTRUCTURE.md)
 └── .claude/                          # Claude Code harness (agents, skills, commands)
@@ -66,9 +66,9 @@ auth-common-lib (독립, 외부 서비스에 배포)
 |------|------|------|
 | **api-gateway** | App | 클라이언트 요청 수신, Bearer JWT RS256 검증 → Passport 생성 → 헤더 전달. SAS OAuth 엔드포인트를 auth-api로 프록시 |
 | **auth-api** | App | OIDC Authorization Server (SAS 1.x). 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 302(WEB) 또는 200+body+redirectUrl(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. |
-| **member** | Lib | Member 도메인·유스케이스·포트·예외·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 5종. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. |
+| **member** | Lib | Member 도메인·유스케이스·출력 포트(repository)·예외·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 5종. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. |
 | **common-infra** | Lib | `@EnableJpaAuditing` AutoConfiguration. `member`·`service-client` 모듈에 JPA Auditing을 일원화 제공. |
-| **service-client** | Lib | ServiceClient·ServiceRoute 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
+| **service-client** | Lib | ServiceClient 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
 | **auth-common-lib** | Lib | Passport 도메인, @PassportAuth 어노테이션, ArgumentResolver. 외부 마이크로서비스가 의존하는 공유 라이브러리 |
 
 ## 인증 흐름
@@ -177,31 +177,32 @@ Spring MVC에 의존하는 웹 어댑터 계층.
 
 - **AuthAutoConfiguration**: `WebMvcConfigurer`를 구현하여 `PassportArgumentResolver`를 자동 등록한다. `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`에 선언되어 Spring Boot 3.x Auto-Configuration으로 동작한다.
 
-## member 패키지 구조 (헥사고날)
+## member 패키지 구조
 
 ```
 com.econo.auth.member
 ├── config/
 │   └── MemberAutoConfiguration          # @AutoConfiguration + @ComponentScan + @EnableJpaRepositories + @EntityScan
-├── domain/
-│   ├── Member                           # Aggregate Root — 회원 도메인 객체
-│   └── MemberStatus                     # 활동 상태 Enum (AM / RM / CM / OB)
 ├── application/
-│   ├── port/
-│   │   ├── in/
-│   │   │   └── SignupUseCase            # 인바운드 포트 (가입) + SignupCommand record
-│   │   └── out/
-│   │       ├── MemberRepository         # 아웃바운드 포트 (영속성)
-│   │       └── PasswordHasher           # 아웃바운드 포트 (해싱)
-│   └── usecase/
-│       └── SignupService                # SignupUseCase 구현체 (@Component 아님 — auth-api의 ApplicationServiceConfig가 @Bean 등록)
-├── adapter/out/
-│   ├── persistence/
-│   │   ├── MemberJpaEntity              # members 테이블 JPA 엔티티
-│   │   ├── MemberJpaRepository          # Spring Data JPA 인터페이스
-│   │   └── MemberRepositoryAdapter      # MemberRepository 포트 구현체
-│   └── security/
-│       └── BCryptPasswordHasherAdapter  # PasswordHasher 포트 BCrypt 구현체 (cost=12)
+│   ├── domain/
+│   │   ├── Member                       # Aggregate Root — 회원 도메인 객체
+│   │   └── MemberStatus                 # 활동 상태 Enum (AM / RM / CM / OB)
+│   ├── usecase/
+│   │   ├── SignupUseCase                # 입력 포트 (가입) + SignupCommand record
+│   │   └── MemberQueryUseCase           # 입력 포트 (조회) — presentation/config/security → repository 직접 참조 차단 seam
+│   ├── service/
+│   │   ├── SignupService                # SignupUseCase 구현체 (@Component 아님 — auth-api의 ApplicationServiceConfig가 @Bean 등록)
+│   │   └── MemberQueryService           # MemberQueryUseCase 구현체 (@Service, @Transactional(readOnly=true))
+│   └── repository/
+│       ├── MemberRepository             # 출력 포트 (영속성)
+│       └── PasswordHasher               # 출력 포트 (해싱)
+├── persistence/
+│   ├── entity/
+│   │   └── MemberJpaEntity              # members 테이블 JPA 엔티티
+│   └── repository/
+│       ├── MemberJpaRepository          # Spring Data JPA 인터페이스
+│       ├── MemberRepositoryAdapter      # MemberRepository 출력 포트 구현체 (entity↔domain 변환 담당)
+│       └── BCryptPasswordHasherAdapter  # PasswordHasher 출력 포트 BCrypt 구현체 (cost=12)
 └── exception/
     ├── MemberNotFoundException          # 404 MEMBER_NOT_FOUND
     ├── MemberAlreadyExistsException     # 409 MEMBER_ALREADY_EXISTS
@@ -211,38 +212,36 @@ com.econo.auth.member
 
 > `LoginUseCase`, `LoginService`, `TokenIssuer`는 SAS 도입으로 제거됨.
 
-> `MemberAutoConfiguration`은 `@ComponentScan("com.econo.auth.member")`와 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.member.adapter.out.persistence` 패키지를 직접 스캔한다. `common-infra` 의존을 `api`로 선언하여 소비자(`auth-api`)에 `CommonInfraAutoConfiguration`(`@EnableJpaAuditing`)이 전이 활성화된다.
+> `MemberAutoConfiguration`은 `@ComponentScan("com.econo.auth.member")`와 `@EnableJpaRepositories("com.econo.auth.member.persistence.repository")` / `@EntityScan("com.econo.auth.member.persistence.entity")`로 자기 모듈을 스캔한다. `common-infra` 의존을 `api`로 선언하여 소비자(`auth-api`)에 `CommonInfraAutoConfiguration`(`@EnableJpaAuditing`)이 전이 활성화된다.
 
-## service-client 패키지 구조 (헥사고날)
+## service-client 패키지 구조
 
 ```
 com.econo.auth.client
 ├── config/
 │   └── ServiceClientAutoConfiguration   # @AutoConfiguration + @ComponentScan + @EnableJpaRepositories + @EntityScan
-├── domain/
-│   ├── ServiceClient                    # Aggregate Root — OAuth 클라이언트 도메인 객체
-│   ├── ServiceRoute                     # Gateway 라우팅 정보 (record)
-│   └── GrantType                        # OAuth 그랜트 타입 enum (AUTHORIZATION_CODE, CLIENT_CREDENTIALS)
 ├── application/
-│   ├── port/out/
-│   │   ├── ServiceClientRepository      # ServiceClient 아웃바운드 포트
-│   │   ├── ServiceRouteRepository       # ServiceRoute 아웃바운드 포트
-│   │   ├── SasClientRegistrar           # SAS 클라이언트 등록 아웃바운드 포트
-│   │   └── SasRedirectUriManager        # SAS redirectUri 조회·갱신 아웃바운드 포트 (SAS 의존 격리)
-│   └── usecase/
-│       ├── RegisterOAuthClientService   # OAuth 클라이언트 등록 서비스
-│       └── ClientRedirectUriService     # redirectUri 관리 서비스 (ClientInfo record 포함)
-├── adapter/out/
-│   ├── persistence/
-│   │   ├── ServiceClientJpaEntity       # service_client 테이블 JPA 엔티티
-│   │   ├── ServiceClientJpaRepository   # Spring Data JPA 인터페이스
-│   │   ├── ServiceClientRepositoryAdapter  # ServiceClientRepository 포트 구현체
-│   │   ├── ServiceRouteJpaEntity        # service_route 테이블 JPA 엔티티
-│   │   ├── ServiceRouteJpaRepository    # Spring Data JPA 인터페이스
-│   │   └── ServiceRouteRepositoryAdapter   # ServiceRouteRepository 포트 구현체
-│   └── sas/
-│       ├── SasClientRegistrarAdapter    # SasClientRegistrar 포트 구현체
-│       └── SasRedirectUriManagerAdapter # SasRedirectUriManager 포트 구현체 (RegisteredClientRepository 직접 의존 격리)
+│   ├── domain/
+│   │   ├── ServiceClient                # Aggregate Root — OAuth 클라이언트 도메인 객체
+│   │   └── GrantType                    # OAuth 그랜트 타입 enum (AUTHORIZATION_CODE, CLIENT_CREDENTIALS)
+│   ├── usecase/
+│   │   ├── RegisterOAuthClientUseCase   # 입력 포트 — 클라이언트 등록 (Command/Result record 포함)
+│   │   └── ClientRedirectUriUseCase     # 입력 포트 — redirectUri 관리 (ClientInfo record 포함)
+│   ├── service/
+│   │   ├── RegisterOAuthClientService   # RegisterOAuthClientUseCase 구현체
+│   │   └── ClientRedirectUriService     # ClientRedirectUriUseCase 구현체
+│   └── repository/
+│       ├── ServiceClientRepository      # 출력 포트 (ServiceClient 영속성)
+│       ├── SasClientRegistrar           # 출력 포트 (SAS 클라이언트 등록)
+│       └── SasRedirectUriManager        # 출력 포트 (SAS redirectUri 조회·갱신, SAS 의존 격리)
+├── persistence/
+│   ├── entity/
+│   │   └── ServiceClientJpaEntity          # service_client 테이블 JPA 엔티티
+│   └── repository/
+│       ├── ServiceClientJpaRepository      # Spring Data JPA 인터페이스
+│       ├── ServiceClientRepositoryAdapter  # ServiceClientRepository 출력 포트 구현체 (entity↔domain 변환 담당)
+│       ├── SasClientRegistrarAdapter       # SasClientRegistrar 출력 포트 구현체
+│       └── SasRedirectUriManagerAdapter    # SasRedirectUriManager 출력 포트 구현체 (RegisteredClientRepository 직접 의존 격리)
 └── exception/
     ├── InvalidClientException           # @ResponseStatus 없음 — 클라이언트 미존재 (GlobalExceptionHandler가 404 CLIENT_NOT_FOUND로 매핑)
     ├── RedirectUriRequiredException     # @ResponseStatus(400) — redirectUri 누락·한도 초과·유효하지 않은 URI
@@ -253,7 +252,55 @@ com.econo.auth.client
 
 > `GrantType`은 `RegisterOAuthClientService`에서 `GrantType.AUTHORIZATION_CODE` 고정으로 사용한다. 컨트롤러 계층에서 grantType을 입력 받지 않으므로 `GrantType.fromString`은 호출되지 않는다.
 
-> `ServiceClientAutoConfiguration`은 `@EnableJpaRepositories` / `@EntityScan`으로 `com.econo.auth.client.adapter.out.persistence` 패키지를 직접 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
+> `ServiceClientAutoConfiguration`은 `@EnableJpaRepositories("com.econo.auth.client.persistence.repository")` / `@EntityScan("com.econo.auth.client.persistence.entity")`로 자기 모듈을 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
+
+## 계층 모델 및 의존성 규칙
+
+전체 모듈의 패키지 구조는 **presentation / application / persistence 3계층 + 계층별 DIP**로 통일한다. 상세 채택 근거: [ADR-0014](./adr/0014-3-layer-dip-architecture.md)
+
+### 계층별 역할
+
+| 계층 | 패키지 | 역할 |
+|------|--------|------|
+| **presentation** | `presentation/controller`, `presentation/dto`, `presentation/util` | HTTP 요청·응답 처리. application.usecase 인터페이스에만 의존 |
+| **application** | `application/usecase` (입력 포트 IF), `application/service` (구현), `application/repository` (출력 포트 IF), `application/domain` | 비즈니스 로직. 도메인 객체와 포트 인터페이스만 다룬다 |
+| **persistence** | `persistence/entity` (JPA `@Entity`), `persistence/repository` (Spring Data + 어댑터) | 영속성 구현. application.repository 출력 포트를 구현하고, entity↔domain 변환을 담당 |
+| **config** | `config/` | 일반 설정 및 빈 와이어링 |
+| **config/security** | `config/security/` | Spring Security에 결합된 클래스 전용 (SecurityConfig, UserDetailsService, AuthenticationFilter, GlobalFilter, JWT 처리) |
+| **exception** | `exception/` | 도메인 예외 |
+
+### 의존성 방향
+
+```
+presentation.controller
+        │
+        ▼
+application.usecase (입력 포트 IF)
+        ▲
+        │
+application.service ──→ application.repository (출력 포트 IF)
+                                  ▲
+                                  │
+                        persistence.repository (어댑터)
+                                  │
+                        persistence.entity (JPA @Entity)
+
+config/security ──→ application.usecase (입력 포트 IF) 만 참조
+config/ (일반)  ──→ application.service, application.repository 참조 허용
+```
+
+### 의존성 불변식
+
+1. 참조는 presentation → application → persistence 단방향. presentation 및 config/security는 `application.usecase` 인터페이스에만 의존한다. `application.service` 구현체나 `application.repository`·`persistence`를 직접 참조하지 않는다.
+2. 일반 `config/`(보안 아님) 와이어링 클래스는 `application.repository`와 `application.service`를 참조해도 된다. 빈 등록·CORS 설정 등 설정 책임이므로 허용된다(예: `ApplicationServiceConfig`, `DynamicCorsConfigurationSource`).
+3. `application.repository` 출력 포트 시그니처는 도메인 객체만 사용한다. JPA 엔티티(`*JpaEntity`)는 `persistence` 계층 바깥으로 나가지 않으며, entity↔domain 변환은 `persistence.repository` 어댑터의 책임이다.
+
+### 모듈별 계층 사용 범위
+
+| 모듈 유형 | presentation | application | persistence | config/security |
+|-----------|-------------|-------------|-------------|-----------------|
+| **libs** (member, service-client) | 없음 | usecase + service + repository + domain | entity + repository 어댑터 | 없음 |
+| **apps** (auth-api, api-gateway) | controller + dto + util | usecase + service (앱 고유 orchestration) | 없음 | SecurityConfig + Filter + JWT 유틸 |
 
 ## 핵심 설계 결정
 
@@ -280,9 +327,13 @@ Enum 대신 String 기반 역할을 사용한다. 이유:
 
 `@PassportAuth(condition = "#{passport.memberId == #userId or passport.isAdmin()}")` 형태로 복잡한 권한 로직을 선언적으로 표현할 수 있다. PathVariable과 RequestParam이 SpEL 컨텍스트에 자동 바인딩된다.
 
-### 6. 헥사고날 아키텍처 (member)
+### 6. 3계층 + 계층별 DIP 아키텍처
 
-`member` 모듈은 포트·어댑터 패턴을 따른다. 도메인·유스케이스·포트와 어댑터(JPA·BCrypt)가 하나의 모듈에 공존한다. `SignupService`는 `@Component`가 아닌 일반 클래스이며, `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 등록한다. `MemberAutoConfiguration`이 `@ComponentScan`으로 어댑터 빈을 자동 등록하고, `common-infra`를 `api` 의존으로 선언하여 JPA Auditing을 소비자에 전이 활성화한다.
+전체 모듈의 패키지 구조를 presentation / application / persistence 3계층으로 통일하고 계층 경계를 인터페이스(DIP)로 강제한다. 상세: [ADR-0014](./adr/0014-3-layer-dip-architecture.md)
+
+`member`·`service-client` lib 모듈은 application + persistence 계층을 포함한다. `SignupService`는 `@Component`가 아닌 일반 클래스이며, `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 등록한다. `MemberAutoConfiguration`이 `@ComponentScan`으로 빈을 자동 등록하고, `common-infra`를 `api` 의존으로 선언하여 JPA Auditing을 소비자에 전이 활성화한다.
+
+**알려진 예외 / 향후 과제**: auth-api는 presentation 중심 앱이지만 앱 고유 orchestration을 위한 얇은 application 계층을 아직 보유한다. 빈 등록 방식에 차이가 있다: `SignupService`와 `LoginRedirectResolver`는 `@Component`/`@Service` 선언이 없는 일반 클래스로, `ApplicationServiceConfig`에서 `@Bean`으로 수동 등록한다. 반면 `LoginTokenService`는 `@Service`로 선언되어 auth-api 컴포넌트 스캔으로 자동 등록된다. 이를 별도 lib로 추출하는 작업과 토큰 발급 추상화(TokenCodec 포트)는 향후 과제로 보류되어 있다.
 
 ### 7. Passport에 generation/status 포함
 
@@ -351,7 +402,7 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 
 ### auth-api — 셀프 등록 API (ClientController)
 
-> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/ClientController.java`
+> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/presentation/controller/ClientController.java`
 
 | HTTP 상태 | 에러 코드 | 발생 조건 |
 |-----------|-----------|-----------|
@@ -359,7 +410,7 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 
 ### auth-api — Admin API (AdminClientController)
 
-> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/AdminClientController.java`
+> 정의: `services/apis/auth-api/src/main/java/com/econo/auth/api/presentation/controller/AdminClientController.java`
 
 | HTTP 상태 | 에러 코드 | 발생 조건 |
 |-----------|-----------|-----------|
@@ -384,37 +435,38 @@ services/libs/auth-common-lib/src/test/java/com/econo/common/auth/
     └── PassportArgumentResolverTest.java # ArgumentResolver 단위 테스트
 
 services/libs/member/src/test/java/com/econo/auth/member/
-├── application/usecase/
-│   └── SignupServiceTest.java                         # SignupService 단위 테스트 (Mockito)
-├── domain/
-│   └── MemberTest.java                               # Member 도메인 단위 테스트
-└── adapter/out/
-    ├── persistence/MemberRepositoryAdapterTest.java   # @DataJpaTest + Testcontainers
-    └── security/BCryptPasswordHasherAdapterTest.java  # BCrypt 단위 테스트
+├── application/service/
+│   └── SignupServiceTest.java                                    # SignupService 단위 테스트 (Mockito)
+├── application/domain/
+│   └── MemberTest.java                                           # Member 도메인 단위 테스트
+└── persistence/repository/
+    ├── MemberRepositoryAdapterTest.java                          # @DataJpaTest + Testcontainers
+    └── BCryptPasswordHasherAdapterTest.java                      # BCrypt 단위 테스트
 
 services/libs/service-client/src/test/java/com/econo/auth/client/
-└── application/usecase/
-    └── RegisterOAuthClientServiceTest.java  # RegisterOAuthClientService 단위 테스트 (Mockito)
+└── application/service/
+    ├── RegisterOAuthClientServiceTest.java  # RegisterOAuthClientService 단위 테스트 (Mockito)
+    └── ClientRedirectUriServiceTest.java    # ClientRedirectUriService 단위 테스트 (Mockito)
 
 services/apis/auth-api/src/test/java/com/econo/auth/api/
-├── adapter/in/web/
+├── presentation/controller/
 │   ├── MemberControllerTest.java          # @WebMvcTest 웹 레이어 테스트
 │   ├── AdminClientControllerTest.java     # @WebMvcTest AdminClientController 테스트
 │   ├── AdminMemberControllerTest.java     # @WebMvcTest AdminMemberController 테스트
 │   ├── AdminRoleControllerTest.java       # @WebMvcTest AdminRoleController 테스트
 │   ├── ClientControllerTest.java          # @WebMvcTest ClientController 셀프 등록 테스트
+│   └── JwksControllerTest.java            # @WebMvcTest JwksController 테스트
+├── presentation/dto/
 │   └── LoginResponseTest.java             # LoginResponse 직렬화 단위 테스트 (redirectUrl 포함)
-├── application/
+├── application/service/
 │   ├── LoginTokenServiceTest.java         # LoginTokenService 단위 테스트 (Mockito)
 │   └── LoginRedirectResolverTest.java     # LoginRedirectResolver 단위 테스트 (Mockito) — clientId 기반 6개 시나리오
 └── integration/
-    ├── AuthApiIntegrationTest.java        # @SpringBootTest E2E (회원가입·로그아웃·WEB/APP 로그인·셀프 등록)
-    └── SasAuthorizationServerIntegrationTest.java  # @SpringBootTest SAS 흐름 E2E
+    └── AuthApiIntegrationTest.java        # @SpringBootTest E2E (회원가입·로그아웃·WEB/APP 로그인·셀프 등록)
 
 services/apis/api-gateway/src/test/java/com/econo/auth/gateway/
-├── filter/
-│   └── BearerToPassportFilterTest.java
-└── security/
+└── config/security/
+    ├── BearerToPassportFilterTest.java
     ├── JwtVerifierTest.java
     └── PassportBuilderTest.java
 ```
