@@ -34,47 +34,62 @@ description: |
 
 ## Step 1. auth-api에 클라이언트 등록
 
+인증된 에코노 회원이 `X-User-Passport` 헤더와 함께 호출한다 (Gateway 경유 시 자동 주입).
+
 ```bash
 curl -X POST ${AUTH_API_URL:-http://localhost:8081}/api/v1/clients \
   -H "Content-Type: application/json" \
+  -H "X-User-Passport: <passport>" \
   -d '{
-    "grantType": "client_credentials",
     "clientName": "<서비스명>",
-    "upstreamUrl": "<업스트림 URL>",
-    "pathPrefix": "<경로 접두사>"
+    "redirectUris": ["<redirect URI>"]
   }'
 ```
 
-응답에서 `clientId`와 `clientSecret`(1회 노출) 기록:
+응답에서 `clientId`와 `clientSecret`(1회 노출) 즉시 저장:
 ```json
 {
   "clientId": "...",
-  "clientSecret": "...",
-  "routeId": "..."
+  "clientSecret": "..."
 }
 ```
 
-> `pathPrefix`가 이미 등록된 경우 409 → 다른 경로 사용
+> `upstreamUrl`·`pathPrefix`·`routeId`·`grantType`은 이 요청에 없다. 클라이언트 등록과 라우트 등록은 별개 단계다.
 
 ---
 
-## Step 2. Gateway 라우팅 추가
+## Step 2. Gateway 동적 라우트 등록
 
-`services/apis/api-gateway/src/main/java/com/econo/auth/gateway/config/GatewayRoutingConfig.java`를 수정한다:
+`GatewayRoutingConfig.java` 수정 없이 Admin API로 즉시 반영한다. ADMIN/SUPER_ADMIN Passport가 필요하다.
 
-```java
-// 기존 eeos 라우트 아래에 추가
-.route(
-    "<서비스명-소문자>",
-    r -> r.path("<pathPrefix>/**")
-        .filters(f -> f.removeRequestHeader("Authorization"))
-        .uri("<업스트림 URL>"))
+```bash
+# 동적 라우트 등록 (Gateway 재배포 불필요)
+curl -X POST ${AUTH_API_URL:-http://localhost:8081}/api/v1/admin/routes \
+  -H "Authorization: Bearer <admin-access-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pathPrefix": "<경로 접두사>",
+    "upstreamUrl": "<업스트림 URL>",
+    "enabled": true
+  }'
+# → 201 Created
+# {
+#   "routeId": "...",
+#   "pathPrefix": "...",
+#   "upstreamUrl": "...",
+#   "enabled": true,
+#   "createdAt": "...",
+#   "updatedAt": "..."
+# }
+# api-gateway 캐시가 즉시 갱신된다.
 ```
 
-그리고 `permittedPaths()`에 이 서비스의 공개 경로가 있으면 추가한다:
-```java
-"<pathPrefix>/health-check",  // 예시
-```
+에러 시:
+- `409 ROUTE_PATH_CONFLICT` → 이미 등록된 pathPrefix, 다른 경로 사용
+- `400 ROUTE_UPSTREAM_INVALID` → SSRF 검증 실패. 허용 스킴(`http`/`https`), private IP 차단 확인
+- `403 ROUTE_PROTECTED` → 보호 경로 패턴과 충돌. 다른 pathPrefix 사용
+
+이 서비스의 공개 경로(토큰 없이 통과해야 하는 경로)가 있으면 `application.yml`의 `gateway.permitted-paths`에 추가 후 api-gateway를 재배포한다.
 
 ---
 
@@ -130,14 +145,7 @@ public Object resolveArgument(...) {
 
 ## Step 4. 동작 확인
 
-### Gateway 재기동
-
-```bash
-pkill -f "ApiGatewayApplication" 2>/dev/null
-cd <auth-common 경로>
-AUTH_API_URI=... EEOS_API_URI=... <새 서비스 환경변수> \
-  ./gradlew :services:apis:api-gateway:bootRun --args='--server.port=8082' &
-```
+동적 라우트 등록은 Gateway 재기동 없이 즉시 반영된다. 아래 테스트로 바로 확인한다.
 
 ### 연결 테스트
 
@@ -162,8 +170,8 @@ curl -b /tmp/test-cookies.txt \
 
 ## 완료 체크리스트
 
-- [ ] auth-api에 client_credentials 클라이언트 등록 (`clientId`, `clientSecret` 저장 — clientSecret은 등록 응답에서 1회만 노출 — 반드시 즉시 저장)
-- [ ] `GatewayRoutingConfig`에 라우트 추가 + Gateway 재기동
+- [ ] auth-api에 `POST /api/v1/clients` 로 클라이언트 등록 (`clientId`, `clientSecret` 저장 — clientSecret은 등록 응답에서 1회만 노출 — 반드시 즉시 저장)
+- [ ] Admin API(`POST /api/v1/admin/routes`)로 동적 라우트 등록 — Gateway 재배포 불필요
 - [ ] 서비스에 econo-passport 의존성 추가
 - [ ] `PassportAuthenticationFilter` Security 체인에 등록
 - [ ] `at` 쿠키로 Gateway 경유 API 호출 → 200 확인

@@ -236,23 +236,32 @@ com.econo.auth.client
 ├── application/
 │   ├── domain/
 │   │   ├── ServiceClient                # Aggregate Root — OAuth 클라이언트 도메인 객체
+│   │   ├── ServiceRoute                 # 라우팅 정보 불변 도메인 record (routeId, pathPrefix, upstreamUrl, enabled, ...)
 │   │   └── GrantType                    # OAuth 그랜트 타입 enum (AUTHORIZATION_CODE, CLIENT_CREDENTIALS)
 │   ├── usecase/
 │   │   ├── RegisterOAuthClientUseCase   # 입력 포트 — 클라이언트 등록 (Command/Result record 포함)
-│   │   └── ClientRedirectUriUseCase     # 입력 포트 — redirectUri 관리 (ClientInfo record 포함)
+│   │   ├── ClientRedirectUriUseCase     # 입력 포트 — redirectUri 관리 (ClientInfo record 포함)
+│   │   └── ManageRouteUseCase           # 입력 포트 — 라우트 CRUD (CreateRouteCommand/UpdateRouteCommand/RouteResult record 포함)
 │   ├── service/
 │   │   ├── RegisterOAuthClientService   # RegisterOAuthClientUseCase 구현체
-│   │   └── ClientRedirectUriService     # ClientRedirectUriUseCase 구현체
+│   │   ├── ClientRedirectUriService     # ClientRedirectUriUseCase 구현체
+│   │   ├── ManageRouteService           # ManageRouteUseCase 구현체 (SSRF·보호경로 검증, DB 저장, refresh 트리거)
+│   │   ├── GatewayRefreshClient         # 출력 포트 — api-gateway POST /api/v1/internal/routes/refresh 호출 추상화 (구현체는 auth-api)
+│   │   └── ProtectedPathPolicy          # 출력 포트 — 보호 경로 판정 추상화 (값·구현체는 소비자 앱 auth-api가 제공)
 │   └── repository/
 │       ├── ServiceClientRepository      # 출력 포트 (ServiceClient 영속성)
+│       ├── ServiceRouteRepository       # 출력 포트 (ServiceRoute 영속성 — findAllEnabled 포함)
 │       ├── SasClientRegistrar           # 출력 포트 (SAS 클라이언트 등록)
 │       └── SasRedirectUriManager        # 출력 포트 (SAS redirectUri 조회·갱신, SAS 의존 격리)
 ├── persistence/
 │   ├── entity/
-│   │   └── ServiceClientJpaEntity          # service_client 테이블 JPA 엔티티
+│   │   ├── ServiceClientJpaEntity          # service_client 테이블 JPA 엔티티
+│   │   └── ServiceRouteJpaEntity           # service_route 테이블 JPA 엔티티 (@LastModifiedDate 자동 갱신)
 │   └── repository/
 │       ├── ServiceClientJpaRepository      # Spring Data JPA 인터페이스
 │       ├── ServiceClientRepositoryAdapter  # ServiceClientRepository 출력 포트 구현체 (entity↔domain 변환 담당)
+│       ├── ServiceRouteJpaRepository       # Spring Data JPA 인터페이스 (findAllByEnabled, existsByPathPrefixAndRouteIdNot 등)
+│       ├── ServiceRouteRepositoryAdapter   # ServiceRouteRepository 출력 포트 구현체
 │       ├── SasClientRegistrarAdapter       # SasClientRegistrar 출력 포트 구현체
 │       └── SasRedirectUriManagerAdapter    # SasRedirectUriManager 출력 포트 구현체 (RegisteredClientRepository 직접 의존 격리)
 └── exception/
@@ -260,12 +269,20 @@ com.econo.auth.client
     ├── RedirectUriRequiredException     # @ResponseStatus(400) — redirectUri 누락·한도 초과·유효하지 않은 URI
     ├── UnsupportedGrantTypeException    # @ResponseStatus(400) — 미지원 그랜트 타입
     ├── DuplicateClientNameException     # @ResponseStatus(409) — 클라이언트 이름 중복
-    └── ClientLimitExceededException     # @ResponseStatus(422) — 1인 5개 등록 한도 초과 (셀프 등록 전용)
+    ├── ClientLimitExceededException     # @ResponseStatus(422) — 1인 5개 등록 한도 초과 (셀프 등록 전용)
+    ├── RouteNotFoundException           # 404 ROUTE_NOT_FOUND — routeId 미존재
+    ├── RoutePathConflictException       # 409 ROUTE_PATH_CONFLICT — pathPrefix 중복
+    ├── RouteUpstreamInvalidException    # 400 ROUTE_UPSTREAM_INVALID — SSRF 검증 실패
+    └── RouteProtectedException          # 403 ROUTE_PROTECTED — 보호 경로 가로채기·삭제 시도
 ```
 
 > `GrantType`은 `RegisterOAuthClientService`에서 `GrantType.AUTHORIZATION_CODE` 고정으로 사용한다. 컨트롤러 계층에서 grantType을 입력 받지 않으므로 `GrantType.fromString`은 호출되지 않는다.
 
 > `ServiceClientAutoConfiguration`은 `@EnableJpaRepositories("com.econo.auth.client.persistence.repository")` / `@EntityScan("com.econo.auth.client.persistence.entity")`로 자기 모듈을 스캔한다. 다른 AutoConfiguration에서 이 패키지를 중복 선언하면 충돌이 발생한다.
+
+> `GatewayRefreshClient`는 인터페이스로, `auth-api` 모듈의 `GatewayClientConfig`에서 `GatewayRefreshClientImpl`(`RestClient` 기반)을 빈으로 등록한다. `ManageRouteService`는 이 인터페이스에만 의존한다.
+
+> `ProtectedPathPolicy`도 같은 패턴이다. 보호 경로 목록 값은 배포 환경(게이트웨이 정적 라우트)에 종속되므로 service-client는 판정 포트만 정의하고, `auth-api`의 `ProtectedPathPolicyImpl`(`config/`)이 실제 경로 집합과 매칭 로직을 소유해 `ApplicationServiceConfig`에서 빈으로 등록한다.
 
 ## 계층 모델 및 의존성 규칙
 
@@ -364,11 +381,24 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 - **경로 B** (`GET /oauth2/authorize` → `POST /oauth2/token`): SAS 기반 Authorization Code + PKCE 흐름. 미인증 상태로 `/oauth2/authorize`에 진입하면 `auth.frontend-login-url`(SPA 로그인 URL)로 302 리다이렉트된다.
 - `auth.frontend-login-url`(경로 B 전용 — SAS 미인증 진입 리다이렉트)과 `auth.redirect.default-url`(경로 A fallback 목적지)은 역할이 다르므로 별도로 관리한다.
 
-### 10. RSA 키 고정 kid
+### 10. Gateway 라우팅 — 정적 보호 라우트 + 동적 서비스 라우트 공존
+
+api-gateway 라우팅은 두 계층으로 구성된다.
+
+- **정적 보호 라우트**: `GatewayRoutingConfig`의 `RouteLocator` 빈(`@Order(1)`)에 auth-api 핵심 경로(`/api/v1/auth/**`, `/oauth2/**` 등)를 고정. 재배포 없이는 변경 불가.
+- **동적 서비스 라우트**: `DynamicRouteDefinitionRepository`(`Ordered.LOWEST_PRECEDENCE`)가 인메모리 `ConcurrentHashMap` 캐시를 관리. 기동 시 `AuthApiRouteClient`가 auth-api `GET /api/v1/internal/routes`를 호출하여 초기 로드. 라우트 CRUD 시 `GatewayRefreshClient`가 api-gateway `POST /api/v1/internal/routes/refresh`를 호출하여 즉시 갱신.
+
+이 구조에서 라우팅의 진실은 두 소스다: 보호 경로는 `GatewayRoutingConfig.java`, 동적 경로는 `service_route` 테이블. 신규 서비스 연동은 Admin API(`POST /api/v1/admin/routes`)로 처리하며 재배포가 필요 없다. 상세: [ADR-0016](./adr/0016-dynamic-gateway-routing-reintroduction.md), [DYNAMIC_ROUTING.md](./DYNAMIC_ROUTING.md)
+
+동적 라우트는 StripPrefix 필터를 적용하지 않는다. 클라이언트가 요청한 전체 경로가 업스트림에 그대로 전달된다.
+
+<!-- 11번 결번 -->
+
+### 12. RSA 키 고정 kid
 
 `jwkSource()` 빈은 `keyID("econo-auth-rsa-key-v1")` 고정 kid를 사용한다. 기동마다 kid가 바뀌면 기발급 토큰의 JWKS 키 매칭이 영구 실패한다.
 
-### 11. 클라이언트 등록 이중 경로 — 셀프서비스 + 어드민
+### 13. 클라이언트 등록 이중 경로 — 셀프서비스 + 어드민
 
 클라이언트 등록은 두 경로가 공존한다. 자세한 설계 근거: [ADR-0013](./adr/0013-passport-member-self-registration.md)
 
@@ -412,6 +442,17 @@ auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는
 | 400 BAD_REQUEST | REDIRECT_URI_REQUIRED | redirectUri 누락·비어있음 (`RedirectUriRequiredException`) |
 | 409 CONFLICT | DUPLICATE_CLIENT_NAME | clientName 중복 (`DuplicateClientNameException`) |
 | 422 UNPROCESSABLE_ENTITY | CLIENT_LIMIT_EXCEEDED | 1인 5개 등록 한도 초과 (`ClientLimitExceededException` — 셀프 등록 전용) |
+
+### service-client (ServiceRoute 도메인 — 동적 라우팅)
+
+> 정의: `services/libs/service-client/src/main/java/com/econo/auth/client/exception/`
+
+| HTTP 상태 | 에러 코드 | 발생 조건 |
+|-----------|-----------|-----------|
+| 404 NOT_FOUND | ROUTE_NOT_FOUND | routeId에 해당하는 라우트 없음 (`RouteNotFoundException`) |
+| 409 CONFLICT | ROUTE_PATH_CONFLICT | pathPrefix 중복 등록 (`RoutePathConflictException`) — DB UNIQUE 제약 사전 검증 |
+| 400 BAD_REQUEST | ROUTE_UPSTREAM_INVALID | upstreamUrl SSRF 검증 실패 — 비허용 스킴, private IP, 빈 호스트 (`RouteUpstreamInvalidException`) |
+| 403 FORBIDDEN | ROUTE_PROTECTED | 보호 경로(`ProtectedPathPolicy`) 가로채기·삭제 시도 (`RouteProtectedException`) |
 
 ### auth-api — 셀프 등록 API (ClientController)
 

@@ -57,9 +57,10 @@
 - `0013` — 클라이언트 등록을 Passport 회원 셀프서비스 모델로
 - `0014` — 전체 모듈 패키지를 3계층(presentation/application/persistence) + 계층별 DIP로 통일
 - `0015` — DB 마이그레이션을 모듈 밖으로 전역화하고 flyway 컨테이너로 적용
+- `0016` — 동적 DB 기반 Gateway 라우팅 재도입 (ADR-0005 supersede)
 - `role-management.md` — 역할 관리 결정 노트
 
-> ADR 번호 0006·0008은 결번. 정적 라우팅(ADR-0005)과 동적 라우팅 가이드(`DYNAMIC_ROUTING.md`)는 방향이 상충하므로, 라우팅 작업 시 어느 쪽이 현재 결정인지 먼저 확인할 것.
+> ADR 번호 0006·0008은 결번. ADR-0005(정적 라우팅)는 ADR-0016(동적 라우팅 재도입)으로 supersede됨. 현재 결정: 정적 보호 라우트(`GatewayRoutingConfig`) + 동적 서비스 라우트(`service_route` 테이블) 공존. 상세: `docs/DYNAMIC_ROUTING.md`
 
 ### outcomes 목록 (`docs/outcomes/`)
 
@@ -148,7 +149,7 @@ service-client ──→ common-infra
 | 인증/로그인 흐름 | `docs/ARCHITECTURE.md`, `docs/SEQUENCE-DIAGRAMS.md` |
 | Passport / 클레임 | `docs/passport-claims-reference.md` |
 | OAuth 클라이언트 등록 | `docs/CLIENT_REGISTRATION.md` |
-| Gateway 라우팅 | `docs/DYNAMIC_ROUTING.md` (+ ADR-0005) |
+| Gateway 라우팅 | `docs/DYNAMIC_ROUTING.md` (+ ADR-0016; ADR-0005는 superseded) |
 | 역할/권한 | `docs/features/role-management.md` |
 | 인프라(DB·마이그레이션) | `docs/INFRASTRUCTURE.md` |
 | 설계 의사결정 배경 | `docs/adr/*.md` |

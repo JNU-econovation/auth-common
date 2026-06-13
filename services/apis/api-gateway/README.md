@@ -1,6 +1,7 @@
 # api-gateway
 
 Spring Cloud Gateway 기반 인증 게이트웨이. JWT/쿠키 검증 후 Passport를 생성하여 내부 서비스로 전달.
+정적 보호 라우트(auth-api 핵심 경로)와 동적 서비스 라우트(`service_route` 테이블)를 공존시킨다.
 
 ---
 
@@ -10,22 +11,56 @@ Spring Cloud Gateway 기반 인증 게이트웨이. JWT/쿠키 검증 후 Passpo
 클라이언트 (WEB: at 쿠키 자동 전송 / APP: Authorization: Bearer)
         ↓
 api-gateway
-  BearerToPassportFilter (order=-1):
+  BearerToPassportFilter (GlobalFilter):
     ① Bearer 헤더에서 AT 추출  ← APP
     ② 없으면 at 쿠키에서 추출  ← WEB
-    ③ JWT RS256 검증 (JWKS: auth-api /oauth2/jwks)
+    ③ JWT RS256 검증 (JWKS: AUTH_JWKS_URI → auth-api /oauth2/jwks)
     ④ Passport JSON → Base64 인코딩 → X-User-Passport 헤더 주입
-    ⑤ removeRequestHeader("Authorization")  ← EEOS-BE 충돌 방지
         ↓
-  라우팅:
-    /api/v1/auth/**  →  auth-api :8081
-    /oauth2/jwks     →  auth-api :8081
-    /api/**          →  EEOS-BE  :8080
+  라우팅 (우선순위 순):
+    [정적 보호, @Order(1)] GatewayRoutingConfig.RouteLocator:
+      /api/v1/auth/**    → auth-api
+      /api/v1/admin/**   → auth-api
+      /api/v1/clients/** → auth-api
+      /api/v1/members/** → auth-api
+      /oauth2/**         → auth-api
+      /.well-known/**    → auth-api
+      /userinfo          → auth-api
+      /swagger-ui/** 외  → auth-api
+    [동적, Ordered.LOWEST_PRECEDENCE] DynamicRouteDefinitionRepository:
+      service_route 테이블에서 Admin API로 등록된 서비스 경로
         ↓
 내부 서비스
   X-User-Passport: eyJ... (Base64 JSON)
-  → PassportAuthenticationFilter → @Member Long memberId 주입
 ```
+
+---
+
+## 라우팅 구조
+
+### 정적 보호 라우트
+
+`GatewayRoutingConfig`(`@Order(1)`)에 auth-api 핵심 경로가 고정되어 있다. 동적 라우트가 이 경로를 가로채지 못하도록 우선순위를 보장한다. 변경 시 재배포 필요.
+
+### 동적 서비스 라우트
+
+`DynamicRouteDefinitionRepository`(`Ordered.LOWEST_PRECEDENCE`)가 인메모리 캐시로 동적 라우트를 관리한다.
+
+- **기동 시**: `DynamicRouteConfig`가 `ApplicationReadyEvent`에서 auth-api `GET /api/v1/internal/routes`를 호출하여 `enabled=true` 라우트 전량을 로드.
+- **즉시 갱신**: auth-api에서 라우트 CRUD 후 `POST /api/v1/internal/routes/refresh`를 호출하면 캐시를 교체하고 `RefreshRoutesEvent`를 발행.
+
+StripPrefix 미적용 — 전체 경로가 업스트림에 그대로 전달된다.
+
+---
+
+## 내부 refresh 엔드포인트
+
+`POST /api/v1/internal/routes/refresh` — auth-api만 호출하는 게이트웨이 내부 전용 엔드포인트.
+
+- Spring Cloud Gateway 라우팅 테이블(`service_route`)에 등록되지 않으므로 외부에서 접근 불가.
+- `InternalRouteRefreshRouter`(`RouterFunction`)로 등록.
+- `RouteRefreshHandler`가 `X-Internal-Secret` 헤더를 상수시간 비교(`MessageDigest.isEqual`) 후 `DynamicRouteDefinitionRepository.reload()` + `RefreshRoutesEvent` 발행.
+- Secret 불일치 시 403 반환.
 
 ---
 
@@ -79,6 +114,8 @@ X-User-Passport: Base64(UTF-8 JSON)
 
 ## 인증 불필요 경로 (토큰/쿠키 없이 통과)
 
+`application.yml`의 `gateway.permitted-paths`에서 관리한다.
+
 | 경로 | 설명 |
 |------|------|
 | `/api/v1/auth/login` | 로그인 |
@@ -88,10 +125,6 @@ X-User-Passport: Base64(UTF-8 JSON)
 | `/oauth2/jwks` | JWKS 공개키 |
 | `/.well-known/**` | OIDC Discovery |
 | `/actuator/` | Gateway 헬스 체크 |
-| `/api/health-check` | EEOS-BE 헬스 체크 |
-| `/api/auth/` | EEOS 자체 로그인 (레거시) |
-| `/api/guest/` | 게스트 접근 |
-| `/api/slack/events` | Slack 이벤트 수신 |
 
 ---
 
@@ -99,11 +132,13 @@ X-User-Passport: Base64(UTF-8 JSON)
 
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
-| `AUTH_API_URI` | auth-api 내부 주소 | `http://localhost:8081` |
-| `EEOS_API_URI` | EEOS-BE 내부 주소 | `http://localhost:8080` |
+| `AUTH_API_URI` | auth-api 내부 주소 (정적 라우팅 + 동적 라우트 초기 로드) | `http://localhost:8081` |
 | `AUTH_JWKS_URI` | JWKS 조회 URI (auth-api 직접 — Gateway URL 사용 시 자기참조 루프) | `http://localhost:8081/oauth2/jwks` |
 | `AUTH_ISSUER_URI` | JWT `iss` 클레임 검증값 (Gateway 공개 URL) | `http://localhost:8080` |
+| `GATEWAY_INTERNAL_SECRET` | auth-api → api-gateway 내부 refresh 공유 시크릿 | `dev-secret` |
 | `CORS_ALLOWED_ORIGINS` | CORS 허용 오리진 | `http://localhost:3000` |
+
+> `GATEWAY_INTERNAL_SECRET`은 auth-api와 api-gateway 양쪽에 동일 값을 주입해야 한다.
 
 ---
 
@@ -114,7 +149,7 @@ X-User-Passport: Base64(UTF-8 JSON)
 AUTH_API_URI=http://localhost:8081 \
 AUTH_JWKS_URI=http://localhost:8081/oauth2/jwks \
 AUTH_ISSUER_URI=http://localhost:8081 \
-EEOS_API_URI=http://localhost:8080 \
+GATEWAY_INTERNAL_SECRET=dev-secret \
 CORS_ALLOWED_ORIGINS=http://localhost:3000 \
 ./gradlew :services:apis:api-gateway:bootRun --args='--server.port=8082'
 ```
