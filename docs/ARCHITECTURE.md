@@ -458,7 +458,7 @@ services/libs/login/src/test/java/com/econo/auth/login/
 
 services/apis/auth-api/src/test/java/com/econo/auth/api/
 ├── presentation/controller/
-│   ├── MemberControllerTest.java          # @WebMvcTest 웹 레이어 테스트
+│   ├── SignUpControllerTest.java          # @WebMvcTest 웹 레이어 테스트
 │   ├── AdminClientControllerTest.java     # @WebMvcTest AdminClientController 테스트
 │   ├── AdminMemberControllerTest.java     # @WebMvcTest AdminMemberController 테스트
 │   ├── AdminRoleControllerTest.java       # @WebMvcTest AdminRoleController 테스트
