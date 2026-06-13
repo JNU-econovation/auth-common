@@ -1,7 +1,7 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.MemberInfoController.MemberInfoResponse;
-import com.econo.auth.api.presentation.controller.MemberInfoController.MemberQueryRequest;
+import com.econo.auth.api.presentation.dto.MemberInfoResponse;
+import com.econo.auth.api.presentation.dto.MemberQueryRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

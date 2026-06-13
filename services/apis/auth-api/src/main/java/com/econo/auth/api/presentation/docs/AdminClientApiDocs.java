@@ -1,11 +1,15 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.AdminClientController.RedirectUriRequest;
-import com.econo.auth.api.presentation.controller.AdminClientController.RedirectUrisReplaceRequest;
-import com.econo.auth.api.presentation.controller.AdminClientController.RegisterClientRequest;
+import com.econo.auth.api.presentation.dto.ClientDetailResponse;
+import com.econo.auth.api.presentation.dto.RedirectUriRequest;
+import com.econo.auth.api.presentation.dto.RedirectUrisReplaceRequest;
+import com.econo.auth.api.presentation.dto.RedirectUrisResponse;
+import com.econo.auth.api.presentation.dto.RegisterClientRequest;
+import com.econo.auth.api.presentation.dto.RegisterClientResponse;
 import com.econo.common.auth.core.passport.Passport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -23,7 +27,10 @@ public interface AdminClientApiDocs {
 							+ "항상 authorization_code (PKCE) 클라이언트로 등록된다. `redirectUris` 필수.",
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
-		@ApiResponse(responseCode = "201", description = "클라이언트 등록 성공"),
+		@ApiResponse(
+				responseCode = "201",
+				description = "클라이언트 등록 성공",
+				content = @Content(schema = @Schema(implementation = RegisterClientResponse.class))),
 		@ApiResponse(
 				responseCode = "400",
 				description =
@@ -40,19 +47,51 @@ public interface AdminClientApiDocs {
 	@Operation(
 			summary = "클라이언트 조회 (redirectUri 포함)",
 			security = @SecurityRequirement(name = "cookieAuth"))
+	@ApiResponses({
+		@ApiResponse(
+				responseCode = "200",
+				description = "조회 성공",
+				content = @Content(schema = @Schema(implementation = ClientDetailResponse.class))),
+		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content),
+		@ApiResponse(responseCode = "404", description = "존재하지 않는 클라이언트", content = @Content)
+	})
 	ResponseEntity<?> getClient(Passport passport, String clientId);
 
 	@Operation(
 			summary = "redirectUri 추가",
 			description = "기존 redirectUri 유지하면서 새 URI를 추가한다.",
 			security = @SecurityRequirement(name = "cookieAuth"))
+	@ApiResponses({
+		@ApiResponse(
+				responseCode = "200",
+				description = "추가 성공",
+				content = @Content(schema = @Schema(implementation = RedirectUrisResponse.class))),
+		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content),
+		@ApiResponse(responseCode = "404", description = "존재하지 않는 클라이언트", content = @Content)
+	})
 	ResponseEntity<?> addRedirectUri(Passport passport, String clientId, RedirectUriRequest request);
 
 	@Operation(summary = "redirectUri 제거", security = @SecurityRequirement(name = "cookieAuth"))
+	@ApiResponses({
+		@ApiResponse(
+				responseCode = "200",
+				description = "제거 성공",
+				content = @Content(schema = @Schema(implementation = RedirectUrisResponse.class))),
+		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content),
+		@ApiResponse(responseCode = "404", description = "존재하지 않는 클라이언트", content = @Content)
+	})
 	ResponseEntity<?> removeRedirectUri(
 			Passport passport, String clientId, RedirectUriRequest request);
 
 	@Operation(summary = "redirectUri 전체 교체", security = @SecurityRequirement(name = "cookieAuth"))
+	@ApiResponses({
+		@ApiResponse(
+				responseCode = "200",
+				description = "교체 성공",
+				content = @Content(schema = @Schema(implementation = RedirectUrisResponse.class))),
+		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content),
+		@ApiResponse(responseCode = "404", description = "존재하지 않는 클라이언트", content = @Content)
+	})
 	ResponseEntity<?> replaceRedirectUris(
 			Passport passport, String clientId, RedirectUrisReplaceRequest request);
 }

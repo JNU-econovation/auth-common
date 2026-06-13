@@ -1,5 +1,6 @@
 package com.econo.auth.api.presentation.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -11,4 +12,9 @@ import jakarta.validation.constraints.NotNull;
  * @param enabled 활성화 여부 (필수)
  */
 public record UpdateRouteRequest(
-		@NotBlank String pathPrefix, @NotBlank String upstreamUrl, @NotNull Boolean enabled) {}
+		@NotBlank @Schema(description = "변경할 경로 접두사. 보호 경로 패턴 및 중복 검증 대상", example = "/api/v1/board-v2")
+				String pathPrefix,
+		@NotBlank
+				@Schema(description = "변경할 업스트림 URL. SSRF 검증 대상", example = "http://board-service:8080")
+				String upstreamUrl,
+		@NotNull @Schema(description = "변경할 활성화 여부", example = "false") Boolean enabled) {}

@@ -1,6 +1,12 @@
 package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.api.presentation.docs.AdminClientApiDocs;
+import com.econo.auth.api.presentation.dto.ClientDetailResponse;
+import com.econo.auth.api.presentation.dto.RedirectUriRequest;
+import com.econo.auth.api.presentation.dto.RedirectUrisReplaceRequest;
+import com.econo.auth.api.presentation.dto.RedirectUrisResponse;
+import com.econo.auth.api.presentation.dto.RegisterClientRequest;
+import com.econo.auth.api.presentation.dto.RegisterClientResponse;
 import com.econo.auth.client.application.usecase.ClientRedirectUriUseCase;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.RegisterOAuthClientCommand;
@@ -9,9 +15,6 @@ import com.econo.common.auth.core.passport.Passport;
 import com.econo.common.auth.core.passport.Roles;
 import com.econo.common.auth.web.annotation.PassportAuth;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import java.time.LocalDateTime;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,16 +41,6 @@ public class AdminClientController implements AdminClientApiDocs {
 
 	private final RegisterOAuthClientUseCase registerOAuthClientUseCase;
 	private final ClientRedirectUriUseCase redirectUriUseCase;
-
-	public record RegisterClientRequest(@NotBlank String clientName, Set<String> redirectUris) {}
-
-	public record RegisterClientResponse(String clientId) {}
-
-	public record ErrorResponse(String errorCode, String message, LocalDateTime timestamp) {
-		public ErrorResponse(String errorCode, String message) {
-			this(errorCode, message, LocalDateTime.now());
-		}
-	}
 
 	@Override
 	@PostMapping("/clients")
@@ -76,7 +69,7 @@ public class AdminClientController implements AdminClientApiDocs {
 	public ResponseEntity<?> addRedirectUri(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
-			@RequestBody RedirectUriRequest request) {
+			@Valid @RequestBody RedirectUriRequest request) {
 		var updated = redirectUriUseCase.addRedirectUri(clientId, request.uri());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
@@ -86,7 +79,7 @@ public class AdminClientController implements AdminClientApiDocs {
 	public ResponseEntity<?> removeRedirectUri(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
-			@RequestBody RedirectUriRequest request) {
+			@Valid @RequestBody RedirectUriRequest request) {
 		var updated = redirectUriUseCase.removeRedirectUri(clientId, request.uri());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
@@ -96,18 +89,8 @@ public class AdminClientController implements AdminClientApiDocs {
 	public ResponseEntity<?> replaceRedirectUris(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable String clientId,
-			@RequestBody RedirectUrisReplaceRequest request) {
+			@Valid @RequestBody RedirectUrisReplaceRequest request) {
 		var updated = redirectUriUseCase.replaceRedirectUris(clientId, request.uris());
 		return ResponseEntity.ok(new RedirectUrisResponse(clientId, updated));
 	}
-
-	// ── DTO ────────────────────────────────────────────────────
-
-	public record RedirectUriRequest(String uri) {}
-
-	public record RedirectUrisReplaceRequest(Set<String> uris) {}
-
-	record RedirectUrisResponse(String clientId, Set<String> redirectUris) {}
-
-	record ClientDetailResponse(String clientId, String clientName, Set<String> redirectUris) {}
 }

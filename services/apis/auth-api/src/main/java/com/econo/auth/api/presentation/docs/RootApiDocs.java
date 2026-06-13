@@ -1,6 +1,6 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.RootController.HealthResponse;
+import com.econo.auth.api.presentation.dto.HealthResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 

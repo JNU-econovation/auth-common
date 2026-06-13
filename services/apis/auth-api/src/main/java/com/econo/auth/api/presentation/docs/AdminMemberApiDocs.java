@@ -1,9 +1,12 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.AdminMemberController.RoleUpdateRequest;
+import com.econo.auth.api.presentation.dto.ErrorResponse;
+import com.econo.auth.api.presentation.dto.PagedMembersResponse;
+import com.econo.auth.api.presentation.dto.RoleUpdateRequest;
 import com.econo.common.auth.core.passport.Passport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -19,7 +22,10 @@ public interface AdminMemberApiDocs {
 			description = "ADMIN 또는 SUPER_ADMIN 역할 필요. role 파라미터로 필터링 가능.",
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "조회 성공"),
+		@ApiResponse(
+				responseCode = "200",
+				description = "조회 성공",
+				content = @Content(schema = @Schema(implementation = PagedMembersResponse.class))),
 		@ApiResponse(responseCode = "403", description = "ADMIN 역할 없음", content = @Content)
 	})
 	ResponseEntity<?> listMembers(Passport passport, int page, int size, String role);
@@ -35,13 +41,22 @@ public interface AdminMemberApiDocs {
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "역할 변경 성공"),
-		@ApiResponse(responseCode = "400", description = "유효하지 않은 역할", content = @Content),
+		@ApiResponse(
+				responseCode = "400",
+				description = "유효하지 않은 역할",
+				content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
 		@ApiResponse(
 				responseCode = "403",
 				description = "SUPER_ADMIN 역할 없음 또는 본인 변경 시도",
-				content = @Content),
-		@ApiResponse(responseCode = "404", description = "존재하지 않는 회원", content = @Content),
-		@ApiResponse(responseCode = "409", description = "마지막 SUPER_ADMIN 해제 시도", content = @Content)
+				content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+		@ApiResponse(
+				responseCode = "404",
+				description = "존재하지 않는 회원",
+				content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+		@ApiResponse(
+				responseCode = "409",
+				description = "마지막 SUPER_ADMIN 해제 시도",
+				content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
 	})
 	ResponseEntity<?> updateRole(Passport passport, Long memberId, RoleUpdateRequest request);
 }

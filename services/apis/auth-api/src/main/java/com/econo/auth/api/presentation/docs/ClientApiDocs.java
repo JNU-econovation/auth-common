@@ -1,9 +1,11 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.ClientController.SelfRegisterClientRequest;
+import com.econo.auth.api.presentation.dto.SelfRegisterClientRequest;
+import com.econo.auth.api.presentation.dto.SelfRegisterClientResponse;
 import com.econo.common.auth.core.passport.Passport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -21,7 +23,10 @@ public interface ClientApiDocs {
 							+ "항상 authorization_code (PKCE) 클라이언트로 등록된다. `redirectUris` 필수. 회원당 최대 5개 제한.",
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
-		@ApiResponse(responseCode = "201", description = "클라이언트 등록 성공 — clientId + clientSecret 1회 반환"),
+		@ApiResponse(
+				responseCode = "201",
+				description = "클라이언트 등록 성공 — clientId + clientSecret 1회 반환",
+				content = @Content(schema = @Schema(implementation = SelfRegisterClientResponse.class))),
 		@ApiResponse(
 				responseCode = "401",
 				description = "X-User-Passport 헤더 누락 또는 파싱 실패",

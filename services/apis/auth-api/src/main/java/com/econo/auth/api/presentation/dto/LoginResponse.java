@@ -1,6 +1,7 @@
 package com.econo.auth.api.presentation.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 로그인/재발급 응답 DTO
@@ -15,7 +16,23 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LoginResponse(
-		String accessToken, Long accessExpiredTime, String refreshToken, String redirectUrl) {
+		@Schema(
+						description = "Access Token (JWT). WEB에서는 쿠키로 전달되므로 null.",
+						nullable = true,
+						example = "eyJhbGciOiJSUzI1NiJ9...")
+				String accessToken,
+		@Schema(description = "Access Token 만료 시각 (epoch millis)", example = "1749902400000")
+				Long accessExpiredTime,
+		@Schema(
+						description = "Refresh Token. WEB에서는 쿠키로 전달되므로 null.",
+						nullable = true,
+						example = "eyJhbGciOiJSUzI1NiJ9...")
+				String refreshToken,
+		@Schema(
+						description = "로그인 후 이동 목적지 URL (nullable)",
+						nullable = true,
+						example = "https://app.example.com/dashboard")
+				String redirectUrl) {
 
 	/**
 	 * WEB: AT는 쿠키로 발급됨. body에는 만료시간만 (프론트가 갱신 타이밍 파악용)

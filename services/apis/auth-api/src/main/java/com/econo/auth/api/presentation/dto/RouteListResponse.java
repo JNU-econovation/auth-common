@@ -1,5 +1,6 @@
 package com.econo.auth.api.presentation.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 /**
@@ -7,4 +8,5 @@ import java.util.List;
  *
  * @param routes 라우트 결과 목록
  */
-public record RouteListResponse(List<RouteResponse> routes) {}
+@Schema(description = "전체 라우트 목록 응답")
+public record RouteListResponse(@Schema(description = "등록된 라우트 목록") List<RouteResponse> routes) {}
