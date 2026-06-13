@@ -1,6 +1,7 @@
 package com.econo.auth.gateway.config;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,25 +74,31 @@ public class DynamicRouteDefinitionRepository implements RouteDefinitionReposito
 	/**
 	 * auth-api로부터 라우트 전량 재로드하여 캐시 교체
 	 *
-	 * <p>{@link com.econo.auth.gateway.presentation.controller.RouteRefreshHandler}에서 호출된다.
+	 * <p>전 구간 논블로킹으로 동작한다. {@link
+	 * com.econo.auth.gateway.presentation.controller.RouteRefreshHandler}(리액티브)와 {@link
+	 * DynamicRouteInitializer}(기동)에서 구독한다.
+	 *
+	 * @return 재로드 완료 Mono
 	 */
-	public void reload() {
-		log.info("DynamicRouteDefinitionRepository: 라우트 재로드 시작");
-		try {
-			List<AuthApiRouteClient.RouteDto> routes = authApiRouteClient.fetchEnabledRoutes();
-			ConcurrentHashMap<String, RouteDefinition> newCache = new ConcurrentHashMap<>();
-			for (AuthApiRouteClient.RouteDto dto : routes) {
-				if (dto.enabled() && dto.pathPrefix() != null && !dto.pathPrefix().isBlank()) {
-					RouteDefinition definition = toRouteDefinition(dto);
-					newCache.put(dto.routeId(), definition);
-				}
+	public Mono<Void> reload() {
+		return authApiRouteClient
+				.fetchEnabledRoutes()
+				.doOnSubscribe(s -> log.info("DynamicRouteDefinitionRepository: 라우트 재로드 시작"))
+				.doOnNext(this::replaceCache)
+				.then();
+	}
+
+	/** 새로 받은 라우트 목록으로 캐시를 전량 교체한다. */
+	private void replaceCache(List<AuthApiRouteClient.RouteDto> routes) {
+		Map<String, RouteDefinition> newCache = new HashMap<>();
+		for (AuthApiRouteClient.RouteDto dto : routes) {
+			if (dto.enabled() && dto.pathPrefix() != null && !dto.pathPrefix().isBlank()) {
+				newCache.put(dto.routeId(), toRouteDefinition(dto));
 			}
-			cache.clear();
-			cache.putAll(newCache);
-			log.info("DynamicRouteDefinitionRepository: 라우트 재로드 완료. count={}", cache.size());
-		} catch (Exception e) {
-			log.error("DynamicRouteDefinitionRepository: 라우트 재로드 실패", e);
 		}
+		cache.clear();
+		cache.putAll(newCache);
+		log.info("DynamicRouteDefinitionRepository: 라우트 재로드 완료. count={}", cache.size());
 	}
 
 	/**

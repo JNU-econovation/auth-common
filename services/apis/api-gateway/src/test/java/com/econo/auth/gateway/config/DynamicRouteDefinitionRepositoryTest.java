@@ -14,12 +14,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 /**
  * DynamicRouteDefinitionRepository 단위 테스트
  *
- * <p>auth-api REST 초기 로드, 캐시 반환, reload() 동작, RouteDefinition 변환을 검증한다.
+ * <p>auth-api REST 초기 로드, 캐시 반환, reload() 동작, RouteDefinition 변환을 검증한다. reload()는 논블로킹 {@code
+ * Mono}이므로 테스트에서는 {@code block()}으로 구독한다.
  */
 @ExtendWith(MockitoExtension.class)
 class DynamicRouteDefinitionRepositoryTest {
@@ -59,10 +61,10 @@ class DynamicRouteDefinitionRepositoryTest {
 					List.of(
 							new AuthApiRouteClient.RouteDto("r1", "/api/v2/service", "http://service:8080", true),
 							new AuthApiRouteClient.RouteDto("r2", "/api/v2/other", "http://other:8080", true));
-			given(authApiRouteClient.fetchEnabledRoutes()).willReturn(remoteDtos);
+			given(authApiRouteClient.fetchEnabledRoutes()).willReturn(Mono.just(remoteDtos));
 
 			// when
-			repository.reload();
+			repository.reload().block();
 			Flux<RouteDefinition> result = repository.getRouteDefinitions();
 
 			// then
@@ -90,10 +92,10 @@ class DynamicRouteDefinitionRepositoryTest {
 		@DisplayName("reload() 호출 시 authApiRouteClient.fetchEnabledRoutes() 호출")
 		void reload_callsFetchEnabledRoutes() {
 			// given
-			given(authApiRouteClient.fetchEnabledRoutes()).willReturn(List.of());
+			given(authApiRouteClient.fetchEnabledRoutes()).willReturn(Mono.just(List.of()));
 
 			// when
-			repository.reload();
+			repository.reload().block();
 
 			// then
 			org.mockito.BDDMockito.then(authApiRouteClient).should(times(1)).fetchEnabledRoutes();
@@ -105,20 +107,22 @@ class DynamicRouteDefinitionRepositoryTest {
 			// given — 첫 로드: 1개
 			given(authApiRouteClient.fetchEnabledRoutes())
 					.willReturn(
-							List.of(
-									new AuthApiRouteClient.RouteDto(
-											"r-old", "/api/v2/old", "http://old:8080", true)));
-			repository.reload();
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-old", "/api/v2/old", "http://old:8080", true))));
+			repository.reload().block();
 
 			// 두 번째 로드: 2개 (r-old 없음)
 			given(authApiRouteClient.fetchEnabledRoutes())
 					.willReturn(
-							List.of(
-									new AuthApiRouteClient.RouteDto(
-											"r-new1", "/api/v2/new1", "http://new1:8080", true),
-									new AuthApiRouteClient.RouteDto(
-											"r-new2", "/api/v2/new2", "http://new2:8080", true)));
-			repository.reload();
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-new1", "/api/v2/new1", "http://new1:8080", true),
+											new AuthApiRouteClient.RouteDto(
+													"r-new2", "/api/v2/new2", "http://new2:8080", true))));
+			repository.reload().block();
 
 			// when
 			Flux<RouteDefinition> result = repository.getRouteDefinitions();
@@ -151,12 +155,13 @@ class DynamicRouteDefinitionRepositoryTest {
 			// given
 			given(authApiRouteClient.fetchEnabledRoutes())
 					.willReturn(
-							List.of(
-									new AuthApiRouteClient.RouteDto(
-											"r-convert", "/api/v2/convert", "http://convert:8080", true)));
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-convert", "/api/v2/convert", "http://convert:8080", true))));
 
 			// when
-			repository.reload();
+			repository.reload().block();
 			Flux<RouteDefinition> result = repository.getRouteDefinitions();
 
 			// then
@@ -179,12 +184,13 @@ class DynamicRouteDefinitionRepositoryTest {
 			// given
 			given(authApiRouteClient.fetchEnabledRoutes())
 					.willReturn(
-							List.of(
-									new AuthApiRouteClient.RouteDto(
-											"r-uri", "/api/v2/uri", "http://upstream-service:9090", true)));
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-uri", "/api/v2/uri", "http://upstream-service:9090", true))));
 
 			// when
-			repository.reload();
+			repository.reload().block();
 
 			// then
 			StepVerifier.create(repository.getRouteDefinitions().collectList())
@@ -209,15 +215,10 @@ class DynamicRouteDefinitionRepositoryTest {
 		@Test
 		@DisplayName("DynamicRouteDefinitionRepository의 Order가 0보다 큰 낮은 우선순위 값임")
 		void dynamicRepository_hasLowerOrderThanStaticRoutes() {
-			// given/when — 클래스의 @Order 또는 getOrder() 확인
-			// 정적 보호 라우트(GatewayRoutingConfig)보다 낮은 우선순위여야 함
-
-			// then — 구현체에 getOrder() 또는 Ordered.LOWEST_PRECEDENCE 설정 확인
+			// then — 정적 보호 라우트(GatewayRoutingConfig)보다 낮은 우선순위여야 함
 			if (repository instanceof org.springframework.core.Ordered ordered) {
 				assertThat(ordered.getOrder()).isGreaterThan(0);
 			}
-			// 인터페이스 구현 여부와 관계없이 @Order 어노테이션 존재를 확인
-			// (컴파일 에러 발생 예상 — 클래스 미존재 시)
 			assertThat(repository).isNotNull();
 		}
 	}

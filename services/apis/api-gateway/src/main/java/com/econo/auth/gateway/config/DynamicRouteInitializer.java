@@ -26,16 +26,19 @@ public class DynamicRouteInitializer {
 	private final DynamicRouteDefinitionRepository dynamicRouteDefinitionRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
-	/** 기동 완료 후 동적 라우트 초기 로드 + RefreshRoutesEvent 발행 */
+	/** 기동 완료 후 동적 라우트 초기 로드 + RefreshRoutesEvent 발행 (논블로킹 구독) */
 	@EventListener(ApplicationReadyEvent.class)
 	public void onApplicationReady() {
 		log.info("기동 완료 후 동적 라우트 초기 로드 시작");
-		try {
-			dynamicRouteDefinitionRepository.reload();
-			eventPublisher.publishEvent(new RefreshRoutesEvent(this));
-			log.info("동적 라우트 초기 로드 완료");
-		} catch (Exception e) {
-			log.warn("동적 라우트 초기 로드 실패 — 빈 캐시로 계속 기동, 이후 refresh로 채울 수 있음: {}", e.getMessage());
-		}
+		dynamicRouteDefinitionRepository
+				.reload()
+				.doOnSuccess(
+						v -> {
+							eventPublisher.publishEvent(new RefreshRoutesEvent(this));
+							log.info("동적 라우트 초기 로드 완료");
+						})
+				.doOnError(
+						e -> log.warn("동적 라우트 초기 로드 실패 — 빈 캐시로 계속 기동, 이후 refresh로 채울 수 있음: {}", e.getMessage()))
+				.subscribe();
 	}
 }

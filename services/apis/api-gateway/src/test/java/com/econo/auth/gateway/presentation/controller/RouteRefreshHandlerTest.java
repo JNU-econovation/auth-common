@@ -2,6 +2,7 @@ package com.econo.auth.gateway.presentation.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 
 import com.econo.auth.gateway.config.DynamicRouteDefinitionRepository;
@@ -41,6 +42,8 @@ class RouteRefreshHandlerTest {
 	void setUp() {
 		handler =
 				new RouteRefreshHandler(dynamicRouteDefinitionRepository, eventPublisher, VALID_SECRET);
+		// reload()는 논블로킹 Mono를 반환 — 시크릿 검증 통과 테스트에서 체인이 구독할 수 있도록 빈 Mono로 스텁(lenient).
+		lenient().when(dynamicRouteDefinitionRepository.reload()).thenReturn(Mono.empty());
 	}
 
 	@Nested
