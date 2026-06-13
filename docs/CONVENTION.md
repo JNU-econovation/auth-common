@@ -35,8 +35,9 @@ auth-common 프로젝트의 코드 컨벤션.
 
 ### 1.1 패키지
 
-- 역도메인 표기법: `com.econo.common.auth`
-- 계층별 분리: `core`, `web`, `config`
+- 역도메인 표기법: `com.econo.common.auth` (auth-common-lib), `com.econo.auth` (member, common-infra, service-client, auth-api, api-gateway)
+- 계층별 분리: `core`, `web`, `config` (auth-common-lib); `domain`, `application.port.in`, `application.port.out`, `application.usecase`, `exception`, `adapter.out.persistence`, `adapter.out.security`, `config` (member)
+- 헥사고날 어댑터 패키지: `adapter.in.web` (인바운드), `adapter.out.persistence` / `adapter.out.security` / `adapter.out.token` (아웃바운드)
 - 소문자만 사용, 단어 구분 없이 연결
 
 ### 1.2 클래스
@@ -46,13 +47,20 @@ auth-common 프로젝트의 코드 컨벤션.
 
 | 유형 | 패턴 | 예시 |
 |------|------|------|
-| 도메인 객체 | `{Name}` | `Passport` |
-| 예외 | `{Domain}Exception` | `PassportException` |
+| 도메인 객체 | `{Name}` | `Passport`, `Member` |
+| 예외 | `{Domain}Exception` | `PassportException`, `InvalidCredentialsException` |
 | 어노테이션 | `{Name}` | `PassportAuth` |
 | Resolver | `{Name}ArgumentResolver` | `PassportArgumentResolver` |
 | 설정 | `{Domain}AutoConfiguration` | `AuthAutoConfiguration` |
+| 설정 (일반) | `{Domain}Config` | `ApplicationServiceConfig`, `SecurityConfig` |
 | 상수 클래스 | `{Name}s` (복수형) | `Roles` |
-| 테스트 | `{TargetClass}Test` | `PassportTest` |
+| 인바운드 포트 (UseCase) | `{Action}UseCase` | `SignupUseCase`, `LoginUseCase` |
+| 아웃바운드 포트 | `{Resource}{Role}` | `MemberRepository`, `PasswordHasher`, `TokenIssuer` |
+| 유스케이스 구현 | `{Action}Service` | `SignupService`, `LoginService` |
+| JPA 어댑터 | `{Name}JpaEntity` / `{Name}JpaRepository` / `{Name}RepositoryAdapter` | `MemberJpaEntity` |
+| 보안 어댑터 | `{Algo}{Role}Adapter` | `BCryptPasswordHasherAdapter` |
+| 토큰 어댑터 | `{Algo}{Role}Adapter` | `JwtTokenIssuerAdapter` |
+| 테스트 | `{TargetClass}Test` | `PassportTest`, `SignupServiceTest` |
 
 ### 1.3 메서드
 
@@ -154,7 +162,7 @@ this.roles = roles != null ? List.copyOf(roles) : List.of();
 @JsonCreator
 public Passport(
     @JsonProperty("memberId") Long memberId,
-    @JsonProperty("email") String email,
+    @JsonProperty("loginId") String loginId,
     ...
 ) { ... }
 
@@ -273,7 +281,7 @@ void createWithNullRoles() {
     LocalDateTime now = LocalDateTime.now();
 
     // when
-    Passport passport = new Passport(123L, "test@eeos.com", "테스터", null, now, now.plusHours(1));
+    Passport passport = new Passport(123L, "testuser", "테스터", 1, "AM", null, now, now.plusHours(1));
 
     // then
     assertThat(passport.getRoles()).isEmpty();
@@ -287,6 +295,7 @@ void createWithNullRoles() {
 | 단위 테스트 | `@Test`, `@Nested` | 도메인 로직 검증 |
 | Mock 테스트 | `@ExtendWith(MockitoExtension.class)` | 의존성 격리 |
 | 통합 테스트 | `@SpringBootTest` + `MockMvc` | E2E 흐름 검증 |
+| JPA 통합 테스트 | `@DataJpaTest` + Testcontainers PostgreSQL | JPA Repository 슬라이스 검증 |
 
 ## 6. 빌드
 

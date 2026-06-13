@@ -1,0 +1,74 @@
+name: CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+# 동시 배포 방지 — 같은 브랜치의 이전 실행은 취소
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 이미지 버전 태그 = 빌드 시각(KST) 년월일시분초. 빌드마다 고유·시간순 정렬.
+      - name: Compute image tag (KST timestamp)
+        run: echo "IMAGE_TAG=$(TZ=Asia/Seoul date +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+
+      # Jib로 두 앱 이미지를 빌드해 Docker Hub에 푸시 (Docker 데몬 불필요)
+      # 태그: latest + <타임스탬프>. 자격증명·네임스페이스는 모두 GitHub Secrets.
+      - name: Build & push images (Jib → Docker Hub)
+        env:
+          DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE }}
+        run: |
+          ./gradlew \
+            :services:apis:auth-api:jib \
+            :services:apis:api-gateway:jib \
+            -Djib.to.tags=latest,${{ env.IMAGE_TAG }} \
+            -Djib.to.auth.username=${{ secrets.DOCKERHUB_USERNAME }} \
+            -Djib.to.auth.password=${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 자체 서버에 SSH 접속 → 최신 이미지 pull 후 compose 재기동
+      # SSH 계정 홈의 ~/auth-common 에 docker-compose.yml 과 시크릿이 담긴 .env 를 미리 둔다.
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script: |
+            set -e
+            cd ~/auth-common
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            export DOCKERHUB_NAMESPACE="${{ secrets.DOCKERHUB_NAMESPACE }}"
+            export IMAGE_TAG="${{ env.IMAGE_TAG }}"
+            docker compose pull
+            docker compose up -d
+            docker image prune -f

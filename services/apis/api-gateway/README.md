@@ -1,53 +1,120 @@
 # api-gateway
 
-클라이언트 요청을 수신해 인증 처리 후 다운스트림 마이크로서비스로 라우팅하는 게이트웨이. Spring Cloud Gateway(WebFlux) 기반.
+Spring Cloud Gateway 기반 인증 게이트웨이. JWT/쿠키 검증 후 Passport를 생성하여 내부 서비스로 전달.
 
-> **상태:** 골격 단계 — `ApiGatewayApplication.java`(`main()` 진입점)만 존재. JWT 검증·Passport 발급·라우팅 필터는 `member-auth` 작업에서 도입된다.
+---
 
-## 기본 정보
-
-| 항목 | 값 |
-|---|---|
-| 역할 | API Gateway (Spring Cloud Gateway 기반, WebFlux) |
-| 대상 사용자 | 외부 클라이언트 (브라우저, 모바일) |
-| 인증 방식 | (도입 예정) 쿠키 JWT 검증 → `Passport` 생성 → JSON 직렬화 후 Base64 인코딩 → `X-User-Passport` 헤더로 다운스트림 전달 |
-| 진입점 | `src/main/java/com/econo/auth/gateway/ApiGatewayApplication.java` |
-
-## 주요 기능
-
-현재 미구현. `member-auth` 작업의 `implementation-plan.md` 참조.
-
-| 기능 | 설명 |
-|---|---|
-| (도입 예정) JWT 검증 필터 | 쿠키의 JWT를 검증하고 클레임을 추출 |
-| (도입 예정) Passport 발급 | 클레임을 `Passport`로 변환·직렬화 후 헤더 주입 |
-| (도입 예정) 라우팅 설정 | `/api/v1/auth/**` → `auth-api`, 그 외 다운스트림 매핑 |
-
-## 주요 엔드포인트
-
-라우팅 게이트웨이이므로 자체 엔드포인트는 없다. 라우팅 매핑은 `application.yml` 또는 `RouteLocator` 설정으로 정의한다.
-
-## 인증 및 권한 검증
-
-- 본 앱은 **인증을 검증·변환**한다 (발급은 `auth-api`의 역할).
-- 쿠키의 JWT를 검증해 `Passport` 객체를 만들고, JSON 직렬화 + Base64 인코딩 후 `X-User-Passport` 헤더로 다운스트림에 전달한다.
-- 다운스트림 서비스는 `auth-common-lib`의 `@PassportAuth`로 자동 주입받는다.
-- 인증 발급 경로(`/api/v1/auth/**`)는 JWT 없이도 통과(`permit`)한다.
-
-> 인증 흐름 전체: [`docs/ARCHITECTURE.md` 인증 흐름](../../../docs/ARCHITECTURE.md#인증-흐름)
-
-## 횡단 관심사
-
-(현재 없음. 도입 예정 — 라우팅 설정, JWT 검증 필터, 글로벌 에러 응답.)
-
-## 모듈 구조
+## 전체 요청 흐름
 
 ```
-services/apis/api-gateway/
-└── src/main/java/com/econo/auth/gateway/
-    └── ApiGatewayApplication.java       # main() 진입점
+클라이언트 (WEB: at 쿠키 자동 전송 / APP: Authorization: Bearer)
+        ↓
+api-gateway
+  BearerToPassportFilter (order=-1):
+    ① Bearer 헤더에서 AT 추출  ← APP
+    ② 없으면 at 쿠키에서 추출  ← WEB
+    ③ JWT RS256 검증 (JWKS: auth-api /oauth2/jwks)
+    ④ Passport JSON → Base64 인코딩 → X-User-Passport 헤더 주입
+    ⑤ removeRequestHeader("Authorization")  ← EEOS-BE 충돌 방지
+        ↓
+  라우팅:
+    /api/v1/auth/**  →  auth-api :8081
+    /oauth2/jwks     →  auth-api :8081
+    /api/**          →  EEOS-BE  :8080
+        ↓
+내부 서비스
+  X-User-Passport: eyJ... (Base64 JSON)
+  → PassportAuthenticationFilter → @Member Long memberId 주입
 ```
 
-## 관련 모듈
+---
 
-- `auth-common-lib` — `Passport` 직렬화·역할 상수 참조
+## SSO 동작 방식
+
+```
+[로그인]
+  POST /api/v1/auth/login  → at 쿠키 (Domain=.econovation.kr, Max-Age=3600)
+                           → rt 쿠키 (Domain=.econovation.kr, Max-Age=2592000)
+
+[app-a.econovation.kr → Service A]
+  브라우저: at 쿠키 자동 전송 → Gateway 검증 → Service A ✅
+
+[app-b.econovation.kr → Service B]  ← 재로그인 없음
+  브라우저: at 쿠키 자동 전송 (Domain=.econovation.kr이라 B도 해당) → Service B ✅
+
+[AT 만료]
+  POST /api/v1/auth/reissue ← rt 쿠키 자동 전송 → 새 at 쿠키 발급 → 재로그인 없음
+```
+
+**운영 필수**: `COOKIE_DOMAIN=.econovation.kr` + `COOKIE_SECURE=true`
+
+---
+
+## X-User-Passport 헤더
+
+Gateway가 JWT 검증 성공 시 자동 주입. 내부 서비스는 이 헤더를 신뢰한다.
+
+```
+X-User-Passport: Base64(UTF-8 JSON)
+```
+
+디코딩 예시:
+
+```json
+{
+  "memberId": 1,
+  "loginId": "user01",
+  "name": "홍길동",
+  "generation": 30,
+  "status": "AM",
+  "roles": ["USER"],
+  "issuedAt": "2026-06-01T10:00:00",
+  "expiresAt": "2026-06-01T11:00:00"
+}
+```
+
+> **보안**: 내부 서비스는 반드시 Gateway 뒤에서만 실행. 직접 공개 시 X-User-Passport 위조 가능.
+
+---
+
+## 인증 불필요 경로 (토큰/쿠키 없이 통과)
+
+| 경로 | 설명 |
+|------|------|
+| `/api/v1/auth/login` | 로그인 |
+| `/api/v1/auth/signup` | 회원가입 |
+| `/api/v1/auth/logout` | 로그아웃 |
+| `/api/v1/auth/reissue` | AT/RT 재발급 (rt 쿠키 기반) |
+| `/oauth2/jwks` | JWKS 공개키 |
+| `/.well-known/**` | OIDC Discovery |
+| `/actuator/` | Gateway 헬스 체크 |
+| `/api/health-check` | EEOS-BE 헬스 체크 |
+| `/api/auth/` | EEOS 자체 로그인 (레거시) |
+| `/api/guest/` | 게스트 접근 |
+| `/api/slack/events` | Slack 이벤트 수신 |
+
+---
+
+## 환경 변수
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `AUTH_API_URI` | auth-api 내부 주소 | `http://localhost:8081` |
+| `EEOS_API_URI` | EEOS-BE 내부 주소 | `http://localhost:8080` |
+| `AUTH_JWKS_URI` | JWKS 조회 URI (auth-api 직접 — Gateway URL 사용 시 자기참조 루프) | `http://localhost:8081/oauth2/jwks` |
+| `AUTH_ISSUER_URI` | JWT `iss` 클레임 검증값 (Gateway 공개 URL) | `http://localhost:8080` |
+| `CORS_ALLOWED_ORIGINS` | CORS 허용 오리진 | `http://localhost:3000` |
+
+---
+
+## 로컬 실행
+
+```bash
+# 사전 조건: auth-api가 :8081에서 실행 중이어야 함
+AUTH_API_URI=http://localhost:8081 \
+AUTH_JWKS_URI=http://localhost:8081/oauth2/jwks \
+AUTH_ISSUER_URI=http://localhost:8081 \
+EEOS_API_URI=http://localhost:8080 \
+CORS_ALLOWED_ORIGINS=http://localhost:3000 \
+./gradlew :services:apis:api-gateway:bootRun --args='--server.port=8082'
+```

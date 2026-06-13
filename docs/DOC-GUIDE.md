@@ -17,6 +17,7 @@ auth-common 프로젝트의 문서화 규칙을 정의한다.
 | 코드 컨벤션 | `docs/CONVENTION.md` | 네이밍, 스타일, 예외 처리, 테스트 컨벤션 |
 | 문서 가이드 | `docs/DOC-GUIDE.md` | 문서 작성 규칙 (본 문서) |
 | README 작성 가이드 | `docs/README-GUIDE.md` | 모듈 README 필수·금지 섹션, 생성·업데이트 시점 |
+| 인프라 | `docs/INFRASTRUCTURE.md` | 데이터베이스, 마이그레이션 등 외부 인프라 종류·버전·접근 방식 |
 | 라이브러리 모듈 README | `services/libs/{module}/README.md` | 도메인 로직, 공개 인터페이스, 사용법 |
 | 앱 모듈 README | `services/apis/{app}/README.md` | 앱 개요, 엔드포인트, 횡단 관심사 |
 | 도메인 상세 README | `services/apis/{app}/src/main/java/.../{domain}/README.md` | 엔드포인트, DTO, 앱 특화 로직 |
