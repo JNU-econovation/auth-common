@@ -133,7 +133,7 @@ todo `에러 코드 정의` 항목에서 식별된 4종을 기존 에러 체계(
 
 ### 보호 경로 목록 (pathPrefix 등록/수정/삭제 거부)
 
-아래 경로와 겹치는 pathPrefix 등록 시도는 `RouteProtectedException` (403 `ROUTE_PROTECTED`)로 거부한다. `ProtectedPathRegistry` 상수 또는 `application.yml gateway.protected-paths` 바인딩으로 관리한다.
+아래 경로와 겹치는 pathPrefix 등록 시도는 `RouteProtectedException` (403 `ROUTE_PROTECTED`)로 거부한다. 판정은 `ProtectedPathPolicy` 포트(service-client)로 추상화하고, 보호 경로 값은 배포 환경에 종속되므로 소비자 앱 auth-api의 `ProtectedPathPolicyImpl`이 소유한다.
 
 - `/api/v1/auth/**`
 - `/oauth2/**`

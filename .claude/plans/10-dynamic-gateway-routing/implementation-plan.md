@@ -41,10 +41,11 @@
 | `services/libs/service-client` — `persistence/repository/ServiceRouteJpaRepository` | **신규** | Spring Data JPA 인터페이스 |
 | `services/libs/service-client` — `persistence/repository/ServiceRouteRepositoryAdapter` | **신규** | 포트 구현체 |
 | `services/libs/service-client` — `exception/` (4종) | **신규** | RouteNotFoundException, RoutePathConflictException, RouteUpstreamInvalidException, RouteProtectedException |
-| `services/libs/service-client` — `config/ProtectedPathRegistry` | **신규** | 보호 경로 상수 집합 |
+| `services/libs/service-client` — `application/service/ProtectedPathPolicy` | **신규** | 보호 경로 판정 포트(인터페이스). 값은 소유하지 않음 |
+| `services/apis/auth-api` — `config/ProtectedPathPolicyImpl` | **신규** | 보호 경로 값·매칭 구현체(소비자 앱이 소유) |
 | `services/apis/auth-api` — `presentation/controller/AdminRouteController` | **신규** | CRUD 컨트롤러 5종 엔드포인트 |
 | `services/apis/auth-api` — `presentation/dto/` (요청/응답 DTO) | **신규** | CreateRouteRequest, UpdateRouteRequest, RouteResponse |
-| `services/apis/auth-api` — `config/ApplicationServiceConfig` | **변경** | `ManageRouteService` `@Bean` 등록 추가 |
+| `services/apis/auth-api` — `config/ApplicationServiceConfig` | **변경** | `ManageRouteService` + `ProtectedPathPolicy` `@Bean` 등록 추가 |
 | `services/apis/auth-api` — `exception/GlobalExceptionHandler` | **변경** | Route 예외 4종 핸들러 추가 |
 | `services/apis/auth-api` — `application/service/GatewayRefreshClient` | **신규** | WebClient 래퍼 — api-gateway refresh 호출 |
 | `services/apis/auth-api` — `config/GatewayClientConfig` | **신규** | `GatewayRefreshClient` 빈 등록, `GATEWAY_URI` 환경변수 바인딩 |
@@ -73,7 +74,8 @@ com.econo.auth.client
 │   ├── usecase/
 │   │   └── ManageRouteUseCase                    — 인바운드 포트 인터페이스
 │   └── service/
-│       └── ManageRouteService                    — 유스케이스 구현체 (SSRF·보호경로 검증)
+│       ├── ManageRouteService                    — 유스케이스 구현체 (SSRF·보호경로 검증)
+│       └── ProtectedPathPolicy                   — 보호 경로 판정 포트(인터페이스). 구현체·값은 auth-api 소유
 ├── persistence/
 │   ├── entity/
 │   │   └── ServiceRouteJpaEntity                 — service_route 테이블 JPA 엔티티
@@ -81,8 +83,7 @@ com.econo.auth.client
 │       ├── ServiceRouteJpaRepository             — Spring Data JPA 인터페이스
 │       └── ServiceRouteRepositoryAdapter         — ServiceRouteRepository 포트 구현체
 ├── config/
-│   ├── ServiceClientAutoConfiguration            — (변경 없음, EntityScan 범위 이미 포함)
-│   └── ProtectedPathRegistry                     — 보호 경로 상수 집합
+│   └── ServiceClientAutoConfiguration            — (변경 없음, EntityScan 범위 이미 포함)
 └── exception/
     ├── RouteNotFoundException                    — 404 ROUTE_NOT_FOUND
     ├── RoutePathConflictException                — 409 ROUTE_PATH_CONFLICT
@@ -149,7 +150,7 @@ com.econo.auth.client
   - `private void validateUpstreamUrl(String url)` — SSRF 검증 (허용 스킴: http/https; private IP 차단; 호스트 필수; `gateway.ssrf.allow-private-hosts` 설정 참조)
   - `private void validatePathPrefix(String prefix)` — `/`로 시작 여부, 보호경로 패턴 매칭, 중복 확인
   - `private void validatePathPrefixForUpdate(String prefix, String routeId)` — 수정 시 자기 자신 제외 중복
-- **의존성**: `ServiceRouteRepository`, `GatewayRefreshClient`, `ProtectedPathRegistry`
+- **의존성**: `ServiceRouteRepository`, `GatewayRefreshClient`, `ProtectedPathPolicy`(포트)
 - **적용 컨벤션**:
   - 유스케이스 구현 네이밍: `{Action}Service` (CONVENTION.md §1.2)
   - `@Service`가 아닌 일반 클래스 — `auth-api`의 `ApplicationServiceConfig`에서 `@Bean` 등록 (ARCHITECTURE.md §6, SignupService 패턴)
@@ -160,22 +161,25 @@ com.econo.auth.client
   - `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/RegisterOAuthClientService.java` — 검증→저장 패턴
 - **연관 todo**: `[ ] ManageRouteService 유스케이스 구현체 작성`
 
-##### `ProtectedPathRegistry`
-- **타입**: Config (상수 클래스)
-- **책임**: pathPrefix 등록/수정/삭제 거부 대상 경로 패턴 목록을 단일 진실 소스로 관리. `ManageRouteService`와 `GatewayRoutingConfig` 모두 이 목록을 참조
-- **주요 메서드/함수**:
-  - `static final List<String> PROTECTED_PATHS` — 보호 경로 패턴 목록 (아래 참조)
-  - `static boolean isProtected(String pathPrefix)` — `PathPatternParser` 기반 패턴 매칭 (BearerToPassportFilter와 동일 방식)
-- **보호 경로 초기값** (api-design-plan.md §보호 경로 목록 기준):
+##### `ProtectedPathPolicy` (포트) + `ProtectedPathPolicyImpl` (구현체)
+- **타입**: 출력 포트(service-client) + 구현체(auth-api). `GatewayRefreshClient`/`GatewayRefreshClientImpl`과 동일 패턴
+- **책임**: pathPrefix가 보호 경로인지 판정. 보호 경로 목록 **값은 배포 환경(게이트웨이 정적 라우트)에 종속**되므로 라이브러리(service-client)가 아니라 소비자 앱(auth-api)이 소유. service-client는 판정 추상화만 정의
+- **포트 인터페이스** (`service-client .../application/service/ProtectedPathPolicy`):
+  - `boolean isProtected(String pathPrefix)`
+- **구현체** (`auth-api .../config/ProtectedPathPolicyImpl`):
+  - `static final List<String> PROTECTED_PATHS` — 보호 경로 패턴 목록
+  - `isProtected()` — `PathPatternParser` 기반 패턴 매칭 (BearerToPassportFilter와 동일 방식)
+  - `ApplicationServiceConfig`에서 `@Bean`으로 등록. api-gateway의 `GatewayRoutingConfig`와 수동 동기화
+- **보호 경로 값** (api-design-plan.md §보호 경로 목록 기준):
   - `/api/v1/auth/**`, `/oauth2/**`, `/.well-known/**`, `/userinfo`
   - `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**`, `/v3/api-docs`
   - `/actuator/**`
-  - `/api/v1/admin/**`, `/api/v1/members/**`, `/api/v1/clients/**`
-- **의존성**: `PathPatternParser` (Spring Web, 이미 service-client 의존성에 포함)
+  - `/api/v1/admin/**`, `/api/v1/members/**`, `/api/v1/clients/**`, `/api/v1/internal/**`
+- **의존성**: `PathPatternParser` (Spring Web)
 - **적용 컨벤션**:
-  - 상수 클래스 네이밍: `{Name}s` 복수형 → 단, Registry 패턴이 더 명확하므로 `ProtectedPathRegistry` 사용 (CONVENTION.md §1.2 `{Name}` 도메인 객체 예외 허용)
+  - 포트/어댑터: 인터페이스는 lib, 구현·값은 소비자 앱 (ARCHITECTURE.md §6, `TokenEncoder`/`GatewayRefreshClient` 패턴)
   - 상수: `UPPER_SNAKE_CASE` (CONVENTION.md §1.4)
-- **연관 todo**: `[ ] 보호 경로 목록 상수/설정 클래스 작성`
+- **연관 todo**: `[ ] 보호 경로 판정 포트 + 구현체 작성`
 
 ##### `ServiceRouteJpaEntity`
 - **타입**: JPA 어댑터 (persistence/entity)
@@ -338,13 +342,15 @@ com.econo.auth.api
 
 ##### `ApplicationServiceConfig` (변경)
 - **타입**: Config (변경)
-- **책임**: (기존 역할 유지) `ManageRouteService` `@Bean` 추가 등록
+- **책임**: (기존 역할 유지) `ManageRouteService` + `ProtectedPathPolicy` `@Bean` 추가 등록
 - **추가 내용**:
   ```
+  @Bean ProtectedPathPolicy protectedPathPolicy() → new ProtectedPathPolicyImpl()
+
   @Bean ManageRouteService manageRouteService(
       ServiceRouteRepository serviceRouteRepository,
       GatewayRefreshClient gatewayRefreshClient,
-      ProtectedPathRegistry protectedPathRegistry)
+      ProtectedPathPolicy protectedPathPolicy)
   ```
 - **참조할 기존 코드**: `services/apis/auth-api/src/main/java/com/econo/auth/api/config/ApplicationServiceConfig.java`
 - **연관 todo**: `[ ] ApplicationServiceConfig 수정 — ManageRouteService @Bean 등록`
@@ -494,7 +500,7 @@ api-gateway의 `DynamicRouteDefinitionRepository`가 기동 시 호출하는 aut
     → CreateRouteRequest @Valid → Bean Validation
     → ManageRouteService.createRoute(command)
       → validateUpstreamUrl(url) — SSRF 검증 통과
-      → validatePathPrefix(prefix) — ProtectedPathRegistry, existsByPathPrefix 통과
+      → validatePathPrefix(prefix) — ProtectedPathPolicy, existsByPathPrefix 통과
       → ServiceRouteRepository.save(route) — DB INSERT (JPA Auditing: createdAt, updatedAt)
       → GatewayRefreshClient.triggerRefresh()
         → RestClient.post("/api/v1/internal/routes/refresh") X-Internal-Secret 헤더 포함
@@ -531,7 +537,7 @@ api-gateway 기동
   → (흐름 1과 동일하게 인증 통과)
   → ManageRouteService.deleteRoute(routeId)
     → ServiceRouteRepository.findById(routeId) → 존재 확인
-    → ProtectedPathRegistry.isProtected(route.pathPrefix()) → 보호경로 아님 확인
+    → ProtectedPathPolicy.isProtected(route.pathPrefix()) → 보호경로 아님 확인
     → ServiceRouteRepository.deleteById(routeId)
     → GatewayRefreshClient.triggerRefresh() → (흐름 1과 동일)
   → 204 No Content
@@ -549,7 +555,7 @@ api-gateway 기동
 
 [보호 경로 가로채기 시도]
   ManageRouteService.validatePathPrefix()
-    → ProtectedPathRegistry.isProtected("/api/v1/auth/hijack") → true
+    → ProtectedPathPolicy.isProtected("/api/v1/auth/hijack") → true
     → throw new RouteProtectedException(pathPrefix)
   GlobalExceptionHandler.handleRouteProtected()
     → 403 {"errorCode": "ROUTE_PROTECTED", ...}

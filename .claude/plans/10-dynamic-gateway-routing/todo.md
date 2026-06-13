@@ -10,7 +10,7 @@
   - db-design-plan.md
 
 ## 개요
-현재 api-gateway 라우팅은 `GatewayRoutingConfig.java`의 `RouteLocator` + `application.yml` routes 이중 정적 선언 방식으로, 새 서비스 추가 시 코드 수정·재배포가 필수다. `service_route` 테이블은 이미 DB에 존재하나 게이트웨이가 읽지 않는다. 본 작업은 경로→업스트림 매핑을 런타임 동적 라우팅(재배포 없이 즉시 반영, 이벤트 기반)으로 전환하며, auth-api도 동적 관리 업스트림으로 포함시키고 SSRF 방지·보호 경로 불변 보장을 포함하는 보안 정합을 충족한다. ADR-0005(정적 YAML 라우팅 채택)를 supersede하는 ADR-0015를 작성한다.
+현재 api-gateway 라우팅은 `GatewayRoutingConfig.java`의 `RouteLocator` + `application.yml` routes 이중 정적 선언 방식으로, 새 서비스 추가 시 코드 수정·재배포가 필수다. `service_route` 테이블은 이미 DB에 존재하나 게이트웨이가 읽지 않는다. 본 작업은 경로→업스트림 매핑을 런타임 동적 라우팅(재배포 없이 즉시 반영, 이벤트 기반)으로 전환하며, auth-api도 동적 관리 업스트림으로 포함시키고 SSRF 방지·보호 경로 불변 보장을 포함하는 보안 정합을 충족한다. ADR-0005(정적 YAML 라우팅 채택)를 supersede하는 ADR-0016을 작성한다.
 
 ---
 
@@ -41,7 +41,7 @@
 - [ ] `ServiceRouteRepositoryAdapter` 포트 구현체 작성 — `ServiceRouteRepository` 구현, `ServiceRouteJpaRepository` 위임.
 - [ ] `ManageRouteUseCase` 인바운드 포트(또는 command record 묶음) 신규 작성 — `createRoute`, `updateRoute`, `deleteRoute`, `listRoutes`, `getRoute` 시그니처 정의.
 - [ ] `ManageRouteService` 유스케이스 구현체 작성 — `ManageRouteUseCase` 구현. upstreamUrl 스킴/호스트 SSRF 검증(허용 스킴: `http`, `https`; private IP 차단 또는 화이트리스트), pathPrefix 중복·충돌 검증, 보호 경로 불변 검증 로직 포함.
-- [ ] 보호 경로 목록 상수/설정 클래스 작성 — `ProtectedPathRegistry` 또는 `application.yml` `gateway.protected-paths` 바인딩. 초기값: `/api/v1/auth/**`, `/oauth2/**`, `/.well-known/**`, `/userinfo`, `/swagger-ui/**`, `/v3/api-docs/**`, `/actuator/**`.
+- [ ] 보호 경로 판정 포트 + 구현체 작성 — `ProtectedPathPolicy`(포트, service-client) + `ProtectedPathPolicyImpl`(값·매칭, auth-api 소유). 초기값: `/api/v1/auth/**`, `/oauth2/**`, `/.well-known/**`, `/userinfo`, `/swagger-ui/**`, `/v3/api-docs/**`, `/actuator/**`, `/api/v1/admin/**`, `/api/v1/members/**`, `/api/v1/clients/**`, `/api/v1/internal/**`.
 - [ ] 예외 클래스 추가 — `RouteNotFoundException`(404), `RoutePathConflictException`(409), `RouteUpstreamInvalidException`(400), `RouteProtectedException`(403). `GlobalExceptionHandler`에 매핑 추가.
 - [ ] `ServiceClientAutoConfiguration` 수정 — `ServiceRouteJpaEntity`, `ServiceRouteJpaRepository` 스캔 대상 패키지 포함 확인 (V4 테이블은 이미 존재하나 AutoConfiguration이 repository를 스캔하는지 확인 필요).
 
@@ -85,7 +85,7 @@
 
 #### ADR 및 문서
 
-- [ ] ADR-0015 작성 — `docs/adr/0015-dynamic-gateway-routing.md`. ADR-0005(`정적 YAML 라우팅 채택`) supersede. 재도입 근거(서비스 확장, 무중단 라우팅 필요), 채택한 아키텍처 선택지(라우트 저장 위치, 이벤트 전파 방식), 폐기된 대안, 결과·트레이드오프 명시.
+- [ ] ADR-0016 작성 — `docs/adr/0016-dynamic-gateway-routing-reintroduction.md`. ADR-0005(`정적 YAML 라우팅 채택`) supersede. (※ 0015는 flyway-container-managed-migration이 점유) 재도입 근거(서비스 확장, 무중단 라우팅 필요), 채택한 아키텍처 선택지(라우트 저장 위치, 이벤트 전파 방식), 폐기된 대안, 결과·트레이드오프 명시.
 - [ ] `docs/DYNAMIC_ROUTING.md` 개정 — 현재 문서가 구현 전 기획 상태로 부정확. 실제 구현된 API 경로, 라우트 등록 절차, 보호 경로 목록, 다중 인스턴스 고려사항으로 갱신.
 - [ ] `docs/ARCHITECTURE.md` 수정 — `GatewayRoutingConfig` 정적 설명 제거. 동적 라우팅 구조(DynamicRouteDefinitionRepository, RefreshRoutesEvent 흐름) 추가. 모듈 의존성 다이어그램 갱신(api-gateway → DB 직접 접근 여부 포함).
 - [ ] `register-service` 스킬(`/.claude/skills/register-service/SKILL.md`) 수정 — Step 2(GatewayRoutingConfig 직접 수정)를 Admin API 호출(`POST /api/v1/admin/routes`)로 대체. 재배포 없이 즉시 반영 절차로 업데이트.
