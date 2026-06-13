@@ -112,12 +112,10 @@ service-client ──→ common-infra
 
 ## 아키텍처 패턴
 
-### 3계층 + 계층별 DIP (상세: `docs/adr/0014-3-layer-dip-architecture.md`)
+### 3계층 + 계층별 DIP
 
-전체 모듈은 `presentation`(controller/dto/util) → `application`(`usecase` 입력 포트 + `service` 구현 + `repository` 출력 포트 + `domain`) → `persistence`(`entity` + `repository` 어댑터) 3계층이며, 계층 경계마다 인터페이스로 의존성을 역전한다. 보안 결합 클래스는 `config/security`, 일반 빈 와이어링은 `config/`에 둔다. `member`·`service-client` lib은 application + persistence를, 앱(`auth-api`·`api-gateway`)은 presentation + config/security를 담당한다.
-
-- **의존 규칙**: presentation·config/security는 `application.usecase`에만 의존(repository 직접 참조 금지). 일반 `config/`는 application(service/repository) 참조 허용. `application.repository` 출력 포트 시그니처는 도메인 객체만 다루며, entity↔domain 변환은 `persistence.repository` 어댑터의 책임이다(JPA 엔티티는 persistence 밖으로 누출 금지).
-- **빈 등록**: `SignupService`·`LoginRedirectResolver`는 `@Component`가 **아니며** `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 수동 등록한다. `LoginTokenService`·`MemberQueryService`는 `@Service`로 자동 등록된다.
+전체 모듈은 `presentation` → `application` → `persistence` 3계층이며, 계층 경계마다 인터페이스로 의존성을 역전한다.
+자세한 규칙은 `/docs/ARCHITECTURE.md`를 참조한다.
 
 ### 라이브러리 AutoConfiguration 자기 스캔
 
