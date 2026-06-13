@@ -1,8 +1,11 @@
 package com.econo.auth.api.presentation.docs;
 
-import com.econo.auth.api.presentation.controller.ReissueController.ReissueRequest;
+import com.econo.auth.api.presentation.dto.ErrorResponse;
+import com.econo.auth.api.presentation.dto.LoginResponse;
+import com.econo.auth.api.presentation.dto.ReissueRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,11 +24,14 @@ public interface ReissueApiDocs {
 							+ "**WEB** (`Client-Type: WEB`, 기본): RT를 HttpOnly 쿠키(`rt`)에서 읽음. 새 RT를 쿠키로 반환.\n"
 							+ "**APP** (`Client-Type: APP`): RT를 요청 body(`refreshToken`)에서 읽음. 새 RT도 body로 반환.")
 	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "재발급 성공"),
+		@ApiResponse(
+				responseCode = "200",
+				description = "재발급 성공",
+				content = @Content(schema = @Schema(implementation = LoginResponse.class))),
 		@ApiResponse(
 				responseCode = "401",
 				description = "RT 없음, 만료, 또는 access token으로 재발급 시도",
-				content = @Content)
+				content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
 	})
 	ResponseEntity<?> reissue(
 			String clientType,

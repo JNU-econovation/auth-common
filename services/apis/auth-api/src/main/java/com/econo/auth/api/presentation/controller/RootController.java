@@ -1,6 +1,7 @@
 package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.api.presentation.docs.RootApiDocs;
+import com.econo.auth.api.presentation.dto.HealthResponse;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,13 +35,4 @@ public class RootController implements RootApiDocs {
 		return String.format(
 				"%d일 %d시간 %d분 %d초", d.toDays(), d.toHoursPart(), d.toMinutesPart(), d.toSecondsPart());
 	}
-
-	/**
-	 * 헬스 응답 DTO
-	 *
-	 * @param application 애플리케이션 이름
-	 * @param startedAt 기동 시각 (ISO-8601)
-	 * @param uptime 가동 시간 (예: "0일 1시간 17분 47초")
-	 */
-	public record HealthResponse(String application, String startedAt, String uptime) {}
 }

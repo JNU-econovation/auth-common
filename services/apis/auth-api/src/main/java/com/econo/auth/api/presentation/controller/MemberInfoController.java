@@ -1,11 +1,11 @@
 package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.api.presentation.docs.MemberInfoApiDocs;
+import com.econo.auth.api.presentation.dto.MemberInfoResponse;
+import com.econo.auth.api.presentation.dto.MemberQueryRequest;
 import com.econo.auth.member.application.domain.Member;
 import com.econo.auth.member.application.usecase.MemberQueryUseCase;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,8 +36,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MemberInfoController implements MemberInfoApiDocs {
 
-	private static final int MAX_IDS = 1000;
-
 	private final MemberQueryUseCase memberQueryUseCase;
 
 	@Override
@@ -46,39 +44,5 @@ public class MemberInfoController implements MemberInfoApiDocs {
 			@Valid @RequestBody MemberQueryRequest request) {
 		List<Member> members = memberQueryUseCase.findAllByIds(request.ids());
 		return ResponseEntity.ok(members.stream().map(MemberInfoResponse::from).toList());
-	}
-
-	// ── DTO ─────────────────────────────────────────────────────
-
-	/**
-	 * 회원 조회 요청 DTO
-	 *
-	 * @param ids 조회할 회원 ID 목록 (1개 이상, 최대 {@value MAX_IDS}개)
-	 */
-	public record MemberQueryRequest(
-			@NotEmpty(message = "ids는 1개 이상이어야 합니다.")
-					@Size(max = MAX_IDS, message = "한 번에 최대 " + MAX_IDS + "개까지 조회할 수 있습니다.")
-					List<Long> ids) {}
-
-	/**
-	 * 회원 정보 응답 DTO
-	 *
-	 * @param memberId 회원 PK
-	 * @param name 이름
-	 * @param loginId 로그인 아이디
-	 * @param generation 기수
-	 * @param status 활동 상태 (AM/RM/CM/OB)
-	 */
-	public record MemberInfoResponse(
-			Long memberId, String name, String loginId, Integer generation, String status) {
-
-		static MemberInfoResponse from(Member member) {
-			return new MemberInfoResponse(
-					member.getId(),
-					member.getName(),
-					member.getLoginId(),
-					member.getGeneration(),
-					member.getStatus().name());
-		}
 	}
 }

@@ -1,13 +1,16 @@
 package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.api.presentation.docs.AdminMemberApiDocs;
+import com.econo.auth.api.presentation.dto.ErrorResponse;
+import com.econo.auth.api.presentation.dto.MemberSummary;
+import com.econo.auth.api.presentation.dto.PagedMembersResponse;
+import com.econo.auth.api.presentation.dto.RoleUpdateRequest;
 import com.econo.auth.member.application.domain.Member;
 import com.econo.auth.member.application.usecase.MemberQueryUseCase;
 import com.econo.common.auth.core.passport.Passport;
 import com.econo.common.auth.core.passport.Roles;
 import com.econo.common.auth.web.annotation.PassportAuth;
-import jakarta.validation.constraints.NotBlank;
-import java.time.LocalDateTime;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -47,33 +50,6 @@ public class AdminMemberController implements AdminMemberApiDocs {
 
 	private final MemberQueryUseCase memberQueryUseCase;
 
-	// ── Response DTO ─────────────────────────────────────────
-
-	public record MemberSummary(
-			Long memberId, String name, String loginId, Integer generation, String status, String role) {
-
-		static MemberSummary from(Member m) {
-			return new MemberSummary(
-					m.getId(),
-					m.getName(),
-					m.getLoginId(),
-					m.getGeneration(),
-					m.getStatus().name(),
-					m.getRole());
-		}
-	}
-
-	public record PagedMembersResponse(
-			List<MemberSummary> content, long totalElements, int totalPages, int page, int size) {}
-
-	public record RoleUpdateRequest(@NotBlank String role) {}
-
-	public record ErrorResponse(String errorCode, String message, LocalDateTime timestamp) {
-		public ErrorResponse(String errorCode, String message) {
-			this(errorCode, message, LocalDateTime.now());
-		}
-	}
-
 	// ── Endpoints ────────────────────────────────────────────
 
 	@Override
@@ -97,7 +73,7 @@ public class AdminMemberController implements AdminMemberApiDocs {
 	public ResponseEntity<?> updateRole(
 			@PassportAuth(requiredRoles = {Roles.SUPER_ADMIN}) Passport passport,
 			@PathVariable Long memberId,
-			@RequestBody RoleUpdateRequest request) {
+			@Valid @RequestBody RoleUpdateRequest request) {
 
 		// 본인 역할 변경 불가
 		if (passport.getMemberId() != null && passport.getMemberId().equals(memberId)) {

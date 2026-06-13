@@ -1,7 +1,9 @@
 package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.api.presentation.docs.ReissueApiDocs;
+import com.econo.auth.api.presentation.dto.ErrorResponse;
 import com.econo.auth.api.presentation.dto.LoginResponse;
+import com.econo.auth.api.presentation.dto.ReissueRequest;
 import com.econo.auth.api.presentation.util.TokenCookieManager;
 import com.econo.auth.login.application.usecase.LoginTokenUseCase;
 import com.econo.auth.login.application.usecase.LoginTokenUseCase.TokenPair;
@@ -90,8 +92,4 @@ public class ReissueController implements ReissueApiDocs {
 		}
 		return cookieManager.extractRtFromCookie(request).orElse(null);
 	}
-
-	public record ReissueRequest(String refreshToken) {}
-
-	record ErrorResponse(String errorCode, String message) {}
 }

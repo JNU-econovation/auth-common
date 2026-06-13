@@ -1,11 +1,12 @@
 package com.econo.auth.api.presentation.controller;
 
+import com.econo.auth.api.presentation.dto.ErrorResponse;
+import com.econo.auth.api.presentation.dto.RoleUpdateRequest;
 import com.econo.auth.member.application.usecase.MemberQueryUseCase;
 import io.swagger.v3.oas.annotations.Hidden;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -32,20 +33,12 @@ public class AdminRoleController {
 	@Value("${AUTH_INTERNAL_API_KEY}")
 	private String internalApiKey;
 
-	public record RoleUpdateRequest(@NotBlank String role) {}
-
-	public record ErrorResponse(String errorCode, String message, LocalDateTime timestamp) {
-		public ErrorResponse(String errorCode, String message) {
-			this(errorCode, message, LocalDateTime.now());
-		}
-	}
-
 	/** 특정 회원의 역할을 변경한다. 최초 관리자 부여 목적. */
 	@PutMapping("/{memberId}/role")
 	public ResponseEntity<?> updateRole(
 			@RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKeyHeader,
 			@PathVariable Long memberId,
-			@RequestBody RoleUpdateRequest request) {
+			@Valid @RequestBody RoleUpdateRequest request) {
 		if (!isValidApiKey(apiKeyHeader)) {
 			return ResponseEntity.status(401)
 					.body(new ErrorResponse("UNAUTHORIZED", "유효하지 않은 Internal API Key입니다."));
