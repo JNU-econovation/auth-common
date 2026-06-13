@@ -1,5 +1,6 @@
 package com.econo.auth.api.presentation.controller;
 
+import com.econo.auth.api.presentation.docs.AdminRouteApiDocs;
 import com.econo.auth.api.presentation.dto.CreateRouteRequest;
 import com.econo.auth.api.presentation.dto.RouteListResponse;
 import com.econo.auth.api.presentation.dto.RouteResponse;
@@ -11,12 +12,6 @@ import com.econo.auth.client.application.usecase.ManageRouteUseCase.UpdateRouteC
 import com.econo.common.auth.core.passport.Passport;
 import com.econo.common.auth.core.passport.Roles;
 import com.econo.common.auth.web.annotation.PassportAuth;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,36 +30,18 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 동적 라우트 관리 REST 컨트롤러 (Admin)
  *
- * <p>ADMIN 또는 SUPER_ADMIN 역할이 필요하다. Gateway가 JWT를 검증하고 X-User-Passport 헤더를 주입한다.
+ * <p>ADMIN 또는 SUPER_ADMIN 역할이 필요하다. Gateway가 JWT를 검증하고 X-User-Passport 헤더를 주입한다. Swagger 문서는 {@link
+ * AdminRouteApiDocs}에 분리한다.
  */
 @Slf4j
-@Tag(
-		name = "Admin — Route Management",
-		description = "동적 게이트웨이 라우트 CRUD API. ADMIN 역할 필요 (Gateway JWT 인증 후 X-User-Passport 주입).")
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
-public class AdminRouteController {
+public class AdminRouteController implements AdminRouteApiDocs {
 
 	private final ManageRouteUseCase manageRouteUseCase;
 
-	@Operation(
-			summary = "동적 라우트 등록",
-			description = "새 동적 라우트를 등록하고 api-gateway에 즉시 반영 트리거. ADMIN/SUPER_ADMIN 전용.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "201", description = "라우트 등록 성공"),
-		@ApiResponse(
-				responseCode = "400",
-				description = "VALIDATION_FAILED / ROUTE_UPSTREAM_INVALID",
-				content = @Content),
-		@ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED", content = @Content),
-		@ApiResponse(
-				responseCode = "403",
-				description = "FORBIDDEN / ROUTE_PROTECTED",
-				content = @Content),
-		@ApiResponse(responseCode = "409", description = "ROUTE_PATH_CONFLICT", content = @Content)
-	})
+	@Override
 	@PostMapping("/routes")
 	public ResponseEntity<RouteResponse> createRoute(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
@@ -75,15 +52,7 @@ public class AdminRouteController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result));
 	}
 
-	@Operation(
-			summary = "전체 라우트 목록 조회",
-			description = "등록된 전체 라우트 목록을 조회한다. ADMIN/SUPER_ADMIN 전용.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "목록 조회 성공"),
-		@ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED", content = @Content),
-		@ApiResponse(responseCode = "403", description = "FORBIDDEN", content = @Content)
-	})
+	@Override
 	@GetMapping("/routes")
 	public ResponseEntity<RouteListResponse> listRoutes(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport) {
@@ -92,16 +61,7 @@ public class AdminRouteController {
 		return ResponseEntity.ok(new RouteListResponse(responses));
 	}
 
-	@Operation(
-			summary = "단건 라우트 조회",
-			description = "특정 routeId에 해당하는 라우트를 조회한다. ADMIN/SUPER_ADMIN 전용.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "단건 조회 성공"),
-		@ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED", content = @Content),
-		@ApiResponse(responseCode = "403", description = "FORBIDDEN", content = @Content),
-		@ApiResponse(responseCode = "404", description = "ROUTE_NOT_FOUND", content = @Content)
-	})
+	@Override
 	@GetMapping("/routes/{routeId}")
 	public ResponseEntity<RouteResponse> getRoute(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
@@ -110,25 +70,7 @@ public class AdminRouteController {
 		return ResponseEntity.ok(toResponse(result));
 	}
 
-	@Operation(
-			summary = "라우트 수정",
-			description =
-					"기존 라우트의 pathPrefix, upstreamUrl, enabled를 변경한다. 변경 후 게이트웨이 즉시 반영. ADMIN/SUPER_ADMIN 전용.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "200", description = "수정 성공"),
-		@ApiResponse(
-				responseCode = "400",
-				description = "VALIDATION_FAILED / ROUTE_UPSTREAM_INVALID",
-				content = @Content),
-		@ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED", content = @Content),
-		@ApiResponse(
-				responseCode = "403",
-				description = "FORBIDDEN / ROUTE_PROTECTED",
-				content = @Content),
-		@ApiResponse(responseCode = "404", description = "ROUTE_NOT_FOUND", content = @Content),
-		@ApiResponse(responseCode = "409", description = "ROUTE_PATH_CONFLICT", content = @Content)
-	})
+	@Override
 	@PutMapping("/routes/{routeId}")
 	public ResponseEntity<RouteResponse> updateRoute(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,
@@ -140,20 +82,7 @@ public class AdminRouteController {
 		return ResponseEntity.ok(toResponse(result));
 	}
 
-	@Operation(
-			summary = "라우트 삭제",
-			description =
-					"라우트를 삭제한다. 보호 경로(auth-api 핵심 경로) 삭제 금지. 삭제 후 게이트웨이 즉시 반영. ADMIN/SUPER_ADMIN 전용.",
-			security = @SecurityRequirement(name = "bearerAuth"))
-	@ApiResponses({
-		@ApiResponse(responseCode = "204", description = "삭제 성공"),
-		@ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED", content = @Content),
-		@ApiResponse(
-				responseCode = "403",
-				description = "FORBIDDEN / ROUTE_PROTECTED",
-				content = @Content),
-		@ApiResponse(responseCode = "404", description = "ROUTE_NOT_FOUND", content = @Content)
-	})
+	@Override
 	@DeleteMapping("/routes/{routeId}")
 	public ResponseEntity<Void> deleteRoute(
 			@PassportAuth(requiredRoles = {Roles.ADMIN, Roles.SUPER_ADMIN}) Passport passport,

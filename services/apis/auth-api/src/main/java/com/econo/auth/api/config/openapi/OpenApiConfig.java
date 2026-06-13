@@ -29,7 +29,7 @@ import org.springframework.context.annotation.Configuration;
 			@Tag(name = "Auth", description = "회원 인증 API (가입·로그인·토큰 재발급·로그아웃)"),
 			@Tag(name = "Member", description = "회원 정보 조회 API"),
 			@Tag(name = "Client", description = "SSO 클라이언트 셀프 등록 API"),
-			@Tag(name = "Admin", description = "관리자 전용 API (회원·역할·OAuth 클라이언트 관리)"),
+			@Tag(name = "Admin", description = "관리자 전용 API (회원·역할·OAuth 클라이언트·동적 라우트 관리)"),
 			@Tag(name = "Health", description = "헬스체크 API")
 		})
 @SecurityScheme(

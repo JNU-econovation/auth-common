@@ -2,6 +2,7 @@ package com.econo.auth.api.presentation.controller;
 
 import com.econo.auth.client.application.usecase.ManageRouteUseCase;
 import com.econo.auth.client.application.usecase.ManageRouteUseCase.RouteResult;
+import io.swagger.v3.oas.annotations.Hidden;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
@@ -19,7 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>api-gateway가 기동 시 auth-api를 직접 호출하여 enabled=true 라우트를 전량 로드한다. {@code X-Internal-Secret} 헤더
  * 검증으로 보호한다. Passport 인증 불필요.
+ *
+ * <p>게이트웨이 전용 내부 엔드포인트이므로 {@link Hidden}으로 OpenAPI 문서에서 제외한다(CONVENTION §8.8).
  */
+@Hidden
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/internal/routes")
