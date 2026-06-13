@@ -15,13 +15,13 @@
 | Authorization Server | Spring Authorization Server 1.x (SAS) — OIDC |
 | Gateway | Spring Cloud Gateway (WebFlux) |
 | Database | PostgreSQL + Spring Data JPA, Flyway 마이그레이션 |
-| Session | Spring Session JDBC |
+| Session | 표준 서블릿 HttpSession |
 | Build | Gradle (Kotlin DSL), 멀티모듈 |
 | 포맷 | Spotless + Google Java Format 1.17.0 |
 | 테스트 | JUnit 5, AssertJ, Mockito, MockMvc, Testcontainers |
 | 배포 | Jib(OCI 이미지) + Docker Hub, docker-compose |
 
-> `Passport`/`@PassportAuth`는 이 레포에 없습니다. **독립 레포 `JNU-econovation/econo-passport`로 분리**되어 JitPack 의존성(`com.github.JNU-econovation:econo-passport:1.0.3`)으로 소비됩니다. `docs/ARCHITECTURE.md`·`docs/CONVENTION.md`에 남은 `auth-common-lib` 모듈 서술은 분리 이전의 잔재이므로 그대로 신뢰하지 마세요.
+> `Passport`/`@PassportAuth`는 이 레포에 없습니다. **독립 레포 `JNU-econovation/econo-passport`로 분리**되어 JitPack 의존성(`com.github.JNU-econovation:econo-passport:1.0.3`)으로 소비됩니다.
 
 ## 프로젝트 문서 구조
 
@@ -75,8 +75,8 @@
 
 ### 공유 라이브러리 (`services/libs/`)
 
-- **member** — Member 도메인·유스케이스·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 (헥사고날)
-- **service-client** — OAuth 클라이언트(ServiceClient)·라우팅(ServiceRoute) 도메인·등록 유스케이스·JPA/SAS 어댑터 (헥사고날)
+- **member** — Member 도메인·유스케이스·JPA 어댑터·BCrypt 어댑터·Flyway 마이그레이션 (3계층)
+- **service-client** — OAuth 클라이언트(ServiceClient)·라우팅(ServiceRoute) 도메인·등록 유스케이스·JPA/SAS 어댑터 (3계층)
 - **common-infra** — `@EnableJpaAuditing` AutoConfiguration을 `member`·`service-client`에 일원화 제공
 
 각 모듈의 역할과 상세는 해당 `services/{libs|apis}/{모듈}/README.md`를 참조한다.
@@ -102,7 +102,7 @@ service-client ──→ common-infra
 
 # 단일 모듈 / 단일 테스트
 ./gradlew :services:apis:auth-api:test
-./gradlew :services:apis:auth-api:test --tests "com.econo.auth.api.application.LoginRedirectResolverTest"
+./gradlew :services:apis:auth-api:test --tests "com.econo.auth.api.application.service.LoginRedirectResolverTest"
 ./gradlew :services:libs:member:test --tests "*.MemberTest.createWithNullRoles"
 ```
 
@@ -112,16 +112,17 @@ service-client ──→ common-infra
 
 ## 아키텍처 패턴
 
-### 헥사고날 (포트 & 어댑터)
+### 3계층 + 계층별 DIP
 
-`member`·`service-client`는 `domain` → `application.port.{in,out}` → `application.usecase` → `adapter.out.{persistence,security,sas}` → `exception` 구조다. 유스케이스 구현체(`SignupService` 등)는 `@Component`가 **아니며**, `auth-api`의 `ApplicationServiceConfig`에서 `@Bean`으로 수동 등록한다.
+전체 모듈은 `presentation` → `application` → `persistence` 3계층이며, 계층 경계마다 인터페이스로 의존성을 역전한다.
+자세한 규칙은 `/docs/ARCHITECTURE.md`를 참조한다.
 
 ### 라이브러리 AutoConfiguration 자기 스캔
 
-라이브러리 모듈은 Spring Boot AutoConfiguration으로 자기 빈을 등록한다(`MemberAutoConfiguration`, `ServiceClientAutoConfiguration`이 각자 `@ComponentScan` + `@EnableJpaRepositories` + `@EntityScan`으로 자신의 `adapter.out.persistence` 패키지를 스캔). 따라서:
+라이브러리 모듈은 Spring Boot AutoConfiguration으로 자기 빈을 등록한다(`MemberAutoConfiguration`, `ServiceClientAutoConfiguration`이 각자 `@ComponentScan` + `@EnableJpaRepositories`(`persistence.repository`) + `@EntityScan`(`persistence.entity`)으로 자신의 패키지를 스캔). 따라서:
 
 - 소비자(`auth-api`)는 별도 컴포넌트 스캔 없이 라이브러리 빈을 활성화한다.
-- **JPA 패키지를 다른 AutoConfiguration에서 중복 선언하면 빈 충돌**이 난다. 새 엔티티/리포지토리는 해당 모듈의 기존 `adapter.out.persistence` 안에 둔다.
+- **JPA 패키지를 다른 AutoConfiguration에서 중복 선언하면 빈 충돌**이 난다. 새 엔티티는 해당 모듈의 `persistence/entity`, 리포지토리는 `persistence/repository` 안에 둔다.
 - `common-infra`는 `@EnableJpaAuditing`만 제공하며, `member`가 `api` 의존으로 끌어와 소비자에 전이한다.
 
 ### 인증 흐름 (상세: `docs/ARCHITECTURE.md`, `docs/SEQUENCE-DIAGRAMS.md`)

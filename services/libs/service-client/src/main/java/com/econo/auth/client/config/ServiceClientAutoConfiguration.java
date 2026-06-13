@@ -14,6 +14,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @AutoConfiguration
 @ComponentScan("com.econo.auth.client")
-@EnableJpaRepositories("com.econo.auth.client.adapter.out.persistence")
-@EntityScan("com.econo.auth.client.adapter.out.persistence")
+@EnableJpaRepositories("com.econo.auth.client.persistence.repository")
+@EntityScan("com.econo.auth.client.persistence.entity")
 public class ServiceClientAutoConfiguration {}

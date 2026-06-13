@@ -35,10 +35,23 @@ auth-common 프로젝트의 코드 컨벤션.
 
 ### 1.1 패키지
 
-- 역도메인 표기법: `com.econo.common.auth` (auth-common-lib), `com.econo.auth` (member, common-infra, service-client, auth-api, api-gateway)
-- 계층별 분리: `core`, `web`, `config` (auth-common-lib); `domain`, `application.port.in`, `application.port.out`, `application.usecase`, `exception`, `adapter.out.persistence`, `adapter.out.security`, `config` (member)
-- 헥사고날 어댑터 패키지: `adapter.in.web` (인바운드), `adapter.out.persistence` / `adapter.out.security` / `adapter.out.token` (아웃바운드)
+- 역도메인 표기법: `com.econo.common.auth` (econo-passport — 외부 의존성), `com.econo.auth` (member, common-infra, service-client, auth-api, api-gateway)
+- **3계층 구조 (libs·apps 공통)**: 계층 → 역할 2단 구성.
+  - `presentation/controller` — HTTP 컨트롤러
+  - `presentation/dto` — 요청·응답 DTO
+  - `presentation/util` — 컨트롤러 보조 유틸 (예: `TokenCookieManager`)
+  - `application/usecase` — 입력 포트 인터페이스 (`{Action}UseCase`)
+  - `application/service` — 유스케이스 구현체
+  - `application/repository` — 출력 포트 인터페이스 (도메인 객체만 사용)
+  - `application/domain` — 도메인 객체 (순수 Java, 프레임워크 의존 없음)
+  - `persistence/entity` — JPA `@Entity` 클래스
+  - `persistence/repository` — Spring Data JPA 인터페이스 + 출력 포트 구현 어댑터 (entity↔domain 변환 담당)
+  - `config/` — 일반 설정·빈 와이어링
+  - `config/security/` — Spring Security에 결합된 클래스 전용 (SecurityConfig, UserDetailsService, AuthenticationFilter, GlobalFilter, JWT 처리 유틸). **`presentation/filter` 패키지는 사용하지 않는다.**
+  - `exception/` — 도메인 예외
+- **auth-common-lib 전용**: `core/passport/` (도메인), `web/annotation/`, `web/resolver/`, `config/` (Auto-Configuration)
 - 소문자만 사용, 단어 구분 없이 연결
+- **의존성 방향 규칙**: presentation·config/security는 `application.usecase` 인터페이스에만 의존한다. `application.service` 구현체나 `application.repository`·`persistence`를 직접 참조하지 않는다. 일반 `config/`(보안 아님) 와이어링 클래스는 `application.repository`와 `application.service`를 참조해도 된다(빈 등록·CORS 등 설정 책임).
 
 ### 1.2 클래스
 
@@ -52,14 +65,14 @@ auth-common 프로젝트의 코드 컨벤션.
 | 어노테이션 | `{Name}` | `PassportAuth` |
 | Resolver | `{Name}ArgumentResolver` | `PassportArgumentResolver` |
 | 설정 | `{Domain}AutoConfiguration` | `AuthAutoConfiguration` |
-| 설정 (일반) | `{Domain}Config` | `ApplicationServiceConfig`, `SecurityConfig` |
+| 설정 (일반) | `{Domain}Config` | `ApplicationServiceConfig` |
 | 상수 클래스 | `{Name}s` (복수형) | `Roles` |
-| 인바운드 포트 (UseCase) | `{Action}UseCase` | `SignupUseCase`, `LoginUseCase` |
-| 아웃바운드 포트 | `{Resource}{Role}` | `MemberRepository`, `PasswordHasher`, `TokenIssuer` |
-| 유스케이스 구현 | `{Action}Service` | `SignupService`, `LoginService` |
-| JPA 어댑터 | `{Name}JpaEntity` / `{Name}JpaRepository` / `{Name}RepositoryAdapter` | `MemberJpaEntity` |
-| 보안 어댑터 | `{Algo}{Role}Adapter` | `BCryptPasswordHasherAdapter` |
-| 토큰 어댑터 | `{Algo}{Role}Adapter` | `JwtTokenIssuerAdapter` |
+| 입력 포트 (UseCase 인터페이스) | `{Action}UseCase` | `SignupUseCase`, `MemberQueryUseCase`, `LoginTokenUseCase` |
+| 출력 포트 (repository 인터페이스) | `{Resource}Repository` 또는 서술적 이름 | `MemberRepository`, `PasswordHasher`, `SasClientRegistrar` |
+| 유스케이스·서비스 구현체 | `{Action}Service` 또는 `{Action}Resolver` | `SignupService`, `LoginRedirectResolver` |
+| JPA 엔티티 | `{Name}JpaEntity` | `MemberJpaEntity`, `ServiceClientJpaEntity` |
+| Spring Data JPA 인터페이스 | `{Name}JpaRepository` | `MemberJpaRepository` |
+| 출력 포트 구현 어댑터 | `{Name}RepositoryAdapter` 또는 `{Algo}{Role}Adapter` | `MemberRepositoryAdapter`, `BCryptPasswordHasherAdapter` |
 | 테스트 | `{TargetClass}Test` | `PassportTest`, `SignupServiceTest` |
 
 ### 1.3 메서드
