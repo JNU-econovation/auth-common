@@ -35,7 +35,7 @@ auth-common 프로젝트의 코드 컨벤션.
 
 ### 1.1 패키지
 
-- 역도메인 표기법: `com.econo.common.auth` (auth-common-lib), `com.econo.auth` (member, common-infra, service-client, auth-api, api-gateway)
+- 역도메인 표기법: `com.econo.common.auth` (econo-passport — 외부 의존성), `com.econo.auth` (member, common-infra, service-client, auth-api, api-gateway)
 - **3계층 구조 (libs·apps 공통)**: 계층 → 역할 2단 구성.
   - `presentation/controller` — HTTP 컨트롤러
   - `presentation/dto` — 요청·응답 DTO
