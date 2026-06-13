@@ -56,7 +56,7 @@ jobs:
             -Djib.to.auth.password=${{ secrets.DOCKERHUB_TOKEN }}
 
       # 자체 서버에 SSH 접속 → 최신 이미지 pull 후 compose 재기동
-      # 서버에는 docker-compose.yml과 시크릿이 담긴 .env가 DEPLOY_PATH에 미리 있어야 한다.
+      # SSH 계정 홈의 ~/auth-common 에 docker-compose.yml 과 시크릿이 담긴 .env 를 미리 둔다.
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -65,7 +65,7 @@ jobs:
           password: ${{ secrets.DEPLOY_PASSWORD }}
           script: |
             set -e
-            cd ${{ secrets.DEPLOY_PATH }}
+            cd ~/auth-common
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             export DOCKERHUB_NAMESPACE="${{ secrets.DOCKERHUB_NAMESPACE }}"
             export IMAGE_TAG="${{ env.IMAGE_TAG }}"
