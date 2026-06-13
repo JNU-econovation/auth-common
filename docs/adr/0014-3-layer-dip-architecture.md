@@ -67,10 +67,10 @@ Spring Security 프레임워크에 결합된 클래스 — `SecurityConfig`, `Us
 
 ---
 
-## 보류 사항
+## 완료된 후속 작업
 
-- **auth-api application 계층 lib 추출**: auth-api는 현재 앱 고유 orchestration을 위한 얇은 application 계층을 보유한다. `LoginTokenService`(`@Service` 자동 등록)와 `LoginRedirectResolver`(`ApplicationServiceConfig`에서 `@Bean` 수동 등록)가 여기에 속한다. 이를 별도 lib 모듈로 추출하는 작업은 향후 과제로 보류한다.
-- **토큰 발급 추상화(TokenCodec 포트)**: `LoginTokenService` 내부의 SAS JWT 발급 로직을 추상화 포트로 분리하는 작업도 위 lib 추출과 함께 검토한다.
+- **auth-api application 계층 lib 추출 (완료)**: `auth-lib-extraction` 작업으로 `LoginTokenService`·`LoginRedirectResolver`·`LoginTokenUseCase`·`LoginRedirectUseCase`가 `services/libs/login`(`com.econo.auth.login`)으로 추출 완료되었다. 두 서비스는 `LoginAutoConfiguration` 컴포넌트 스캔으로 자동 등록되며, auth-api `ApplicationServiceConfig`의 `loginRedirectResolver` `@Bean` 수동 등록은 제거되었다.
+- **토큰 발급 추상화(TokenEncoder/TokenDecoder 포트) (완료)**: `TokenEncoder`(서명)·`TokenDecoder`(검증) 출력 포트(`application/repository/`)를 도입하여 JWT 서명·검증 책임을 login lib 외부로 위임하였다. 구현체 `NimbusTokenManager`(단일 클래스가 두 포트를 모두 구현)는 auth-api의 `config/security/`에 위치하며, login lib은 `spring-security-oauth2` 의존 없이 두 포트 인터페이스에만 의존한다.
 
 ---
 

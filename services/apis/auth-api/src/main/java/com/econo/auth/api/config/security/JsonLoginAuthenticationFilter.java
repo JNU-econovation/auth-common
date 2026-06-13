@@ -1,10 +1,10 @@
 package com.econo.auth.api.config.security;
 
-import com.econo.auth.api.application.usecase.LoginRedirectUseCase;
-import com.econo.auth.api.application.usecase.LoginTokenUseCase;
-import com.econo.auth.api.application.usecase.LoginTokenUseCase.TokenPair;
 import com.econo.auth.api.presentation.dto.LoginResponse;
 import com.econo.auth.api.presentation.util.TokenCookieManager;
+import com.econo.auth.login.application.usecase.LoginRedirectUseCase;
+import com.econo.auth.login.application.usecase.LoginTokenUseCase;
+import com.econo.auth.login.application.usecase.LoginTokenUseCase.TokenPair;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;

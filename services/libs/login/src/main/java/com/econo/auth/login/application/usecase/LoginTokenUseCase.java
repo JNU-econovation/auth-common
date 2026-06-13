@@ -1,13 +1,15 @@
-package com.econo.auth.api.application.usecase;
+package com.econo.auth.login.application.usecase;
 
+import com.econo.auth.login.exception.InvalidTokenException;
+import com.econo.auth.login.exception.WrongTokenTypeException;
 import com.econo.auth.member.application.domain.Member;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 /**
  * 로그인 토큰 발급 유스케이스 입력 포트 인터페이스 (엄격 DIP)
  *
  * <p>{@code ReissueController}, {@code JsonLoginAuthenticationFilter}(config/security), {@code
- * SecurityConfig}(config/security)가 {@code LoginTokenService} 구현체를 직접 주입하는 것을 막는 seam.
+ * SecurityConfig}(config/security)가 {@code LoginTokenService} 구현체를 직접 주입하는 것을 막는 seam. Spring
+ * Security OAuth2 타입 의존 없음.
  */
 public interface LoginTokenUseCase {
 
@@ -39,8 +41,11 @@ public interface LoginTokenUseCase {
 	/**
 	 * RT를 검증하고 회원 ID를 반환한다
 	 *
-	 * @param jwt 디코딩된 JWT (Refresh Token)
+	 * @param rawRt Refresh Token 문자열
 	 * @return 회원 ID
+	 * @throws InvalidTokenException 서명 불일치, 만료 등 디코딩 실패 시
+	 * @throws WrongTokenTypeException token_type이 refresh가 아닐 때
 	 */
-	Long extractMemberIdFromRt(Jwt jwt);
+	Long verifyRefreshTokenAndGetMemberId(String rawRt)
+			throws InvalidTokenException, WrongTokenTypeException;
 }

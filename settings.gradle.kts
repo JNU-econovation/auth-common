@@ -8,4 +8,5 @@ include("services:apis:auth-api")
 include("services:libs:member")
 include("services:libs:common-infra")
 include("services:libs:service-client")
+include("services:libs:login")
 // auth-common-lib → 독립 레포로 분리: github.com/JNU-econovation/econo-passport
