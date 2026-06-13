@@ -35,7 +35,7 @@ auth-common 프로젝트의 코드 컨벤션.
   - [8.4 보안 스킴](#84-보안-스킴)
   - [8.5 Gateway 주입 파라미터 숨김](#85-gateway-주입-파라미터-숨김)
   - [8.6 필터 처리 엔드포인트](#86-필터-처리-엔드포인트)
-  - [8.7 응답 타입](#87-응답-타입)
+  - [8.7 DTO 스키마 문서화(@Schema)](#87-dto-스키마-문서화schema)
   - [8.8 비공개 엔드포인트](#88-비공개-엔드포인트)
 
 ---
@@ -405,9 +405,10 @@ void ignorePassportParameter() {
 
 - 컨트롤러가 아니라 Spring Security 필터가 처리하는 엔드포인트(로그인 등)는 springdoc이 자동 인식하지 못한다. `OpenApiCustomizer` 구현체(`config/openapi/`)로 명세를 직접 추가한다.
 
-### 8.7 응답 타입
+### 8.7 DTO 스키마 문서화(@Schema)
 
 - 응답은 `Map<String, Object>` 대신 **DTO(record)**로 정의해 OpenAPI 스키마가 노출되게 한다.
+- `presentation/dto/` 패키지의 **요청·응답 DTO 모두** 각 필드에 `@Schema(description = "...", example = "...")`를 작성한다. nullable 필드는 `nullable = true`를 추가한다. 클래스 레벨 `@Schema`는 선택이다.
 
 ### 8.8 비공개 엔드포인트
 

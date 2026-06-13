@@ -108,6 +108,15 @@ Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; M
 
 **APP 응답:** `{"accessToken": ..., "accessExpiredTime": ..., "refreshToken": ...}`
 
+**재발급 에러 응답 (WEB/APP 공통):** `{"errorCode": "...", "message": "...", "timestamp": "2026-06-14T10:00:00"}`
+<!-- ReissueController가 ErrorResponse(errorCode, message) 2-인수 생성자로 직접 반환하는 3필드 포맷.
+     GlobalExceptionHandler가 처리하는 예외는 fieldErrors 필드가 추가된 4필드 포맷(ApiError)을 사용한다. -->
+
+| HTTP | errorCode | 발생 조건 |
+|------|-----------|-----------|
+| 401 | `REFRESH_TOKEN_MISSING` | RT 누락 (쿠키 없음 또는 바디 null/blank) |
+| 401 | `REFRESH_TOKEN_INVALID` | RT 서명 검증 실패·만료·타입 불일치 |
+
 ---
 
 ### `POST /api/v1/auth/logout`
