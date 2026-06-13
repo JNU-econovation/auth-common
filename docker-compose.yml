@@ -66,6 +66,9 @@ services:
       COOKIE_DOMAIN: ${COOKIE_DOMAIN}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      # 동적 라우트 변경 시 게이트웨이 내부 refresh 호출용
+      GATEWAY_URI: http://api-gateway:8080
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET}
     expose:
       - "8080"
     networks: [auth-net]
@@ -82,8 +85,9 @@ services:
       AUTH_JWKS_URI: http://auth-api:8080/api/v1/admin/jwks
       # issuer는 토큰 발급(auth-api SAS)과 검증(gateway) 양쪽이 동일해야 함 — 게이트웨이 공개 URL
       AUTH_ISSUER_URI: ${AUTH_ISSUER_URI}
-      EEOS_API_URI: ${EEOS_API_URI}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      # 내부 refresh 엔드포인트 검증용 — auth-api와 동일 값
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET}
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
     networks: [auth-net]
