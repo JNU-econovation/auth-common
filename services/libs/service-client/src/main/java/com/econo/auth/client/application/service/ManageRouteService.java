@@ -16,6 +16,8 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 라우트 CRUD 유스케이스 구현체
@@ -268,8 +270,27 @@ public class ManageRouteService implements ManageRouteUseCase {
 		}
 	}
 
-	/** 게이트웨이 refresh 트리거 (실패 시 경고 로그만, 롤백 없음) */
+	/**
+	 * 게이트웨이 refresh 트리거 (실패 시 경고 로그만, 롤백 없음)
+	 *
+	 * <p>트랜잭션이 활성화된 경우 <b>커밋 이후</b>에 실행한다. 커밋 전에 호출하면 게이트웨이가 auth-api에서 라우트를 다시 읽을 때 아직 커밋되지 않은
+	 * 변경(삭제/추가)이 보이지 않아 직전 상태를 캐시하게 된다. 트랜잭션이 없으면 즉시 실행한다(단위 테스트 등).
+	 */
 	private void triggerRefresh() {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(
+					new TransactionSynchronization() {
+						@Override
+						public void afterCommit() {
+							doTriggerRefresh();
+						}
+					});
+		} else {
+			doTriggerRefresh();
+		}
+	}
+
+	private void doTriggerRefresh() {
 		try {
 			gatewayRefreshClient.triggerRefresh();
 		} catch (Exception e) {
