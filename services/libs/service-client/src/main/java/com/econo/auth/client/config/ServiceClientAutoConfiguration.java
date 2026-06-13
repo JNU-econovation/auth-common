@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * <p>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports에 등록되어 Spring
  * Boot 3.x AutoConfiguration으로 동작한다. auth-api의 scanBasePackages 변경 없이 com.econo.auth.client 전체를
  * 컴포넌트 스캔하고, 자기 모듈의 JPA Repository 및 Entity를 스캔한다.
+ *
+ * <p>{@code ProtectedPathPolicy} 구현체는 보호 경로 값이 배포 환경에 종속되므로 소비자 앱(auth-api)이 제공한다.
  */
 @AutoConfiguration
 @ComponentScan("com.econo.auth.client")
