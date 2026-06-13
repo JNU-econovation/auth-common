@@ -43,3 +43,6 @@ out/
 eeos/src/main/resources/env.properties
 env.properties
 *.env
+
+### secrets (로컬 전용 — 실제 값 추적 금지)
+gh_secrets
