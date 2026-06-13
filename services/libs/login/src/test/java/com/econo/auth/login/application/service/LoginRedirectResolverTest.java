@@ -1,4 +1,4 @@
-package com.econo.auth.api.application.service;
+package com.econo.auth.login.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /** LoginRedirectResolver 단위 테스트 — clientId 기반 redirect_uri 결정 로직 전수 검증 */
+@DisplayName("LoginRedirectResolver — clientId 기반 redirect_uri 결정 단위 테스트")
 @ExtendWith(MockitoExtension.class)
 class LoginRedirectResolverTest {
 

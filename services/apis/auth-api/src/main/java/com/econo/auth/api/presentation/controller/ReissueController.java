@@ -1,9 +1,11 @@
 package com.econo.auth.api.presentation.controller;
 
-import com.econo.auth.api.application.usecase.LoginTokenUseCase;
-import com.econo.auth.api.application.usecase.LoginTokenUseCase.TokenPair;
 import com.econo.auth.api.presentation.dto.LoginResponse;
 import com.econo.auth.api.presentation.util.TokenCookieManager;
+import com.econo.auth.login.application.usecase.LoginTokenUseCase;
+import com.econo.auth.login.application.usecase.LoginTokenUseCase.TokenPair;
+import com.econo.auth.login.exception.InvalidTokenException;
+import com.econo.auth.login.exception.WrongTokenTypeException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,9 +15,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -36,7 +35,6 @@ public class ReissueController {
 	private static final String CLIENT_TYPE_HEADER = "Client-Type";
 
 	private final LoginTokenUseCase loginTokenUseCase;
-	private final JwtDecoder jwtDecoder;
 	private final TokenCookieManager cookieManager;
 
 	@Operation(
@@ -65,20 +63,12 @@ public class ReissueController {
 					.body(new ErrorResponse("REFRESH_TOKEN_MISSING", "Refresh token이 없습니다."));
 		}
 
-		Jwt jwt;
-		try {
-			jwt = jwtDecoder.decode(rawRt);
-		} catch (JwtException e) {
-			return ResponseEntity.status(401)
-					.body(new ErrorResponse("REFRESH_TOKEN_INVALID", "유효하지 않은 Refresh token입니다."));
-		}
-
 		Long memberId;
 		try {
-			memberId = loginTokenUseCase.extractMemberIdFromRt(jwt);
-		} catch (IllegalArgumentException e) {
+			memberId = loginTokenUseCase.verifyRefreshTokenAndGetMemberId(rawRt);
+		} catch (InvalidTokenException | WrongTokenTypeException e) {
 			return ResponseEntity.status(401)
-					.body(new ErrorResponse("REFRESH_TOKEN_INVALID", "Access token으로 재발급 불가합니다."));
+					.body(new ErrorResponse("REFRESH_TOKEN_INVALID", "유효하지 않은 Refresh token입니다."));
 		}
 
 		// Member 조회 + 토큰 재발급을 LoginTokenUseCase에 위임

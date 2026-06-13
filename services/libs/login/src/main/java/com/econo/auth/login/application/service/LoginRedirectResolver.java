@@ -1,12 +1,13 @@
-package com.econo.auth.api.application.service;
+package com.econo.auth.login.application.service;
 
-import com.econo.auth.api.application.usecase.LoginRedirectUseCase;
 import com.econo.auth.client.application.usecase.ClientRedirectUriUseCase;
 import com.econo.auth.client.application.usecase.ClientRedirectUriUseCase.ClientInfo;
 import com.econo.auth.client.exception.InvalidClientException;
+import com.econo.auth.login.application.usecase.LoginRedirectUseCase;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
  * clientId 기반 redirect_uri 결정 서비스 (Application Layer)
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
  * <p>open redirect 방어 원칙에 따라 user-supplied URL을 사용하지 않으므로 open redirect가 구조적으로 불가능하다.
  */
 @Slf4j
+@Service
 @RequiredArgsConstructor
 public class LoginRedirectResolver implements LoginRedirectUseCase {
 

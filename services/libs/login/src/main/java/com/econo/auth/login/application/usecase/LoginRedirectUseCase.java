@@ -1,4 +1,4 @@
-package com.econo.auth.api.application.usecase;
+package com.econo.auth.login.application.usecase;
 
 /**
  * 로그인 리다이렉트 결정 유스케이스 입력 포트 인터페이스 (엄격 DIP)

@@ -7,6 +7,7 @@ dependencies {
     implementation("com.github.JNU-econovation:econo-passport:1.0.3")
     implementation(project(":services:libs:member"))
     implementation(project(":services:libs:service-client"))
+    implementation(project(":services:libs:login"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-authorization-server")
