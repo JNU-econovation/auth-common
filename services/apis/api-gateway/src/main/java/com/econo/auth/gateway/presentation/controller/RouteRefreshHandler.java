@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * 게이트웨이 내부 refresh 핸들러
@@ -32,6 +33,10 @@ public class RouteRefreshHandler {
 	 *
 	 * <p>{@code X-Internal-Secret} 헤더를 {@link MessageDigest#isEqual}로 상수시간 비교하여 타이밍 공격을 방지한다.
 	 *
+	 * <p>{@link DynamicRouteDefinitionRepository#reload()}는 내부적으로 {@code WebClient.block()}을 사용하는 블로킹
+	 * 호출이므로, 리액티브 이벤트 루프 스레드에서 직접 실행하면 {@code block()/blockFirst()/blockLast() are blocking} 예외가
+	 * 발생한다. 따라서 {@link Schedulers#boundedElastic()}로 오프로드하여 실행한다.
+	 *
 	 * @param request 요청
 	 * @return 200 OK {"refreshed": true} 또는 403 FORBIDDEN
 	 */
@@ -43,11 +48,14 @@ public class RouteRefreshHandler {
 			return ServerResponse.status(HttpStatus.FORBIDDEN).build();
 		}
 
-		dynamicRouteDefinitionRepository.reload();
-		eventPublisher.publishEvent(new RefreshRoutesEvent(this));
-		log.info("RouteRefreshHandler: 라우트 refresh 완료");
-
-		return ServerResponse.ok().bodyValue(Map.of("refreshed", true));
+		return Mono.fromRunnable(
+						() -> {
+							dynamicRouteDefinitionRepository.reload();
+							eventPublisher.publishEvent(new RefreshRoutesEvent(this));
+							log.info("RouteRefreshHandler: 라우트 refresh 완료");
+						})
+				.subscribeOn(Schedulers.boundedElastic())
+				.then(Mono.defer(() -> ServerResponse.ok().bodyValue(Map.of("refreshed", true))));
 	}
 
 	/**
