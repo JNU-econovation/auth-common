@@ -47,10 +47,11 @@ public class RouteRefreshHandler {
 		}
 
 		return dynamicRouteDefinitionRepository
-				.reload()
+				.reload() // Map 갱신
 				.doOnSuccess(
 						v -> {
-							eventPublisher.publishEvent(new RefreshRoutesEvent(this));
+							eventPublisher.publishEvent(
+									new RefreshRoutesEvent(this)); // 실제 CachingRouteLocator 갱신
 							log.info("RouteRefreshHandler: 라우트 refresh 완료");
 						})
 				.then(Mono.defer(() -> ServerResponse.ok().bodyValue(Map.of("refreshed", true))));
