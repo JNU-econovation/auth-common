@@ -61,6 +61,8 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
+          # SSH 포트는 서버마다 다를 수 있어 시크릿으로 관리 (미설정 시 22로 폴백)
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_PASSWORD }}
           script: |
