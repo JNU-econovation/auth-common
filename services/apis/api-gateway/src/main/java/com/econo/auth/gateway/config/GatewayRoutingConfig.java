@@ -50,8 +50,8 @@ public class GatewayRoutingConfig {
 	/**
 	 * Gateway 라우트 정의.
 	 *
-	 * <p>라우트 우선순위: 더 구체적인 경로를 먼저 선언한다. {@code /api/v1/admin/**}와 {@code /api/v1/members/**}는
-	 * auth-api로, 나머지 {@code /api/**}는 eeos로 라우팅된다.
+	 * <p>라우트 우선순위: 더 구체적인 경로를 먼저 선언한다. {@code /api/v1/admin/**}, {@code /api/v1/clients/**}, {@code
+	 * /api/v1/members/**}는 auth-api로, 나머지 {@code /api/**}는 eeos로 라우팅된다.
 	 */
 	@Bean
 	public RouteLocator routes(RouteLocatorBuilder builder) {
@@ -59,6 +59,7 @@ public class GatewayRoutingConfig {
 				.routes()
 				.route("auth-api", r -> r.path("/api/v1/auth/**").uri(authApiUri))
 				.route("auth-admin", r -> r.path("/api/v1/admin/**").uri(authApiUri))
+				.route("auth-clients", r -> r.path("/api/v1/clients/**").uri(authApiUri))
 				.route("auth-members", r -> r.path("/api/v1/members/**").uri(authApiUri))
 				.route("sas-oauth2", r -> r.path("/oauth2/**").uri(authApiUri))
 				.route("sas-well-known", r -> r.path("/.well-known/**").uri(authApiUri))
