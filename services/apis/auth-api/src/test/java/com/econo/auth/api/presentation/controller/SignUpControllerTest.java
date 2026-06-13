@@ -21,17 +21,17 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * MemberController 웹 레이어 테스트 — SAS 재작업 후
+ * SignUpController 웹 레이어 테스트 — SAS 재작업 후
  *
- * <p>plan: todo.md [MemberController.login 재작성] — login() 메서드 제거, JsonLoginAuthenticationFilter가 처리
- * plan: todo.md [MemberController.logout 재작성] — 세션 무효화 + SESSION 쿠키 만료로 재작성 plan: todo.md [POST
+ * <p>plan: todo.md [SignUpController.login 재작성] — login() 메서드 제거, JsonLoginAuthenticationFilter가 처리
+ * plan: todo.md [SignUpController.logout 재작성] — 세션 무효화 + SESSION 쿠키 만료로 재작성 plan: todo.md [POST
  * /api/v1/auth/signup] — 기존 구현 유지, 변경 없음
  *
  * <p>LoginUseCase 의존 제거: plan implementation-plan.md — LoginUseCase/LoginService 제거
  */
-@WebMvcTest(MemberController.class)
+@WebMvcTest(SignUpController.class)
 @Import(SecurityConfig.class)
-class MemberControllerTest {
+class SignUpControllerTest {
 
 	@Autowired private MockMvc mockMvc;
 
@@ -220,7 +220,7 @@ class MemberControllerTest {
 		}
 	}
 
-	// 로그아웃은 ReissueController로 이전 — MemberController 범위 밖
+	// 로그아웃은 ReissueController로 이전 — SignUpController 범위 밖
 	// ReissueControllerTest에서 별도 검증
 
 	@Nested
@@ -228,11 +228,11 @@ class MemberControllerTest {
 	class LoginHandlerRemovedTest {
 
 		@Test
-		@DisplayName("MemberController에 login() 핸들러가 없으므로 @WebMvcTest 슬라이스에서 404 반환")
+		@DisplayName("SignUpController에 login() 핸들러가 없으므로 @WebMvcTest 슬라이스에서 404 반환")
 		void loginEndpointHasNoControllerHandler() throws Exception {
-			// plan: implementation-plan.md — MemberController.login() 메서드 삭제
+			// plan: implementation-plan.md — SignUpController.login() 메서드 삭제
 			// JsonLoginAuthenticationFilter가 POST /api/v1/auth/login 경로를 필터 레벨에서 처리하므로
-			// MemberController에는 login() 핸들러 메서드가 없다.
+			// SignUpController에는 login() 핸들러 메서드가 없다.
 			// @WebMvcTest 슬라이스는 필터 체인을 완전히 구성하지 않으므로 JsonLoginAuthenticationFilter가
 			// 동작하지 않아, 컨트롤러 핸들러 부재가 404로 드러난다.
 			// (통합 환경에서는 필터가 선점하여 200 + Set-Cookie(SESSION) 반환)

@@ -1,6 +1,6 @@
 package com.econo.auth.api.presentation.controller;
 
-import com.econo.auth.api.presentation.docs.MemberApiDocs;
+import com.econo.auth.api.presentation.docs.SignUpApiDocs;
 import com.econo.auth.api.presentation.dto.SignupRequest;
 import com.econo.auth.member.application.usecase.SignupUseCase;
 import com.econo.auth.member.application.usecase.SignupUseCase.SignupCommand;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class MemberController implements MemberApiDocs {
+public class SignUpController implements SignUpApiDocs {
 
 	private final SignupUseCase signupUseCase;
 
