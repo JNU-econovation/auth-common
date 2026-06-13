@@ -1,6 +1,8 @@
-# auth-common 통합 실행 — api-gateway + auth-api + PostgreSQL을 한 번에 기동
+# auth-common 통합 실행 — api-gateway + auth-api + PostgreSQL + flyway 마이그레이션을 한 번에 기동
 #
-# 두 앱은 별도 이미지(Jib로 빌드, Docker Hub 푸시)이지만 이 compose로 하나의 시스템처럼 실행한다.
+# 앱 두 개(Jib 빌드)와 마이그레이션(auth-migration, db/Dockerfile 빌드) 모두 Docker Hub 에서 pull 한다.
+# 마이그레이션 SQL 은 이미지에 포함되므로 호스트에 별도 파일을 둘 필요가 없다.
+# 기동 순서: postgres(healthy) → flyway(migrate 후 종료) → auth-api → api-gateway
 #   docker compose pull && docker compose up -d
 #
 # 값은 같은 디렉터리의 .env 파일에서 주입한다(시크릿 포함). .env 예시는 README/배포 문서 참고.
@@ -26,12 +28,31 @@ services:
     networks: [auth-net]
     restart: unless-stopped
 
+  # 마이그레이션 적용 전용 one-shot 컨테이너. SQL 을 담은 이미지(db/Dockerfile)를 pull 해 migrate 후 종료.
+  # 마이그레이션은 어느 앱/모듈에도 속하지 않고 db/migration 에서 독립 관리되며, 앱처럼 이미지로 배포된다.
+  flyway:
+    image: ${DOCKERHUB_NAMESPACE}/auth-migration:${IMAGE_TAG:-latest}
+    container_name: auth-migration
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    command: >
+      -url=jdbc:postgresql://auth-postgres:5432/${DB_NAME:-authdb}
+      -user=${DB_USERNAME:-auth}
+      -password=${DB_PASSWORD:-auth1234}
+      -connectRetries=10
+      migrate
+    networks: [auth-net]
+    restart: on-failure
+
   auth-api:
     image: ${DOCKERHUB_NAMESPACE}/auth-api:${IMAGE_TAG:-latest}
     container_name: auth-api
     depends_on:
       auth-postgres:
         condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     environment:
       DB_URL: jdbc:postgresql://auth-postgres:5432/${DB_NAME:-authdb}
       DB_USERNAME: ${DB_USERNAME:-auth}
