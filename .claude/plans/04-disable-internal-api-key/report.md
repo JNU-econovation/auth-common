@@ -60,7 +60,7 @@
 ## 변경 요약
 
 ### 신규 파일 (1)
-- `.claude/plans/disable-internal-api-key/report.md` (본 보고서)
+- `.claude/plans/04-disable-internal-api-key/report.md` (본 보고서)
 
 ### 수정 파일 (main 2)
 - `services/apis/auth-api/src/main/java/com/econo/auth/api/adapter/in/web/AdminClientController.java`

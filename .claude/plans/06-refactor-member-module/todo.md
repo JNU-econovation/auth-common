@@ -196,5 +196,5 @@
 - `/Users/kimjongmin/Library/Mobile Documents/com~apple~CloudDocs/대학/에코노베이션/Project/auth-common/services/apis/auth-api/src/main/java/com/econo/auth/api/exception/GlobalExceptionHandler.java` — 예외 import 갱신 대상
 - `/Users/kimjongmin/Library/Mobile Documents/com~apple~CloudDocs/대학/에코노베이션/Project/auth-common/services/apis/auth-api/src/main/java/com/econo/auth/api/config/ApplicationServiceConfig.java` — SignupService 빈 등록 (import 갱신 대상)
 - `/Users/kimjongmin/Library/Mobile Documents/com~apple~CloudDocs/대학/에코노베이션/Project/auth-common/docs/ARCHITECTURE.md`, `docs/CONVENTION.md` — 헥사고날 패키지 구조, AutoConfiguration 컨벤션 기준
-- `.claude/plans/extract-service-client-module/todo.md` — 직전 패턴 참고 (신모듈 뼈대, AutoConfiguration, import 갱신 절차)
+- `.claude/plans/05-extract-service-client-module/todo.md` — 직전 패턴 참고 (신모듈 뼈대, AutoConfiguration, import 갱신 절차)
 - `.claude/memory/icloud-duplicate-files-gotcha.md` — iCloud 충돌본 주의사항

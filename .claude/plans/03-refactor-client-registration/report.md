@@ -69,7 +69,7 @@
 
 ### 신규 파일 (2)
 - `services/libs/auth-infra/src/main/resources/db/migration/V5__make_grant_type_nullable.sql`
-- `.claude/plans/refactor-client-registration/report.md` (본 보고서)
+- `.claude/plans/03-refactor-client-registration/report.md` (본 보고서)
 
 ### 수정 파일 (main 5)
 - `services/apis/auth-api/src/main/java/com/econo/auth/api/domain/GrantType.java`

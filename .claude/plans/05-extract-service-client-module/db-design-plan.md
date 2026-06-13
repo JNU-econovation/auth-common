@@ -123,4 +123,4 @@ DB 스키마에는 영향 없음. 테이블/컬럼/인덱스 변경 없음.
 - `services/libs/auth-infra/src/main/resources/db/migration/V4__create_service_client_and_route.sql`
 - `services/libs/auth-infra/src/main/resources/db/migration/V5__make_grant_type_nullable.sql`
 - `services/libs/auth-infra/src/main/java/com/econo/auth/infra/config/InfraConfig.java` — basePackages 갱신 대상
-- `.claude/plans/extract-service-client-module/todo.md` §DB 작업, §4. auth-infra 수정
+- `.claude/plans/05-extract-service-client-module/todo.md` §DB 작업, §4. auth-infra 수정
