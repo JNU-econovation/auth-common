@@ -71,6 +71,13 @@ services:
       GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET}
     expose:
       - "8080"
+    healthcheck:
+      # 루트(/)는 permitAll 헬스체크 엔드포인트 — 200 응답 시 ready로 판정
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     networks: [auth-net]
     restart: unless-stopped
 
@@ -78,7 +85,8 @@ services:
     image: ${DOCKERHUB_NAMESPACE}/api-gateway:${IMAGE_TAG:-latest}
     container_name: api-gateway
     depends_on:
-      - auth-api
+      auth-api:
+        condition: service_healthy
     environment:
       # 게이트웨이 → 인증 서버는 내부 네트워크 서비스명으로 접근
       AUTH_API_URI: http://auth-api:8080
