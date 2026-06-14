@@ -27,12 +27,14 @@ management:
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:dev-secret}
+  # 무효 토큰 분기 전용 — 미토큰은 경로 무관 passthrough (BearerToPassportFilter tokenless passthrough)
   permitted-paths:
     - /
     - /api/v1/auth/signup
     - /api/v1/auth/login
     - /api/v1/auth/logout
     - /api/v1/auth/reissue
+    - /oauth2/**
     - /.well-known/**
     - /userinfo
     - /actuator/**

@@ -31,7 +31,7 @@
 | **아키텍처** | `/docs/ARCHITECTURE.md` | 모듈 구조, 계층 설계, 인증 흐름, 설계 결정, 에러 코드 체계 |
 | **코드 컨벤션** | `/docs/CONVENTION.md` | 네이밍, 스타일, 예외, Javadoc, 테스트 패턴 |
 | **시퀀스 다이어그램** | `/docs/SEQUENCE-DIAGRAMS.md` | WEB/APP 로그인 등 인증 흐름 시퀀스 |
-| **Passport 클레임** | `/docs/passport-claims-reference.md` | 내부 서비스가 받는 회원 정보(클레임) 완전 명세 |
+| **Passport 클레임** | `/docs/PASSPORT_CLAIM_REFERENCE.md` | 내부 서비스가 받는 회원 정보(클레임) 완전 명세 |
 | **인프라 의존성** | `/docs/INFRASTRUCTURE.md` | DB, Flyway, 향후 캐시·MQ 등 외부 인프라 정의 |
 | **기능 가이드** | `/docs/FEATURES.md` | 인증 인프라가 제공하는 기능 정리 |
 | **클라이언트 등록** | `/docs/CLIENT_REGISTRATION.md` | OAuth 클라이언트 셀프/어드민 등록 가이드 |
@@ -58,6 +58,7 @@
 - `0014` — 전체 모듈 패키지를 3계층(presentation/application/persistence) + 계층별 DIP로 통일
 - `0015` — DB 마이그레이션을 모듈 밖으로 전역화하고 flyway 컨테이너로 적용
 - `0016` — 동적 DB 기반 Gateway 라우팅 재도입 (ADR-0005 supersede)
+- `0017` — 게이트웨이 tokenless passthrough — 미토큰 라우팅 허용, 인증 강제를 다운스트림으로 이전 (ADR-0002 보완)
 - `role-management.md` — 역할 관리 결정 노트
 
 > ADR 번호 0006·0008은 결번. ADR-0005(정적 라우팅)는 ADR-0016(동적 라우팅 재도입)으로 supersede됨. 현재 결정: 정적 보호 라우트(`GatewayRoutingConfig`) + 동적 서비스 라우트(`service_route` 테이블) 공존. 상세: `docs/DYNAMIC_ROUTING.md`
@@ -138,7 +139,7 @@ service-client ──→ common-infra
 
 - **경로 A — JSON 로그인** (`POST /api/v1/auth/login`): `JsonLoginAuthenticationFilter`가 자격증명을 받아 AT/RT JWT를 직접 발급. WEB은 쿠키 세팅 후 `clientId` 등록 redirect_uri로 302, APP(`Client-Type: APP`)은 200 + body. (ADR-0012)
 - **경로 B — OAuth2 Authorization Code + PKCE** (`/oauth2/authorize` → `/oauth2/token`): SAS 표준 흐름. 미인증 진입 시 `auth.frontend-login-url`로 302.
-- **Gateway 변환**: `BearerToPassportFilter`가 Bearer JWT를 JWKS(RS256) 검증 → `PassportBuilder`가 클레임을 `Passport`로 빌드 → Base64 → `X-User-Passport` 주입. 라우팅의 진실은 yml이 아니라 `GatewayRoutingConfig`(`RouteLocator` 빈)에 있다.
+- **Gateway 변환**: `BearerToPassportFilter`(GlobalFilter, `@Order(-1)`) — ① 인바운드 `X-User-Passport` 항상 제거(위조 방지). ② 토큰 없으면 경로 무관 passthrough(인증 강제는 다운스트림 `@PassportAuth`에 위임). ③ 유효 토큰이면 auth-api JWKS(RS256) 로컬 검증 → `PassportBuilder`가 클레임을 `Passport`로 빌드 → Base64 → `X-User-Passport` 주입. ④ 무효 토큰이면 보호 경로 401 거부, `permitted-paths` 경로 passthrough. `permitted-paths`는 무효 토큰 분기에서만 사용. 라우팅의 진실은 yml이 아니라 `GatewayRoutingConfig`(`RouteLocator` 빈)에 있다. (ADR-0017)
 
 ## Claude 자동 참조 규칙
 
@@ -147,7 +148,7 @@ service-client ──→ common-infra
 | 작업 영역 | 먼저 읽을 문서 |
 |---|---|
 | 인증/로그인 흐름 | `docs/ARCHITECTURE.md`, `docs/SEQUENCE-DIAGRAMS.md` |
-| Passport / 클레임 | `docs/passport-claims-reference.md` |
+| Passport / 클레임 | `docs/PASSPORT_CLAIM_REFERENCE.md` |
 | OAuth 클라이언트 등록 | `docs/CLIENT_REGISTRATION.md` |
 | Gateway 라우팅 | `docs/DYNAMIC_ROUTING.md` (+ ADR-0016; ADR-0005는 superseded) |
 | 역할/권한 | `docs/features/role-management.md` |
