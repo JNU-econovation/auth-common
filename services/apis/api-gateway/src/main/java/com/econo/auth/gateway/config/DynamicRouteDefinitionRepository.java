@@ -5,8 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.gateway.filter.FilterDefinition;
 import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionRepository;
@@ -104,11 +106,19 @@ public class DynamicRouteDefinitionRepository implements RouteDefinitionReposito
 	/**
 	 * RouteDto → RouteDefinition 변환
 	 *
-	 * <p>pathPrefix → {@code Path=pathPrefix/**} predicate. StripPrefix 필터를 적용하지 않아 정적 보호 라우트({@link
-	 * GatewayRoutingConfig})와 동작을 일치시킨다. 업스트림에는 전체 경로가 그대로 전달된다.
+	 * <p><b>치환(rewrite) 모델</b>: {@code pathPrefix}를 {@code upstreamUrl}로 치환한다. 즉 {@code pathPrefix}
+	 * 뒤의 나머지 경로를 {@code upstreamUrl}(경로 포함)에 그대로 이어붙여 전달한다. 라우트 URI는 호스트부(scheme://authority)만 사용하고,
+	 * 경로 결합은 {@code RewritePath} 필터로 처리한다(Spring Cloud Gateway는 라우트 URI의 경로를 무시하기 때문).
 	 *
-	 * <p><b>StripPrefix 미적용 이유</b>: 정적 라우트가 StripPrefix 없이 전체 경로를 업스트림에 전달하므로 동적 라우트도 동일하게 통일한다.
-	 * 클라이언트가 요청한 전체 경로(예: {@code /api/v2/myservice/users})를 업스트림이 그대로 수신하는 것이 더 단순하고 예측 가능하다.
+	 * <p>예: pathPrefix {@code /api/eeos}, upstreamUrl {@code https://host/api}
+	 *
+	 * <ul>
+	 *   <li>{@code /api/eeos/programs} → {@code https://host/api/programs}
+	 *   <li>{@code /api/eeos} → {@code https://host/api}
+	 * </ul>
+	 *
+	 * <p>upstreamUrl에 경로가 없으면(예: {@code https://host}) prefix만 제거되어 루트 기준으로 전달된다. 정적 보호 라우트({@link
+	 * GatewayRoutingConfig})는 auth-api가 전체 경로를 기대하므로 이 치환을 쓰지 않는다(의도적 차이).
 	 *
 	 * @param dto 라우트 DTO
 	 * @return RouteDefinition 인스턴스
@@ -116,7 +126,10 @@ public class DynamicRouteDefinitionRepository implements RouteDefinitionReposito
 	private RouteDefinition toRouteDefinition(AuthApiRouteClient.RouteDto dto) {
 		RouteDefinition definition = new RouteDefinition();
 		definition.setId(dto.routeId());
-		definition.setUri(URI.create(dto.upstreamUrl()));
+
+		URI upstream = URI.create(dto.upstreamUrl());
+		// 라우트 URI는 scheme://authority(host:port)만 사용 — 경로는 RewritePath로 처리
+		definition.setUri(URI.create(upstream.getScheme() + "://" + upstream.getAuthority()));
 
 		// Path predicate: pathPrefix/** 패턴으로 매칭
 		PredicateDefinition predicate = new PredicateDefinition();
@@ -124,9 +137,22 @@ public class DynamicRouteDefinitionRepository implements RouteDefinitionReposito
 		predicate.setArgs(Map.of("_genkey_0", dto.pathPrefix() + "/**"));
 		definition.setPredicates(List.of(predicate));
 
-		// StripPrefix 필터 미적용 — 정적 라우트와 동작 일치 (업스트림에 전체 경로 전달)
-		definition.setFilters(List.of());
+		// RewritePath: pathPrefix를 upstreamUrl 경로(base path)로 치환, 나머지 경로는 그대로 이어붙임
+		String basePath = normalizeBasePath(upstream.getRawPath());
+		String regexp = "^" + Pattern.quote(dto.pathPrefix()) + "(?<remaining>.*)$";
+		FilterDefinition rewrite = new FilterDefinition();
+		rewrite.setName("RewritePath");
+		rewrite.setArgs(Map.of("regexp", regexp, "replacement", basePath + "${remaining}"));
+		definition.setFilters(List.of(rewrite));
 
 		return definition;
+	}
+
+	/** upstreamUrl의 경로부를 base path로 정규화한다(빈 경로·루트는 "", 후행 슬래시 제거). */
+	private String normalizeBasePath(String rawPath) {
+		if (rawPath == null || rawPath.equals("/")) {
+			return "";
+		}
+		return rawPath.endsWith("/") ? rawPath.substring(0, rawPath.length() - 1) : rawPath;
 	}
 }
