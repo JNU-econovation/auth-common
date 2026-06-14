@@ -16,7 +16,7 @@ import org.springframework.core.annotation.Order;
  * 동적 서비스 라우트는 {@link DynamicRouteDefinitionRepository}가 auth-api REST 로드로 처리한다.
  *
  * <p>인증 불필요 경로({@link #permittedPaths})는 {@code application.yml}의 {@code gateway.permitted-paths}에서
- * 로드되며, {@link com.econo.auth.gateway.filter.BearerToPassportFilter}가 참조한다.
+ * 로드되며, {@link com.econo.auth.gateway.config.security.BearerToPassportFilter}가 참조한다.
  *
  * <p>동적 라우트보다 높은 우선순위를 보장하기 위해 {@code @Order(1)}을 부여한다.
  */
@@ -39,9 +39,10 @@ public class GatewayRoutingConfig {
 	}
 
 	/**
-	 * BearerToPassportFilter에서 참조하는 인증 불필요 경로 목록.
+	 * BearerToPassportFilter의 무효 토큰 분기에서만 사용.
 	 *
-	 * <p>yml에서 로드되므로 재배포 없이 경로 추가/제거 가능.
+	 * <p>tokenless passthrough 도입으로 미토큰 요청의 401 게이트 역할은 제거됨(미토큰은 경로 무관 passthrough). yml 로드라 재배포 없이
+	 * 변경 가능.
 	 */
 	public List<String> permittedPaths() {
 		return permittedPaths;

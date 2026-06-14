@@ -27,8 +27,13 @@ import reactor.core.publisher.Mono;
  *   <li>{@code Cookie: at=<token>} (WEB 브라우저 — HttpOnly 쿠키)
  * </ol>
  *
- * <p>인증 불필요 경로는 {@link GatewayRoutingConfig#permittedPaths()}에서 Ant 패턴으로 관리한다. 패턴 평가는 Spring의
- * {@link PathPatternParser}를 사용하여 {@code /oauth2-hack} 같은 오탐을 방지한다.
+ * <p>인바운드 {@code X-User-Passport} 헤더는 위조 방지를 위해 경로·토큰 유무에 관계없이 항상 제거된다.
+ *
+ * <p>미토큰 요청은 경로 무관 passthrough한다. 인증 강제(401 거부)는 다운스트림 {@code @PassportAuth}(econo-passport)에 위임한다.
+ *
+ * <p>{@code permitted-paths}는 <b>무효 토큰 요청의 통과/거부 분기에서만</b> 사용한다. 미토큰 요청 분기에서는 참조하지 않는다.
+ *
+ * <p>패턴 평가는 Spring의 {@link PathPatternParser}를 사용하여 {@code /oauth2-hack} 같은 오탐을 방지한다.
  */
 @Slf4j
 @Component
@@ -51,25 +56,29 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// 1. 인바운드 X-User-Passport 항상 제거 (위조 방지) — 모든 분기 공통 base
+		ServerWebExchange strippedExchange =
+				exchange.mutate().request(r -> r.headers(h -> h.remove(PASSPORT_HEADER))).build();
+
 		String path = exchange.getRequest().getPath().value();
 		Optional<String> tokenOptional = extractBearerToken(exchange);
 
+		// 2. 토큰 없음 → isProtectedPath 체크 없이 무조건 passthrough
 		if (tokenOptional.isEmpty()) {
-			if (isProtectedPath(path)) {
-				log.warn("Bearer token missing, path={}", path);
-				return rejectUnauthorized(exchange);
-			}
-			return chain.filter(exchange);
+			log.debug("No bearer token, passing through, path={}", path);
+			return chain.filter(strippedExchange);
 		}
 
+		// 3. 토큰 있음 → 검증
+		// verify가 malformed 토큰에 동기 예외를 던질 수 있어 defer로 감싸 리액티브 에러 경로로 일원화
 		String token = tokenOptional.get();
-		return jwtVerifier
-				.verify(token)
+		return Mono.defer(() -> jwtVerifier.verify(token))
 				.flatMap(
 						jwt -> {
+							// 4. 유효 → strip된 base에 검증 Passport 주입
 							String encodedPassport = passportBuilder.buildAndSerialize(jwt);
 							ServerWebExchange mutatedExchange =
-									exchange
+									strippedExchange
 											.mutate()
 											.request(r -> r.header(PASSPORT_HEADER, encodedPassport))
 											.build();
@@ -77,11 +86,12 @@ public class BearerToPassportFilter implements GlobalFilter, Ordered {
 						})
 				.onErrorResume(
 						e -> {
+							// 5. 무효 → 보호 경로면 401, permitted면 strip된 base로 pass
 							log.warn("JWT verification failed, path={}, error={}", path, e.getMessage());
 							if (isProtectedPath(path)) {
-								return rejectUnauthorized(exchange);
+								return rejectUnauthorized(strippedExchange);
 							}
-							return chain.filter(exchange);
+							return chain.filter(strippedExchange);
 						});
 	}
 
