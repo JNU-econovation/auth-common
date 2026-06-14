@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -174,6 +175,65 @@ class DynamicRouteDefinitionRepositoryTest {
 								assertThat(definition.getUri().toString()).isEqualTo("http://convert:8080");
 								// Path predicate가 설정되어 있어야 함
 								assertThat(definition.getPredicates()).isNotEmpty();
+							})
+					.verifyComplete();
+		}
+
+		@Test
+		@DisplayName(
+				"upstreamUrl 경로를 base로 RewritePath 치환 (/api/eeos, https://host/api → /api${remaining})")
+		void reload_rewritesPathPrefixToUpstreamBasePath() {
+			// given — upstreamUrl에 base path(/api) 포함
+			given(authApiRouteClient.fetchEnabledRoutes())
+					.willReturn(
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-rewrite", "/api/eeos", "https://be.eeos.econovation.kr/api", true))));
+
+			// when
+			repository.reload().block();
+
+			// then
+			StepVerifier.create(repository.getRouteDefinitions().collectList())
+					.assertNext(
+							definitions -> {
+								RouteDefinition def = definitions.get(0);
+								// 라우트 URI는 host만 (경로 제외)
+								assertThat(def.getUri().toString()).isEqualTo("https://be.eeos.econovation.kr");
+								// RewritePath 필터로 pathPrefix를 base path(/api)로 치환
+								assertThat(def.getFilters()).hasSize(1);
+								assertThat(def.getFilters().get(0).getName()).isEqualTo("RewritePath");
+								Map<String, String> args = def.getFilters().get(0).getArgs();
+								assertThat(args.get("regexp")).contains("/api/eeos");
+								assertThat(args.get("replacement")).isEqualTo("/api${remaining}");
+							})
+					.verifyComplete();
+		}
+
+		@Test
+		@DisplayName("upstreamUrl에 경로가 없으면 base가 비어 prefix만 제거됨 (replacement=${remaining})")
+		void reload_noBasePath_stripsPrefixOnly() {
+			// given — upstreamUrl이 host만
+			given(authApiRouteClient.fetchEnabledRoutes())
+					.willReturn(
+							Mono.just(
+									List.of(
+											new AuthApiRouteClient.RouteDto(
+													"r-nobase", "/eeos", "https://be.eeos.econovation.kr", true))));
+
+			// when
+			repository.reload().block();
+
+			// then
+			StepVerifier.create(repository.getRouteDefinitions().collectList())
+					.assertNext(
+							definitions -> {
+								RouteDefinition def = definitions.get(0);
+								assertThat(def.getUri().toString()).isEqualTo("https://be.eeos.econovation.kr");
+								assertThat(def.getFilters().get(0).getName()).isEqualTo("RewritePath");
+								assertThat(def.getFilters().get(0).getArgs().get("replacement"))
+										.isEqualTo("${remaining}");
 							})
 					.verifyComplete();
 		}
