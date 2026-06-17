@@ -137,7 +137,7 @@ service-client ──→ common-infra
 
 ### 인증 흐름 (상세: `docs/ARCHITECTURE.md`, `docs/SEQUENCE-DIAGRAMS.md`)
 
-- **경로 A — JSON 로그인** (`POST /api/v1/auth/login`): `JsonLoginAuthenticationFilter`가 자격증명을 받아 AT/RT JWT를 직접 발급. WEB은 쿠키 세팅 후 `clientId` 등록 redirect_uri로 302, APP(`Client-Type: APP`)은 200 + body. (ADR-0012)
+- **경로 A — JSON 로그인** (`POST /api/v1/auth/login`): `JsonLoginAuthenticationFilter`가 자격증명을 받아 AT/RT JWT를 직접 발급. WEB은 쿠키 세팅 후 200 + body `{"redirectUrl": "..."}` 반환(FE가 redirectUrl로 이동), APP(`Client-Type: APP`)은 200 + body(accessToken, refreshToken, accessExpiredTime, redirectUrl). 리다이렉트 목적지는 백엔드가 clientId로 결정. (ADR-0012)
 - **경로 B — OAuth2 Authorization Code + PKCE** (`/oauth2/authorize` → `/oauth2/token`): SAS 표준 흐름. 미인증 진입 시 `auth.frontend-login-url`로 302.
 - **Gateway 변환**: `BearerToPassportFilter`(GlobalFilter, `@Order(-1)`) — ① 인바운드 `X-User-Passport` 항상 제거(위조 방지). ② 토큰 없으면 경로 무관 passthrough(인증 강제는 다운스트림 `@PassportAuth`에 위임). ③ 유효 토큰이면 auth-api JWKS(RS256) 로컬 검증 → `PassportBuilder`가 클레임을 `Passport`로 빌드 → Base64 → `X-User-Passport` 주입. ④ 무효 토큰이면 보호 경로 401 거부, `permitted-paths` 경로 passthrough. `permitted-paths`는 무효 토큰 분기에서만 사용. 라우팅의 진실은 yml이 아니라 `GatewayRoutingConfig`(`RouteLocator` 빈)에 있다. (ADR-0017)
 
