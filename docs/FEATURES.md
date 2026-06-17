@@ -66,16 +66,15 @@ POST /api/v1/auth/login
 Header: Client-Type: WEB  (생략 시 기본값)
 Body: {"loginId": "...", "password": "...", "clientId": "..."}  ← clientId 선택
 
-응답 (302):
-  Location: <clientId 등록 redirect_uri 또는 auth.redirect.default-url>
+응답 (200 OK):
   Set-Cookie: at=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=3600
   Set-Cookie: rt=<JWT>; HttpOnly; SameSite=None; Secure; Domain=.econovation.kr; Max-Age=2592000
-  Body: 없음
+  Body: {"redirectUrl": "<clientId 등록 redirect_uri 또는 auth.redirect.default-url>"}
 ```
 - AT, RT 모두 HttpOnly 쿠키로 발급 → JavaScript 접근 불가 (XSS 보호)
 - `Domain=.econovation.kr` 설정 시 모든 서브도메인 공유 → **SSO 자동**
 - AT 만료: 1시간 / RT 만료: 30일
-- `clientId` 미전달·미등록 시 `auth.redirect.default-url`로 302 (에러 아님, fail-safe)
+- `clientId` 미전달·미등록 시 `auth.redirect.default-url`을 `redirectUrl`로 반환 (에러 아님, fail-safe)
 
 #### APP 로그인 (모바일 / 서버)
 ```
@@ -98,6 +97,7 @@ Header: Client-Type: WEB
 (rt 쿠키 자동 첨부)
 
 응답: 새 at + rt 쿠키 교체
+Body: {}
 ```
 
 #### APP 재발급
@@ -266,8 +266,9 @@ const res = await fetch('https://gateway.econovation.kr/api/v1/auth/login', {
   headers: { 'Content-Type': 'application/json', 'Client-Type': 'WEB' },
   body: JSON.stringify({ loginId: 'user01', password: 'Econo1234!' })
 });
-const { accessExpiredTime } = await res.json();
+const { redirectUrl } = await res.json();
 // at, rt 쿠키는 브라우저가 자동 저장
+// window.location.href = redirectUrl;  // FE가 직접 이동
 ```
 
 ### API 호출

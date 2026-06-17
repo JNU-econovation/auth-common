@@ -74,7 +74,7 @@ econo-passport (외부 의존성 — JitPack 배포, 이 레포 모듈 아님)
 | 모듈 | 유형 | 역할 |
 |------|------|------|
 | **api-gateway** | App | 클라이언트 요청 수신. 인바운드 `X-User-Passport` 항상 제거(위조 방지). 토큰 있으면 auth-api JWKS 공개키로 RS256/만료/issuer 로컬 검증 → `X-User-Passport` 주입. 토큰 없으면 경로 무관 passthrough(다운스트림 `@PassportAuth` 위임). 무효 토큰이면 보호 경로 401 거부. SAS OAuth 엔드포인트를 auth-api로 프록시. ※ auth-api 인트로스펙션 호출 아님 — JWKS 기반 로컬 검증 |
-| **auth-api** | App | OIDC Authorization Server (SAS 1.x). 토큰 발급(SAS) + JWKS 제공(`/oauth2/jwks`) + 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 302(WEB) 또는 200+body+redirectUrl(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. 회원·권한·서비스클라이언트 관리. `NimbusTokenManager`(`TokenEncoder/TokenDecoder` 구현체)를 `config/security/`에 보유한다. |
+| **auth-api** | App | OIDC Authorization Server (SAS 1.x). 토큰 발급(SAS) + JWKS 제공(`/oauth2/jwks`) + 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 redirectUrl body 반환(WEB: 200+`{redirectUrl}`) 또는 200+body(accessToken, refreshToken, accessExpiredTime, redirectUrl)(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. 회원·권한·서비스클라이언트 관리. `NimbusTokenManager`(`TokenEncoder/TokenDecoder` 구현체)를 `config/security/`에 보유한다. |
 | **member** | Lib | Member 도메인·유스케이스·출력 포트(repository)·예외·JPA 어댑터·BCrypt 어댑터. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. (DB 마이그레이션은 모듈 밖 `db/migration`에서 전역 관리 — ADR-0015) |
 | **common-infra** | Lib | `@EnableJpaAuditing` AutoConfiguration. `member`·`service-client` 모듈에 JPA Auditing을 일원화 제공. |
 | **service-client** | Lib | ServiceClient 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
@@ -84,7 +84,7 @@ econo-passport (외부 의존성 — JitPack 배포, 이 레포 모듈 아님)
 
 ## 인증 흐름
 
-### [흐름 A] JSON 로그인 → 쿠키 발급 → clientId 기반 302 리다이렉트
+### [흐름 A] JSON 로그인 → 쿠키 발급 → redirectUrl body 반환
 
 WEB(`Client-Type` 헤더 없거나 `APP`이 아닌 경우)과 APP(`Client-Type: APP`)의 응답 방식이 다르다.
 상세 설계 근거: [ADR-0012](./adr/0012-backend-decided-login-redirect.md)
@@ -112,13 +112,13 @@ WEB(`Client-Type` 헤더 없거나 `APP`이 아닌 경우)과 APP(`Client-Type: 
         clientId 없거나 미등록(InvalidClientException) → auth.redirect.default-url (fail-safe fallback)
         redirect_uri 빈 Set   → auth.redirect.default-url
         기타 RuntimeException (인프라·DB 오류) → auth.redirect.default-url (fail-safe)
-    → response.sendRedirect(target)  ← 쿠키 헤더 추가 후 반드시 수행
-  → HTTP 302 Found
-     Location: <등록된 redirect_uri 또는 default-url>
+    → response.setStatus(SC_OK) + objectMapper.writeValue(LoginResponse.web(target))
+  → HTTP 200 OK
      Set-Cookie: at=...; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=3600
      Set-Cookie: rt=...; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=2592000
-     Body: 없음
-  ※ 토큰은 Location URL(query/fragment)에 절대 포함하지 않는다. 쿠키 전용.
+     Body: {"redirectUrl": "<등록된 redirect_uri 또는 default-url>"}
+  ※ accessToken·refreshToken·accessExpiredTime은 body에 포함되지 않는다. 쿠키 전용.
+  ※ FE(SPA)가 응답의 redirectUrl로 window.location 이동을 수행한다.
   ※ user-supplied URL이 없으므로 open redirect가 구조적으로 불가능하다.
 
   [APP 분기]
@@ -397,7 +397,7 @@ Gateway가 JWT 클레임에서 `generation`과 `status`를 Passport에 미러링
 
 auth-api는 로그인 UI를 제공하지 않는다. 브라우저 로그인 UI는 외부 SPA가 담당한다.
 
-- **경로 A** (`POST /api/v1/auth/login`): JSON 자격증명을 수신하여 AT/RT JWT를 직접 발급한다. WEB 클라이언트는 쿠키(at, rt) 세팅 후 `clientId`에 등록된 redirect_uri로 302하고, APP 클라이언트는 200 OK + body(accessToken, refreshToken, redirectUrl)로 응답한다. clientId가 없거나 미등록이면 `auth.redirect.default-url`로 fail-safe 302(WEB) 또는 default-url을 redirectUrl 필드로 반환(APP)한다 (ADR-0012 참조).
+- **경로 A** (`POST /api/v1/auth/login`): JSON 자격증명을 수신하여 AT/RT JWT를 직접 발급한다. WEB 클라이언트는 쿠키(at, rt) 세팅 후 200 OK + body(`{"redirectUrl": "..."}`)로 응답하며, FE(SPA)가 redirectUrl로 이동을 수행한다. APP 클라이언트는 200 OK + body(accessToken, refreshToken, accessExpiredTime, redirectUrl)로 응답한다. clientId가 없거나 미등록이면 `auth.redirect.default-url`로 fallback한다 (ADR-0012 참조).
 - **경로 B** (`GET /oauth2/authorize` → `POST /oauth2/token`): SAS 기반 Authorization Code + PKCE 흐름. 미인증 상태로 `/oauth2/authorize`에 진입하면 `auth.frontend-login-url`(SPA 로그인 URL)로 302 리다이렉트된다.
 - `auth.frontend-login-url`(경로 B 전용 — SAS 미인증 진입 리다이렉트)과 `auth.redirect.default-url`(경로 A fallback 목적지)은 역할이 다르므로 별도로 관리한다.
 

@@ -1,6 +1,6 @@
 # ADR-0012: 로그인 성공 후 리다이렉트를 백엔드가 clientId로 결정
 
-- **상태:** Accepted
+- **상태:** Accepted (Amended 2026-06-18)
 - **결정일:** 2026-06-07
 - **결정자:** econovation 개발팀
 
@@ -20,12 +20,12 @@
 
 ## 결정
 
-**경로 A의 로그인 요청은 목적지 URL이 아니라 `clientId`만 받고, 백엔드가 그 clientId에 등록된 redirect_uri를 조회해 그곳으로 직접 `302`한다.**
+**경로 A의 로그인 요청은 목적지 URL이 아니라 `clientId`만 받고, 백엔드가 그 clientId에 등록된 redirect_uri를 조회해 `redirectUrl`로 응답 body에 반환한다.** (원결정: "그곳으로 직접 302" — 2026-06-18 amendment로 전달 방식이 302 → 200 body로 변경됨. 결정 주체는 백엔드 유지.)
 
 - `POST /api/v1/auth/login`의 JSON body가 `clientId`를 받는다. (`{loginId, password, clientId}` — `clientId`는 선택 필드)
   - 로그인 필터가 `attemptAuthentication`에서 body InputStream을 한 번만 소비하므로, `clientId`도 그 시점에 함께 파싱해 `request.setAttribute`로 `successfulAuthentication`에 전달한다.
-- **WEB 클라이언트**(`Client-Type` 헤더가 `APP`이 아닐 때): 자격증명 검증 → 토큰 발급 → HttpOnly 쿠키(`at`, `rt`) 세팅 → `clientId`로 등록 redirect_uri 조회 → 그 URL로 `302 redirect`.
-- **fallback**: `clientId`가 없거나 / 미등록(존재하지 않는 clientId) / 등록 redirect_uri가 없으면 **요청을 거부하지 않고** 안전한 기본 URL(`auth.redirect.default-url`)로 `302`. (미등록은 인증 실패 `4xx`가 아니라 fallback으로 처리)
+- **WEB 클라이언트**(`Client-Type` 헤더가 `APP`이 아닐 때): 자격증명 검증 → 토큰 발급 → HttpOnly 쿠키(`at`, `rt`) 세팅 → `clientId`로 등록 redirect_uri 조회 → `200 OK` + body `{"redirectUrl": "..."}` 반환 → FE(SPA)가 `redirectUrl`로 이동.
+- **fallback**: `clientId`가 없거나 / 미등록(존재하지 않는 clientId) / 등록 redirect_uri가 없으면 **요청을 거부하지 않고** 안전한 기본 URL(`auth.redirect.default-url`)을 `redirectUrl`로 반환한다. (미등록은 인증 실패 `4xx`가 아니라 fallback으로 처리)
 - **조회**: 기존 `ClientRedirectUriService.findByClientId(clientId)`를 읽기 전용으로 재사용한다(의존 방향: auth-api → service-client). 미존재 시 던지는 `InvalidClientException`은 신규 `LoginRedirectResolver`가 잡아 기본 URL로 fallback한다.
 - **복수 redirect_uri**: 한 클라이언트에 redirect_uri가 여러 개면 "첫 번째(대표)"를 사용한다. 단 SAS `RegisteredClient`는 redirect_uri를 **순서 비보장 `Set`**으로 저장하므로, 결정적 기준(**정렬 후 첫 번째**)으로 선택한다. redirect_uri가 1개면 그것을 사용한다.
 - **APP 클라이언트**(`Client-Type: APP`): 기존 동작 그대로 유지(`200 OK` + body에 AT/RT, 리다이렉트 없음).
@@ -70,7 +70,7 @@
 
 - **복수 redirect_uri의 "대표" 선택이 등록 순서를 반영하지 못한다.** SAS `RegisteredClient`가 redirect_uri를 순서 비보장 `Set`(`oauth2_registered_client.redirect_uris`는 `VARCHAR(1000)` 쉼표 구분 문자열)으로 저장하므로, 정렬 후 첫 번째라는 결정적이지만 임의적인 기준을 쓴다. 로그인 후 특정 랜딩 URL이 중요한 클라이언트는 **redirect_uri를 1개만 등록**하는 것을 권장한다. 명시적 "primary redirect_uri" 개념이 필요해지면 별도 보조 테이블/플래그 도입을 검토한다(이번 범위 밖).
 - **이번 범위에서 `SameSite=None` 인증 쿠키의 CSRF 대응은 제외**한다. 별도 이슈로 추적한다.
-- 쿠키 세팅(`addHeader`) 후 `response.sendRedirect()`를 호출해야 한다. `sendRedirect`가 응답을 커밋하므로 순서가 바뀌면 `Set-Cookie`가 누락된다.
+- 쿠키 세팅(`addHeader`) 후 `response.setStatus(SC_OK)` → `objectMapper.writeValue()` 순서로 body를 직렬화한다. 쿠키 헤더가 먼저 추가되어야 응답 커밋 전 `Set-Cookie`가 보장된다. (`response.sendRedirect()` 제거 이후에도 동일 순서 유지)
 - 신규 설정 키 `auth.redirect.default-url`은 기존 `auth.frontend-login-url`(SAS 미인증 진입 리다이렉트 용도)과 **역할이 다르므로 분리**한다. 환경별(스테이징/프로덕션) 실제 값은 배포 설정에서 관리한다.
 - 미등록 `clientId`(`InvalidClientException`)는 인증 실패가 아니라 기본 URL fallback으로 처리된다. 클라이언트 입장에서 "잘못된 clientId"를 명시적으로 알 수 없다(의도된 동작 — 로그인 자체는 성공시키되 안전한 기본 목적지로 보냄).
 
@@ -81,8 +81,25 @@
 
 ---
 
+## Amendment — 2026-06-18: WEB 분기 전달 방식 302 → body 전환
+
+**변경 내용**: WEB 로그인 성공 시 서버가 수행하던 `response.sendRedirect()` (302 Found + Location 헤더)를 제거하고, `200 OK` + body `{"redirectUrl": "<url>"}` 응답으로 교체한다. FE(SPA)가 body의 `redirectUrl`을 읽어 `window.location`으로 이동을 직접 수행한다. WEB 로그인 응답 body에는 `accessExpiredTime`을 포함하지 않는다(AT가 HttpOnly 쿠키로만 전달되므로 FE가 이 값을 사용할 수 없어 제거).
+
+**핵심 결정 유지**: 리다이렉트 목적지를 백엔드가 `clientId`로 결정한다는 이 ADR의 핵심은 그대로다. 변경은 전달 방식(302 헤더 → body JSON)에만 해당한다.
+
+**변경 동기**: FE SPA가 `fetch`로 `POST /api/v1/auth/login`을 호출할 때, 서버의 302 응답을 `fetch`가 cross-origin으로 따라가면서 CORS 오류(`net::ERR_FAILED`)가 발생한다. 브라우저의 `fetch` API는 cross-origin 302를 자동으로 처리하지 않으며, 리다이렉트된 URL에 `credentials: 'include'`가 전달되지 않아 쿠키 세팅에도 문제가 생긴다. body로 `redirectUrl`을 전달함으로써 FE가 이동 타이밍과 방식을 직접 제어할 수 있다.
+
+**추가 변경**:
+- WEB 응답 body에 `accessToken`·`refreshToken` 미포함 유지 (쿠키 전용, `@JsonInclude(NON_NULL)` 적용).
+- WEB 재발급(`POST /api/v1/auth/reissue`) 응답 body: `{"accessExpiredTime": ...}` → `{}` (빈 객체). WEB은 AT/RT를 쿠키로만 수신하므로 FE가 body의 `accessExpiredTime`을 사용하지 않아 제거.
+
+**비고 (이번 범위 밖, 향후 추적)**: cross-site `fetch`로 `.econovation.kr` 쿠키를 세팅할 때 Safari ITP 및 Chrome 서드파티 쿠키 정책에 따라 쿠키가 차단될 수 있다. 장기적으로 로그인 페이지와 auth-api를 동일 `*.econovation.kr` 서브도메인에서 제공하는 방식이 권장된다.
+
+---
+
 ## 관련 문서
 
 - [ADR-0001](./0001-cookie-based-sso-over-pkce.md) — 쿠키 기반 SSO (경로 A의 토큰 전달 방식 근거)
 - [ADR-0002](./0002-gateway-as-auth-boundary.md) — Gateway를 인증 경계로 사용하는 결정
 - [.claude/plans/07-backend-decided-login-redirect/](../../.claude/plans/07-backend-decided-login-redirect/) — 본 결정의 todo / API / 구현 / DB 설계 plan
+- [.claude/plans/13-login-redirect-via-body/](../../.claude/plans/13-login-redirect-via-body/) — 전달 방식 302 → body 전환 plan

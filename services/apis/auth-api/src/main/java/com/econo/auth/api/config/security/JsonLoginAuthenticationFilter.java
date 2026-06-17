@@ -26,8 +26,8 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 /**
  * JSON 로그인 필터 — 인증 성공 시 AT/RT JWT를 발급한다 (세션 없음)
  *
- * <p>{@code Client-Type: WEB} (기본): AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 302 리다이렉트
- * <br>
+ * <p>{@code Client-Type: WEB} (기본): AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 200 OK +
+ * body({@code redirectUrl})<br>
  * {@code Client-Type: APP}: AT + RT 모두 → body (200 OK)
  */
 @Slf4j
@@ -101,14 +101,17 @@ public class JsonLoginAuthenticationFilter extends AbstractAuthenticationProcess
 			response.setCharacterEncoding("UTF-8");
 			objectMapper.writeValue(response.getWriter(), body);
 		} else {
-			// WEB: AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 302 리다이렉트
-			// 쿠키 헤더 추가는 sendRedirect(응답 커밋) 전에 반드시 수행
+			// WEB: AT + RT → HttpOnly 쿠키, clientId로 redirect_uri 조회 후 200 OK + body
+			// 쿠키 헤더 추가는 응답 커밋(body 직렬화) 전에 반드시 수행
 			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
 
 			String clientId = (String) request.getAttribute("clientId");
 			String target = loginRedirectUseCase.resolve(clientId, defaultRedirectUrl);
-			response.sendRedirect(target);
+			response.setStatus(HttpServletResponse.SC_OK);
+			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+			response.setCharacterEncoding("UTF-8");
+			objectMapper.writeValue(response.getWriter(), LoginResponse.web(target));
 		}
 	}
 

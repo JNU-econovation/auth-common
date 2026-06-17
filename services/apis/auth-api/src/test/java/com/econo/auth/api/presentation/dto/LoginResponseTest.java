@@ -17,11 +17,76 @@ import org.junit.jupiter.api.Test;
  *   <li>app(4인자) 팩토리 — redirectUrl 포함 (신규)
  *   <li>@JsonInclude(NON_NULL) — redirectUrl null이면 직렬화 제외
  *   <li>@JsonInclude(NON_NULL) — redirectUrl non-null이면 직렬화 포함
+ *   <li>web(String) 팩토리 — redirectUrl만 포함, accessToken/accessExpiredTime/refreshToken 모두 null
+ *   <li>@JsonInclude(NON_NULL) — WEB 응답에서 accessToken/accessExpiredTime/refreshToken 직렬화 제외
  * </ul>
  */
 class LoginResponseTest {
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+
+	@Nested
+	@DisplayName("web() 팩토리 메서드 — 1인자 시그니처")
+	class WebFactoryMethodTest {
+
+		@Test
+		@DisplayName("web(String) — redirectUrl 세팅, accessToken/accessExpiredTime/refreshToken null")
+		void web_withRedirectUrl_setsRedirectUrlOnly() {
+			// given
+			String redirectUrl = "https://app.example.com";
+
+			// when
+			LoginResponse response = LoginResponse.web(redirectUrl);
+
+			// then
+			assertThat(response.redirectUrl()).isEqualTo("https://app.example.com");
+			assertThat(response.accessToken()).isNull();
+			assertThat(response.accessExpiredTime()).isNull();
+			assertThat(response.refreshToken()).isNull();
+		}
+
+		@Test
+		@DisplayName("web(null) — redirectUrl이 null")
+		void web_withNullRedirectUrl_redirectUrlIsNull() {
+			// when
+			LoginResponse response = LoginResponse.web(null);
+
+			// then
+			assertThat(response.redirectUrl()).isNull();
+			assertThat(response.accessExpiredTime()).isNull();
+		}
+
+		@Test
+		@DisplayName(
+				"WEB 응답 직렬화 — accessToken/accessExpiredTime/refreshToken 키 모두 제외 (@JsonInclude(NON_NULL))")
+		void serialize_webResponse_excludesAccessTokenAndRefreshToken() throws Exception {
+			// given
+			LoginResponse response = LoginResponse.web("https://app.example.com");
+
+			// when
+			String json = objectMapper.writeValueAsString(response);
+
+			// then
+			assertThat(json).doesNotContain("accessToken");
+			assertThat(json).doesNotContain("accessExpiredTime");
+			assertThat(json).doesNotContain("refreshToken");
+		}
+
+		@Test
+		@DisplayName("WEB 응답 직렬화 — body에 redirectUrl만 포함")
+		void serialize_webResponse_includesRedirectUrlOnly() throws Exception {
+			// given
+			LoginResponse response = LoginResponse.web("https://app.example.com/callback");
+
+			// when
+			String json = objectMapper.writeValueAsString(response);
+
+			// then
+			assertThat(json).contains("redirectUrl");
+			assertThat(json).contains("https://app.example.com/callback");
+			assertThat(json).doesNotContain("accessExpiredTime");
+		}
+	}
 
 	@Nested
 	@DisplayName("app() 팩토리 메서드 — redirectUrl 필드")

@@ -67,7 +67,8 @@ public class ReissueController implements ReissueApiDocs {
 		} else {
 			cookieManager.setAtCookie(response, tokens.accessToken());
 			cookieManager.setRtCookie(response, tokens.refreshToken());
-			responseBody = LoginResponse.web(tokens.accessExpiredAt());
+			// WEB: 새 at/rt는 쿠키로 교체됨. redirectUrl 없이 빈 body({}) 반환.
+			responseBody = LoginResponse.web(null);
 		}
 
 		return ResponseEntity.ok(responseBody);

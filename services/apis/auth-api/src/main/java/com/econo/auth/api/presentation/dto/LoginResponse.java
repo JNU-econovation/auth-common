@@ -9,7 +9,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * <p>EEOS-BE V1LoginController 응답 형식과 동일:
  *
  * <ul>
- *   <li>WEB: {@code accessToken} + {@code accessExpiredTime} (RT는 HttpOnly 쿠키)
+ *   <li>WEB: AT + RT HttpOnly 쿠키 발급. body에는 {@code redirectUrl}만 포함 (accessExpiredTime 제외 — WEB은
+ *       AT가 HttpOnly 쿠키라 FE가 만료시간을 직접 사용할 수 없으며, 갱신은 401 → /reissue reactive로 처리).
  *   <li>APP: {@code accessToken} + {@code accessExpiredTime} + {@code refreshToken} + {@code
  *       redirectUrl}
  * </ul>
@@ -21,7 +22,10 @@ public record LoginResponse(
 						nullable = true,
 						example = "eyJhbGciOiJSUzI1NiJ9...")
 				String accessToken,
-		@Schema(description = "Access Token 만료 시각 (epoch millis)", example = "1749902400000")
+		@Schema(
+						description = "Access Token 만료 시각 (epoch millis). WEB에서는 null(쿠키 전용).",
+						nullable = true,
+						example = "1749902400000")
 				Long accessExpiredTime,
 		@Schema(
 						description = "Refresh Token. WEB에서는 쿠키로 전달되므로 null.",
@@ -35,13 +39,16 @@ public record LoginResponse(
 				String redirectUrl) {
 
 	/**
-	 * WEB: AT는 쿠키로 발급됨. body에는 만료시간만 (프론트가 갱신 타이밍 파악용)
+	 * WEB: AT + RT HttpOnly 쿠키 발급. body에는 {@code redirectUrl}만 포함.
 	 *
-	 * @deprecated WEB 로그인 분기가 302 리다이렉트로 전환되어 body 직렬화가 불필요해짐.
+	 * <p>accessToken/accessExpiredTime/refreshToken은 모두 null — AT/RT는 쿠키 전용이며 FE는 만료시간을 직접 사용할 수
+	 * 없다(갱신은 401 → /reissue reactive로 처리).
+	 *
+	 * @param redirectUrl 로그인 후 이동 목적지 URL
+	 * @return LoginResponse 인스턴스
 	 */
-	@Deprecated
-	public static LoginResponse web(long accessExpiredTime) {
-		return new LoginResponse(null, accessExpiredTime, null, null);
+	public static LoginResponse web(String redirectUrl) {
+		return new LoginResponse(null, null, null, redirectUrl);
 	}
 
 	/**

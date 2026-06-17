@@ -50,7 +50,7 @@ const res = await fetch('https://gateway.econovation.kr/api/v1/auth/login', {
 })
 
 // 성공 응답 (WEB)
-// { "accessExpiredTime": 1780242951000 }
+// { "redirectUrl": "https://..." }
 // → at, rt 쿠키 자동 세팅됨
 
 // 실패
