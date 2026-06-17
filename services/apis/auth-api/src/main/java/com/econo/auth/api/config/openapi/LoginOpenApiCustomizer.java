@@ -40,7 +40,7 @@ public class LoginOpenApiCustomizer implements OpenApiCustomizer {
 				.summary("로그인")
 				.description(
 						"loginId/password 로 로그인한다. Spring Security 필터가 처리한다.\n\n"
-								+ "**WEB** (`Client-Type: WEB`, 기본): at/rt HttpOnly 쿠키 설정 후 clientId 의 redirect_uri 로 302.\n"
+								+ "**WEB** (`Client-Type: WEB`, 기본): at/rt HttpOnly 쿠키 설정 후 200 OK + body({ accessExpiredTime, redirectUrl }) 반환.\n"
 								+ "**APP** (`Client-Type: APP`): 200 + body 로 accessToken/refreshToken/redirectUrl 반환.")
 				.addParametersItem(clientTypeHeader())
 				.requestBody(new RequestBody().required(true).content(jsonContent(loginRequestSchema())))
@@ -61,12 +61,10 @@ public class LoginOpenApiCustomizer implements OpenApiCustomizer {
 				.addApiResponse(
 						"200",
 						new ApiResponse()
-								.description("APP 로그인 성공 — body 로 토큰 반환")
+								.description(
+										"로그인 성공 — WEB: at/rt HttpOnly 쿠키 + body({ accessExpiredTime, redirectUrl })."
+												+ " APP: body 로 accessToken/refreshToken/redirectUrl 반환.")
 								.content(jsonContent(loginResponseSchema())))
-				.addApiResponse(
-						"302",
-						new ApiResponse()
-								.description("WEB 로그인 성공 — at/rt HttpOnly 쿠키 설정 후 redirect_uri 로 리다이렉트"))
 				.addApiResponse("401", new ApiResponse().description("INVALID_CREDENTIALS — 자격증명 불일치"));
 	}
 
@@ -88,11 +86,23 @@ public class LoginOpenApiCustomizer implements OpenApiCustomizer {
 
 	private Schema loginResponseSchema() {
 		return new ObjectSchema()
-				.addProperty("accessToken", new StringSchema())
+				.addProperty(
+						"accessToken",
+						new StringSchema()
+								.nullable(true)
+								.description("APP에서만 반환. WEB 응답 JSON에는 키 자체가 포함되지 않음(@JsonInclude(NON_NULL))."))
 				.addProperty(
 						"accessExpiredTime",
-						new IntegerSchema().format("int64").description("AT 만료 시각(epoch millis)"))
-				.addProperty("refreshToken", new StringSchema())
+						new IntegerSchema()
+								.format("int64")
+								.nullable(true)
+								.description(
+										"AT 만료 시각(epoch millis). APP에서만 반환. WEB 응답 JSON에는 키 자체가 포함되지 않음(@JsonInclude(NON_NULL))."))
+				.addProperty(
+						"refreshToken",
+						new StringSchema()
+								.nullable(true)
+								.description("APP에서만 반환. WEB 응답 JSON에는 키 자체가 포함되지 않음(@JsonInclude(NON_NULL))."))
 				.addProperty("redirectUrl", new StringSchema());
 	}
 }

@@ -134,7 +134,7 @@ class AuthApiIntegrationTest {
 	class WebLoginTest {
 
 		@Test
-		@DisplayName("로그인 성공 시 at + rt 쿠키 발급, 302 리다이렉트 (body 없음)")
+		@DisplayName("로그인 성공 시 200 OK + body(redirectUrl만), at + rt 쿠키 발급")
 		void web_login_issues_cookies_and_redirects() throws Exception {
 			signup("webuser01");
 
@@ -148,7 +148,9 @@ class AuthApiIntegrationTest {
 													"""
 													{"loginId":"webuser01","password":"Econo1234!"}
 													"""))
-							.andExpect(status().is3xxRedirection())
+							.andExpect(status().isOk())
+							.andExpect(jsonPath("$.redirectUrl").isNotEmpty())
+							.andExpect(jsonPath("$.accessExpiredTime").doesNotExist())
 							.andReturn();
 
 			MockHttpServletResponse response = result.getResponse();
@@ -159,10 +161,10 @@ class AuthApiIntegrationTest {
 			assertThat(atCookie).isNotBlank();
 			assertThat(rtCookie).isNotBlank();
 
-			// body에 토큰 없음
+			// body에 accessToken/refreshToken 미포함 (쿠키 전용)
 			String body = response.getContentAsString();
-			assertThat(body).doesNotContain("accessToken");
-			assertThat(body).doesNotContain("refreshToken");
+			assertThat(body).doesNotContain("\"accessToken\"");
+			assertThat(body).doesNotContain("\"refreshToken\"");
 		}
 
 		@Test
@@ -188,52 +190,44 @@ class AuthApiIntegrationTest {
 		}
 
 		@Test
-		@DisplayName("clientId 미전달 시 defaultUrl(http://localhost:3000)로 302")
+		@DisplayName("clientId 미전달 시 200 OK + body redirectUrl = defaultUrl(http://localhost:3000)")
 		void web_login_without_clientId_redirects_to_defaultUrl() throws Exception {
 			signup("webuser04");
 
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.header("Client-Type", "WEB")
-											.content(
-													"""
-													{"loginId":"webuser04","password":"Econo1234!"}
-													"""))
-							.andExpect(status().is3xxRedirection())
-							.andReturn();
-
-			String location = result.getResponse().getHeader("Location");
-			assertThat(location).isEqualTo("http://localhost:3000");
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "WEB")
+									.content(
+											"""
+											{"loginId":"webuser04","password":"Econo1234!"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.redirectUrl").value("http://localhost:3000"));
 		}
 
 		@Test
-		@DisplayName("미등록 clientId → 거부하지 않고 defaultUrl로 302 (4xx 아님)")
+		@DisplayName("미등록 clientId → 거부하지 않고 200 OK + body redirectUrl = defaultUrl (4xx 아님)")
 		void web_login_unregistered_clientId_redirects_to_defaultUrl() throws Exception {
 			signup("webuser05");
 
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.header("Client-Type", "WEB")
-											.content(
-													"""
-													{"loginId":"webuser05","password":"Econo1234!","clientId":"nonexistent-client-id"}
-													"""))
-							.andExpect(status().is3xxRedirection())
-							.andReturn();
-
-			String location = result.getResponse().getHeader("Location");
-			// 미등록 clientId — InvalidClientException 발생해도 4xx 거부 없이 defaultUrl로 302
-			assertThat(location).isEqualTo("http://localhost:3000");
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "WEB")
+									.content(
+											"""
+											{"loginId":"webuser05","password":"Econo1234!","clientId":"nonexistent-client-id"}
+											"""))
+					.andExpect(status().isOk())
+					// 미등록 clientId — InvalidClientException 발생해도 4xx 거부 없이 defaultUrl body 반환
+					.andExpect(jsonPath("$.redirectUrl").value("http://localhost:3000"));
 		}
 
 		@Test
-		@DisplayName("등록된 clientId + redirect_uri 1개 → 해당 URI로 302")
+		@DisplayName("등록된 clientId + redirect_uri 1개 → 200 OK + body redirectUrl = 해당 URI")
 		void web_login_with_registered_clientId_single_redirect_uri() throws Exception {
 			signup("webuser07");
 
@@ -260,27 +254,23 @@ class AuthApiIntegrationTest {
 							.get("clientId")
 							.toString();
 
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.header("Client-Type", "WEB")
-											.content(
-													String.format(
-															"""
-															{"loginId":"webuser07","password":"Econo1234!","clientId":"%s"}
-															""",
-															clientId)))
-							.andExpect(status().is3xxRedirection())
-							.andReturn();
-
-			String location = result.getResponse().getHeader("Location");
-			assertThat(location).isEqualTo("https://app.example.com/callback");
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "WEB")
+									.content(
+											String.format(
+													"""
+													{"loginId":"webuser07","password":"Econo1234!","clientId":"%s"}
+													""",
+													clientId)))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.redirectUrl").value("https://app.example.com/callback"));
 		}
 
 		@Test
-		@DisplayName("등록된 clientId + redirect_uri 여러 개 → 알파벳 정렬 후 첫 번째 URI로 302")
+		@DisplayName("등록된 clientId + redirect_uri 여러 개 → 200 OK + body redirectUrl = 알파벳 정렬 첫 번째 URI")
 		void web_login_with_registered_clientId_multiple_redirect_uris() throws Exception {
 			signup("webuser08");
 
@@ -307,29 +297,25 @@ class AuthApiIntegrationTest {
 							.get("clientId")
 							.toString();
 
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.header("Client-Type", "WEB")
-											.content(
-													String.format(
-															"""
-															{"loginId":"webuser08","password":"Econo1234!","clientId":"%s"}
-															""",
-															clientId)))
-							.andExpect(status().is3xxRedirection())
-							.andReturn();
-
-			String location = result.getResponse().getHeader("Location");
-			// 알파벳 오름차순 정렬 기준 "https://a-app.example.com/callback"이 첫 번째
-			assertThat(location).isEqualTo("https://a-app.example.com/callback");
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "WEB")
+									.content(
+											String.format(
+													"""
+													{"loginId":"webuser08","password":"Econo1234!","clientId":"%s"}
+													""",
+													clientId)))
+					.andExpect(status().isOk())
+					// 알파벳 오름차순 정렬 기준 "https://a-app.example.com/callback"이 첫 번째
+					.andExpect(jsonPath("$.redirectUrl").value("https://a-app.example.com/callback"));
 		}
 
 		@Test
-		@DisplayName("Location 헤더에 토큰(at/rt)이 포함되지 않음")
-		void web_login_location_does_not_contain_tokens() throws Exception {
+		@DisplayName("WEB 응답 body에 accessToken/accessExpiredTime/refreshToken 키가 포함되지 않음 (쿠키 전용)")
+		void web_login_body_does_not_contain_tokens() throws Exception {
 			signup("webuser06");
 
 			MvcResult result =
@@ -342,15 +328,17 @@ class AuthApiIntegrationTest {
 													"""
 													{"loginId":"webuser06","password":"Econo1234!"}
 													"""))
-							.andExpect(status().is3xxRedirection())
+							.andExpect(status().isOk())
+							.andExpect(jsonPath("$.accessToken").doesNotExist())
+							.andExpect(jsonPath("$.refreshToken").doesNotExist())
+							.andExpect(jsonPath("$.accessExpiredTime").doesNotExist())
 							.andReturn();
 
-			String location = result.getResponse().getHeader("Location");
-			// 토큰은 절대 Location URL의 쿼리/프래그먼트에 포함되지 않음
-			assertThat(location).doesNotContain("accessToken");
-			assertThat(location).doesNotContain("refreshToken");
-			assertThat(location).doesNotContain("at=");
-			assertThat(location).doesNotContain("rt=");
+			String body = result.getResponse().getContentAsString();
+			// accessToken/refreshToken/accessExpiredTime은 쿠키 전용 — body JSON에 키가 존재하지 않아야 함
+			assertThat(body).doesNotContain("\"accessToken\"");
+			assertThat(body).doesNotContain("\"refreshToken\"");
+			assertThat(body).doesNotContain("\"accessExpiredTime\"");
 		}
 
 		@Test
@@ -507,26 +495,24 @@ class AuthApiIntegrationTest {
 		}
 
 		@Test
-		@DisplayName("WEB 로그인 응답 body에 redirectUrl 필드가 없음 (WEB 분기 불변)")
-		void web_login_response_does_not_contain_redirectUrl_in_body() throws Exception {
+		@DisplayName("WEB 로그인도 200 OK + body에 redirectUrl 필드가 포함됨 (accessExpiredTime은 미포함)")
+		void web_login_response_contains_redirectUrl_in_body() throws Exception {
 			signup("appuser06");
 
-			MvcResult result =
-					mockMvc
-							.perform(
-									post("/api/v1/auth/login")
-											.contentType(MediaType.APPLICATION_JSON)
-											.header("Client-Type", "WEB")
-											.content(
-													"""
-													{"loginId":"appuser06","password":"Econo1234!"}
-													"""))
-							.andExpect(status().is3xxRedirection())
-							.andReturn();
-
-			// WEB 분기는 302 리다이렉트, body 없음
-			String body = result.getResponse().getContentAsString();
-			assertThat(body).doesNotContain("redirectUrl");
+			// WEB 분기: 200 OK + body({ redirectUrl }) — accessExpiredTime은 WEB body에 포함하지 않음
+			mockMvc
+					.perform(
+							post("/api/v1/auth/login")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("Client-Type", "WEB")
+									.content(
+											"""
+											{"loginId":"appuser06","password":"Econo1234!"}
+											"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.redirectUrl").exists())
+					.andExpect(jsonPath("$.redirectUrl").isNotEmpty())
+					.andExpect(jsonPath("$.accessExpiredTime").doesNotExist());
 		}
 	}
 
