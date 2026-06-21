@@ -38,9 +38,20 @@ public class ClientController implements ClientApiDocs {
 			@PassportAuth Passport passport, @Valid @RequestBody SelfRegisterClientRequest request) {
 		SelfRegisterOAuthClientCommand command =
 				new SelfRegisterOAuthClientCommand(
-						request.clientName(), request.redirectUris(), passport.getMemberId());
+						request.clientName(),
+						request.redirectUris(),
+						passport.getMemberId(),
+						request.pathPrefix(),
+						request.upstreamUrl());
 		SelfRegisterOAuthClientResult result = registerOAuthClientUseCase.selfRegister(command);
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(new SelfRegisterClientResponse(result.clientId(), result.clientSecret()));
+				.body(
+						new SelfRegisterClientResponse(
+								result.clientId(),
+								result.clientSecret(),
+								result.routeId(),
+								result.pathPrefix(),
+								result.upstreamUrl(),
+								result.enabled()));
 	}
 }
