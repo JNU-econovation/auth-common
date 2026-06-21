@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
@@ -35,14 +37,13 @@ class ManageRouteServiceTest {
 
 	@Mock private ServiceRouteRepository serviceRouteRepository;
 	@Mock private GatewayRefreshClient gatewayRefreshClient;
-	@Mock private ProtectedPathPolicy protectedPathPolicy;
+	@Mock private RouteValidator routeValidator;
 
 	private ManageRouteService service;
 
 	@BeforeEach
 	void setUp() {
-		service =
-				new ManageRouteService(serviceRouteRepository, gatewayRefreshClient, protectedPathPolicy);
+		service = new ManageRouteService(serviceRouteRepository, gatewayRefreshClient, routeValidator);
 	}
 
 	// ──────────────────────────────────────────────────────────
@@ -67,8 +68,8 @@ class ManageRouteServiceTest {
 							true,
 							LocalDateTime.now(),
 							LocalDateTime.now());
-			given(protectedPathPolicy.isProtected("/api/v2/new-service")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefix("/api/v2/new-service")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://new-service:8080");
+			willDoNothing().given(routeValidator).validatePathPrefix("/api/v2/new-service");
 			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(saved);
 
 			// when
@@ -95,8 +96,8 @@ class ManageRouteServiceTest {
 							true,
 							LocalDateTime.now(),
 							LocalDateTime.now());
-			given(protectedPathPolicy.isProtected("/api/v2/service")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefix("/api/v2/service")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://service:8080");
+			willDoNothing().given(routeValidator).validatePathPrefix("/api/v2/service");
 			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(saved);
 
 			// when
@@ -120,8 +121,8 @@ class ManageRouteServiceTest {
 							true,
 							LocalDateTime.now(),
 							LocalDateTime.now());
-			given(protectedPathPolicy.isProtected("/api/v2/secure")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefix("/api/v2/secure")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("https://secure-service:8443");
+			willDoNothing().given(routeValidator).validatePathPrefix("/api/v2/secure");
 			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(saved);
 
 			// when / then — 예외 없이 성공
@@ -144,6 +145,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/malicious", "file:///etc/passwd", true);
+			willThrow(new RouteUpstreamInvalidException("허용되지 않는 스킴"))
+					.given(routeValidator)
+					.validateUpstreamUrl("file:///etc/passwd");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -157,6 +161,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/ftp", "ftp://ftp.example.com", true);
+			willThrow(new RouteUpstreamInvalidException("허용되지 않는 스킴"))
+					.given(routeValidator)
+					.validateUpstreamUrl("ftp://ftp.example.com");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -169,6 +176,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/local", "http://127.0.0.1:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://127.0.0.1:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -181,6 +191,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/private", "http://10.0.0.5:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://10.0.0.5:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -193,6 +206,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/private2", "http://192.168.1.100:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://192.168.1.100:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -205,6 +221,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/private3", "http://172.16.0.1:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://172.16.0.1:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -217,6 +236,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/localhost", "http://localhost:8080", true);
+			willThrow(new RouteUpstreamInvalidException("localhost는 허용되지 않습니다."))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://localhost:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -229,6 +251,9 @@ class ManageRouteServiceTest {
 			// given — 0.0.0.0은 isAnyLocalAddress()=true
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/any-local", "http://0.0.0.0:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://0.0.0.0:8080");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -241,6 +266,9 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/ssrf", "http://192.168.0.1:8080", true);
+			willThrow(new RouteUpstreamInvalidException("private IP 차단"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://192.168.0.1:8080");
 
 			// when
 			try {
@@ -269,8 +297,10 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v2/existing", "http://service:8080", true);
-			given(protectedPathPolicy.isProtected("/api/v2/existing")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefix("/api/v2/existing")).willReturn(true);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://service:8080");
+			willThrow(new RoutePathConflictException("/api/v2/existing"))
+					.given(routeValidator)
+					.validatePathPrefix("/api/v2/existing");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -294,11 +324,11 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(existing));
-			// 기존 pathPrefix는 비보호 경로
-			given(protectedPathPolicy.isProtected("/api/v2/old")).willReturn(false);
-			given(protectedPathPolicy.isProtected("/api/v2/conflict")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefixAndRouteIdNot("/api/v2/conflict", routeId))
-					.willReturn(true);
+			given(routeValidator.isProtected("/api/v2/old")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://service:8080");
+			willThrow(new RoutePathConflictException("/api/v2/conflict"))
+					.given(routeValidator)
+					.validatePathPrefixForUpdate("/api/v2/conflict", routeId);
 
 			// when / then
 			assertThatThrownBy(() -> service.updateRoute(routeId, command))
@@ -329,10 +359,9 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(existing));
-			// existing.pathPrefix()와 command.pathPrefix()가 같으므로 두 번 호출됨 — 모두 false
-			given(protectedPathPolicy.isProtected("/api/v2/self")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefixAndRouteIdNot("/api/v2/self", routeId))
-					.willReturn(false);
+			given(routeValidator.isProtected("/api/v2/self")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://new-service:8080");
+			willDoNothing().given(routeValidator).validatePathPrefixForUpdate("/api/v2/self", routeId);
 			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(updated);
 
 			// when / then — 예외 없이 성공
@@ -355,7 +384,10 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/api/v1/auth/hijack", "http://evil:9090", true);
-			given(protectedPathPolicy.isProtected("/api/v1/auth/hijack")).willReturn(true);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://evil:9090");
+			willThrow(new RouteProtectedException("/api/v1/auth/hijack"))
+					.given(routeValidator)
+					.validatePathPrefix("/api/v1/auth/hijack");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -369,7 +401,10 @@ class ManageRouteServiceTest {
 			// given
 			CreateRouteCommand command =
 					new CreateRouteCommand("/oauth2/token", "http://evil:9090", true);
-			given(protectedPathPolicy.isProtected("/oauth2/token")).willReturn(true);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://evil:9090");
+			willThrow(new RouteProtectedException("/oauth2/token"))
+					.given(routeValidator)
+					.validatePathPrefix("/oauth2/token");
 
 			// when / then
 			assertThatThrownBy(() -> service.createRoute(command))
@@ -392,10 +427,11 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(existing));
-			// 기존 pathPrefix는 비보호 경로
-			given(protectedPathPolicy.isProtected("/api/v2/old")).willReturn(false);
-			// 새 pathPrefix가 보호 경로
-			given(protectedPathPolicy.isProtected("/api/v1/admin/routes")).willReturn(true);
+			given(routeValidator.isProtected("/api/v2/old")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://evil:9090");
+			willThrow(new RouteProtectedException("/api/v1/admin/routes"))
+					.given(routeValidator)
+					.validatePathPrefixForUpdate("/api/v1/admin/routes", routeId);
 
 			// when / then
 			assertThatThrownBy(() -> service.updateRoute(routeId, command))
@@ -417,7 +453,7 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(existingProtected));
-			given(protectedPathPolicy.isProtected("/api/v1/auth/login")).willReturn(true);
+			given(routeValidator.isProtected("/api/v1/auth/login")).willReturn(true);
 
 			// when / then
 			assertThatThrownBy(() -> service.updateRoute(routeId, command))
@@ -439,7 +475,7 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(protectedRoute));
-			given(protectedPathPolicy.isProtected("/api/v1/auth/login")).willReturn(true);
+			given(routeValidator.isProtected("/api/v1/auth/login")).willReturn(true);
 
 			// when / then
 			assertThatThrownBy(() -> service.deleteRoute(routeId))
@@ -480,12 +516,9 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(existing));
-			// 기존 pathPrefix 보호 경로 검사
-			given(protectedPathPolicy.isProtected("/api/v2/old")).willReturn(false);
-			// 새 pathPrefix 보호 경로 검사
-			given(protectedPathPolicy.isProtected("/api/v2/renamed")).willReturn(false);
-			given(serviceRouteRepository.existsByPathPrefixAndRouteIdNot("/api/v2/renamed", routeId))
-					.willReturn(false);
+			given(routeValidator.isProtected("/api/v2/old")).willReturn(false);
+			willDoNothing().given(routeValidator).validateUpstreamUrl("http://renamed:8080");
+			willDoNothing().given(routeValidator).validatePathPrefixForUpdate("/api/v2/renamed", routeId);
 			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(updated);
 
 			// when
@@ -534,7 +567,7 @@ class ManageRouteServiceTest {
 							LocalDateTime.now(),
 							LocalDateTime.now());
 			given(serviceRouteRepository.findById(routeId)).willReturn(Optional.of(route));
-			given(protectedPathPolicy.isProtected("/api/v2/to-delete")).willReturn(false);
+			given(routeValidator.isProtected("/api/v2/to-delete")).willReturn(false);
 
 			// when
 			service.deleteRoute(routeId);
