@@ -15,7 +15,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-/** service_route 테이블 JPA 엔티티 (V9 마이그레이션 이후 스키마 기준 — FK 제거, registered_client_id nullable) */
+/** service_route 테이블 JPA 엔티티 (V11 마이그레이션 이후 스키마 기준 — owner_id nullable 추가) */
 // TODO: BaseEntity 추출
 @Entity
 @Table(name = "service_route")
@@ -51,6 +51,9 @@ public class ServiceRouteJpaEntity {
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	@Column(name = "owner_id", nullable = true)
+	private Long ownerId;
+
 	/**
 	 * 도메인 ServiceRoute → JPA 엔티티 변환
 	 *
@@ -64,6 +67,7 @@ public class ServiceRouteJpaEntity {
 		entity.upstreamUrl = route.upstreamUrl();
 		entity.enabled = route.enabled();
 		entity.registeredClientId = null;
+		entity.ownerId = route.ownerId();
 		return entity;
 	}
 
@@ -82,6 +86,7 @@ public class ServiceRouteJpaEntity {
 		entity.upstreamUrl = route.upstreamUrl();
 		entity.enabled = route.enabled();
 		entity.registeredClientId = null;
+		entity.ownerId = route.ownerId();
 		return entity;
 	}
 
@@ -91,6 +96,7 @@ public class ServiceRouteJpaEntity {
 	 * @return 도메인 ServiceRoute 인스턴스
 	 */
 	public ServiceRoute toDomain() {
-		return new ServiceRoute(routeId, pathPrefix, upstreamUrl, enabled, createdAt, updatedAt);
+		return new ServiceRoute(
+				routeId, pathPrefix, upstreamUrl, enabled, createdAt, updatedAt, ownerId);
 	}
 }

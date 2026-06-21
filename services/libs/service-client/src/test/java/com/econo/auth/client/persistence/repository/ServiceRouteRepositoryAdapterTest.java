@@ -22,8 +22,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * ServiceRouteRepositoryAdapter JPA 슬라이스 테스트
  *
- * <p>V9(FK 제거 + registered_client_id nullable), V10(enabled 인덱스) 마이그레이션을 실제 Flyway로 적용한 스키마 기준.
- * Testcontainers PostgreSQL 사용.
+ * <p>V9(FK 제거 + registered_client_id nullable), V10(enabled 인덱스), V11(owner_id nullable), V12(인덱스)
+ * 마이그레이션을 실제 Flyway로 적용한 스키마 기준. Testcontainers PostgreSQL 사용.
  *
  * <p>DDL-auto 대신 실제 마이그레이션(classpath:db/migration)을 사용하여 V9 nullable·V10 인덱스가 올바르게 적용되었는지 검증한다.
  */
@@ -249,6 +249,69 @@ class ServiceRouteRepositoryAdapterTest {
 
 			Optional<ServiceRoute> found = adapter.findById(saved.routeId());
 			assertThat(found).isPresent();
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// V11 마이그레이션 검증 — owner_id 셀프 등록 쿼리 메서드
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("V11 마이그레이션 — owner_id 컬럼 + 네임스페이스 선점 조회 검증")
+	class OwnerIdQueryTest {
+
+		@Test
+		@DisplayName("findNamespaceOwner — 해당 네임스페이스 라우트 없으면 Optional.empty() 반환")
+		void findNamespaceOwner_withNoRoute_returnsEmpty() {
+			// when
+			Optional<Long> owner = adapter.findNamespaceOwner("nonexistent-ns");
+
+			// then
+			assertThat(owner).isEmpty();
+		}
+
+		@Test
+		@DisplayName("findNamespaceOwner — /api/{ns} 형태로 저장된 라우트의 ownerId 반환")
+		void findNamespaceOwner_withExactPrefix_returnsOwnerId() {
+			// given
+			Long ownerId = 60L;
+			adapter.save(ServiceRoute.create("/api/ns-query", "http://nsq:8080", true, ownerId));
+
+			// when
+			Optional<Long> owner = adapter.findNamespaceOwner("ns-query");
+
+			// then
+			assertThat(owner).isPresent();
+			assertThat(owner.get()).isEqualTo(ownerId);
+		}
+
+		@Test
+		@DisplayName("findNamespaceOwner — /api/{ns}/subpath 형태로 저장된 라우트의 ownerId 반환")
+		void findNamespaceOwner_withSubpath_returnsOwnerId() {
+			// given
+			Long ownerId = 61L;
+			adapter.save(ServiceRoute.create("/api/ns-subpath/v1", "http://nssp:8080", true, ownerId));
+
+			// when
+			Optional<Long> owner = adapter.findNamespaceOwner("ns-subpath");
+
+			// then
+			assertThat(owner).isPresent();
+			assertThat(owner.get()).isEqualTo(ownerId);
+		}
+
+		@Test
+		@DisplayName("findNamespaceOwner — 다른 네임스페이스는 조회되지 않음")
+		void findNamespaceOwner_doesNotMatchDifferentNamespace() {
+			// given
+			Long ownerId = 70L;
+			adapter.save(ServiceRoute.create("/api/ns-separate", "http://sep:8080", true, ownerId));
+
+			// when — 다른 네임스페이스로 조회
+			Optional<Long> owner = adapter.findNamespaceOwner("other-ns");
+
+			// then
+			assertThat(owner).isEmpty();
 		}
 	}
 }

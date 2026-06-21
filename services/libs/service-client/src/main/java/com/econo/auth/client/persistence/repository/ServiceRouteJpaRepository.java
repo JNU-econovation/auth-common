@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** service_route 테이블 Spring Data JPA Repository */
 public interface ServiceRouteJpaRepository extends JpaRepository<ServiceRouteJpaEntity, Long> {
@@ -58,4 +59,20 @@ public interface ServiceRouteJpaRepository extends JpaRepository<ServiceRouteJpa
 	@Modifying
 	@Query("DELETE FROM ServiceRouteJpaEntity e WHERE e.routeId = :routeId")
 	void deleteByRouteId(String routeId);
+
+	/**
+	 * 네임스페이스 선점 ownerId 목록 조회
+	 *
+	 * <p>pathPrefix가 /api/{namespace}/ 로 시작하거나 /api/{namespace} 와 정확히 일치하는 라우트의 ownerId를 반환한다.
+	 * text_pattern_ops 인덱스(V12)를 활용한 LIKE prefix 탐색. 어드민 라우트(owner_id=NULL)와 셀프 라우트가 공존할 수 있으므로 List로
+	 * 반환한다.
+	 *
+	 * @param namespace 네임스페이스 문자열 (두 번째 세그먼트)
+	 * @return 선점한 ownerId 목록 (NULL 포함 가능)
+	 */
+	@Query(
+			"SELECT DISTINCT e.ownerId FROM ServiceRouteJpaEntity e WHERE e.pathPrefix LIKE"
+					+ " CONCAT('/api/', :namespace, '/%') OR e.pathPrefix = CONCAT('/api/', :namespace)"
+					+ " OR e.pathPrefix = CONCAT('/api/', :namespace, '/**')")
+	List<Long> findOwnerIdsByNamespace(@Param("namespace") String namespace);
 }

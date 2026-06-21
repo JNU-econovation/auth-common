@@ -60,4 +60,14 @@ public interface ServiceRouteRepository {
 	 * @return 활성화된 라우트 목록
 	 */
 	List<ServiceRoute> findAllEnabled();
+
+	/**
+	 * 네임스페이스 선점 owner 조회
+	 *
+	 * <p>해당 네임스페이스에 속하는 라우트의 ownerId를 반환한다. 결과가 없으면 {@link java.util.Optional#empty()}.
+	 *
+	 * @param namespace 네임스페이스 문자열 (두 번째 세그먼트)
+	 * @return 선점한 ownerId (없으면 empty)
+	 */
+	Optional<Long> findNamespaceOwner(String namespace);
 }
