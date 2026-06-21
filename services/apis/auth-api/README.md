@@ -160,18 +160,24 @@ api-gateway가 JWT 서명 검증에 사용하는 공개키. 직접 호출 불필
 | **셀프 등록** | `POST /api/v1/clients` | X-User-Passport (Gateway 주입, memberId 필수) — ADMIN 역할 불필요 |
 | **어드민 등록** | `POST /api/v1/admin/clients` | X-User-Passport ADMIN 또는 SUPER_ADMIN role 필수 |
 
-**에러 코드 요약:**
+**에러 코드 요약 (셀프 등록 — 라우트 포함 시 추가):**
 
 | HTTP | 코드 | 발생 조건 |
 |------|------|-----------|
 | 400 | `AUTH_BAD_REQUEST` | `X-User-Passport` Base64/JSON 파싱 불가 |
+| 400 | `VALIDATION_FAILED` | `clientName` 빈값, 또는 `pathPrefix`·`upstreamUrl` 중 하나만 제공 (`fieldErrors.field=routeFields`) |
+| 400 | `ROUTE_NAMESPACE_INVALID` | `pathPrefix`가 `/api/{namespace}` 형태가 아님 |
+| 400 | `ROUTE_UPSTREAM_INVALID` | `upstreamUrl` SSRF 검증 실패 |
 | 401 | `AUTH_UNAUTHORIZED` | `X-User-Passport` 헤더 누락 또는 invalid passport |
 | 403 | `FORBIDDEN` | 어드민 경로에서 ADMIN/SUPER_ADMIN 역할 부족 |
+| 403 | `ROUTE_NAMESPACE_TAKEN` | 네임스페이스를 다른 회원이 이미 선점 |
+| 403 | `ROUTE_PROTECTED` | `pathPrefix`가 보호 경로 패턴과 충돌 |
+| 409 | `ROUTE_PATH_CONFLICT` | `pathPrefix` 중복 |
 
 > 전체 에러 코드 및 비즈니스 규칙: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
 
 ```bash
-# 셀프 등록 (인증된 회원 — X-User-Passport 필수, Gateway 경유 시 자동 주입)
+# 셀프 등록 — 클라이언트만 (라우트 없음)
 curl -X POST http://localhost:8081/api/v1/clients \
   -H "Content-Type: application/json" \
   -H "X-User-Passport: <passport>" \
@@ -179,8 +185,20 @@ curl -X POST http://localhost:8081/api/v1/clients \
     "clientName": "EEOS 웹",
     "redirectUris": ["https://app.econovation.kr/callback"]
   }'
-# → 201 {"clientId": "...", "clientSecret": "... (1회만 노출)"}
-# 회원당 최대 5개. 초과 시 422 CLIENT_LIMIT_EXCEEDED.
+# → 201 {"clientId": "...", "clientSecret": "...", "routeId": null, "pathPrefix": null, "upstreamUrl": null, "enabled": null}
+
+# 셀프 등록 — 클라이언트 + 라우트 동시 등록 (pathPrefix·upstreamUrl 둘 다 필요)
+curl -X POST http://localhost:8081/api/v1/clients \
+  -H "Content-Type: application/json" \
+  -H "X-User-Passport: <passport>" \
+  -d '{
+    "clientName": "EEOS 웹",
+    "redirectUris": ["https://app.econovation.kr/callback"],
+    "pathPrefix": "/api/eeos",
+    "upstreamUrl": "http://eeos-service:8080"
+  }'
+# → 201 {"clientId": "...", "clientSecret": "...", "routeId": "...", "pathPrefix": "/api/eeos", "upstreamUrl": "http://eeos-service:8080", "enabled": true}
+# 회원당 최대 5개. 초과 시 422 CLIENT_LIMIT_EXCEEDED. clientSecret은 1회만 노출.
 
 # 어드민 등록 (ADMIN 또는 SUPER_ADMIN role 필요)
 curl -X POST http://localhost:8081/api/v1/admin/clients \

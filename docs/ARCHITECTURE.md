@@ -77,7 +77,7 @@ econo-passport (외부 의존성 — JitPack 배포, 이 레포 모듈 아님)
 | **auth-api** | App | OIDC Authorization Server (SAS 1.x). 토큰 발급(SAS) + JWKS 제공(`/oauth2/jwks`) + 회원 가입·로그아웃 API. JSON 로그인(경로 A) → AT/RT 쿠키 발급 + clientId 기반 redirectUrl body 반환(WEB: 200+`{redirectUrl}`) 또는 200+body(accessToken, refreshToken, accessExpiredTime, redirectUrl)(APP). SSO 클라이언트 셀프 등록(`POST /api/v1/clients`, Passport 회원 인증). Authorization Code + PKCE(경로 B) → 토큰 발급. `/api/v1/clients`, `/api/v1/admin/**` 엔드포인트는 econo-passport 라이브러리의 `@PassportAuth` + `PassportArgumentResolver`로 `X-User-Passport` 헤더를 파싱·검증한다. 회원·권한·서비스클라이언트 관리. `NimbusTokenManager`(`TokenEncoder/TokenDecoder` 구현체)를 `config/security/`에 보유한다. |
 | **member** | Lib | Member 도메인·유스케이스·출력 포트(repository)·예외·JPA 어댑터·BCrypt 어댑터. Spring Boot AutoConfiguration(`MemberAutoConfiguration`)으로 자기 스캔. (DB 마이그레이션은 모듈 밖 `db/migration`에서 전역 관리 — ADR-0015) |
 | **common-infra** | Lib | `@EnableJpaAuditing` AutoConfiguration. `member`·`service-client` 모듈에 JPA Auditing을 일원화 제공. |
-| **service-client** | Lib | ServiceClient 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, JPA 어댑터, SAS 어댑터. Spring Boot AutoConfiguration으로 자기 스캔. |
+| **service-client** | Lib | ServiceClient 도메인, OAuth 클라이언트 등록(셀프·어드민)·redirectUri 관리 유스케이스, ServiceRoute 동적 라우팅 도메인, JPA 어댑터, SAS 어댑터. 셀프 클라이언트 등록 시 `RegisterOAuthClientService`가 라우트 생성을 흡수하며, `RouteNamespaceExtractor`·`RouteValidator`로 네임스페이스·SSRF·보호경로를 검증한다. Spring Boot AutoConfiguration으로 자기 스캔. |
 | **login** | Lib | AT/RT 발급·재발급·RT 검증(`LoginTokenUseCase`), clientId 기반 리다이렉트 결정(`LoginRedirectUseCase`). JWT 서명·검증은 `TokenEncoder/TokenDecoder` 출력 포트로 추상화(구현체는 소비자 앱이 제공). `spring-security-oauth2` 의존 없음. Spring Boot AutoConfiguration(`LoginAutoConfiguration`)으로 자기 스캔. |
 
 > Passport 수신·검증 기능(Passport 도메인, @PassportAuth, PassportArgumentResolver)은 외부 의존성 econo-passport가 제공한다(이 레포 로컬 모듈 아님).
@@ -261,9 +261,11 @@ com.econo.auth.client
 │   │   ├── ClientRedirectUriUseCase     # 입력 포트 — redirectUri 관리 (ClientInfo record 포함)
 │   │   └── ManageRouteUseCase           # 입력 포트 — 라우트 CRUD (CreateRouteCommand/UpdateRouteCommand/RouteResult record 포함)
 │   ├── service/
-│   │   ├── RegisterOAuthClientService   # RegisterOAuthClientUseCase 구현체
+│   │   ├── RegisterOAuthClientService   # RegisterOAuthClientUseCase 구현체 (셀프 등록 시 라우트 생성 흡수 — 동일 @Transactional)
 │   │   ├── ClientRedirectUriService     # ClientRedirectUriUseCase 구현체
-│   │   ├── ManageRouteService           # ManageRouteUseCase 구현체 (SSRF·보호경로 검증, DB 저장, refresh 트리거)
+│   │   ├── ManageRouteService           # ManageRouteUseCase 구현체 (어드민 라우트 CRUD, SSRF·보호경로 검증, DB 저장, refresh 트리거)
+│   │   ├── RouteNamespaceExtractor      # pathPrefix에서 네임스페이스 추출·포맷 검증 (/api/{namespace}/...) — 셀프 등록 전용
+│   │   ├── RouteValidator               # SSRF·보호경로·중복 검증 유틸 — ManageRouteService·RegisterOAuthClientService 공유
 │   │   ├── GatewayRefreshClient         # 출력 포트 — api-gateway POST /api/v1/internal/routes/refresh 호출 추상화 (구현체는 auth-api)
 │   │   └── ProtectedPathPolicy          # 출력 포트 — 보호 경로 판정 추상화 (값·구현체는 소비자 앱 auth-api가 제공)
 │   └── repository/
@@ -291,7 +293,9 @@ com.econo.auth.client
     ├── RouteNotFoundException           # 404 ROUTE_NOT_FOUND — routeId 미존재
     ├── RoutePathConflictException       # 409 ROUTE_PATH_CONFLICT — pathPrefix 중복
     ├── RouteUpstreamInvalidException    # 400 ROUTE_UPSTREAM_INVALID — SSRF 검증 실패
-    └── RouteProtectedException          # 403 ROUTE_PROTECTED — 보호 경로 가로채기·삭제 시도
+    ├── RouteProtectedException          # 403 ROUTE_PROTECTED — 보호 경로 가로채기·삭제 시도
+    ├── RouteNamespaceInvalidException   # 400 ROUTE_NAMESPACE_INVALID — pathPrefix가 /api/{namespace} 형태 위반 (셀프 등록 전용)
+    └── RouteNamespaceTakenException     # 403 ROUTE_NAMESPACE_TAKEN — 네임스페이스를 다른 ownerId 회원이 선점 (셀프 등록 전용)
 ```
 
 > `GrantType`은 `RegisterOAuthClientService`에서 `GrantType.AUTHORIZATION_CODE` 고정으로 사용한다. 컨트롤러 계층에서 grantType을 입력 받지 않으므로 `GrantType.fromString`은 호출되지 않는다.
@@ -422,10 +426,11 @@ api-gateway 라우팅은 두 계층으로 구성된다.
 
 클라이언트 등록은 두 경로가 공존한다. 자세한 설계 근거: [ADR-0013](./adr/0013-passport-member-self-registration.md)
 
-- **셀프 등록** (`POST /api/v1/clients`): econo-passport `@PassportAuth`로 `X-User-Passport`에서 `memberId`를 추출하여 인증. ADMIN 역할 불필요. 헤더 누락 또는 invalid → 401. 1인 5개 제한. `owner_id`·`client_secret_hash` 저장.
+- **셀프 등록** (`POST /api/v1/clients`): econo-passport `@PassportAuth`로 `X-User-Passport`에서 `memberId`를 추출하여 인증. ADMIN 역할 불필요. 헤더 누락 또는 invalid → 401. 1인 5개 제한. `owner_id`·`client_secret_hash` 저장. 요청에 `pathPrefix`·`upstreamUrl`을 함께 제공하면 동일 `@Transactional` 경계에서 `service_route` 1건을 원자적으로 생성하고 게이트웨이를 즉시 갱신한다 (1 클라이언트 = 최대 1 라우트). 라우트 생성 시 `/api/{namespace}` 포맷·네임스페이스 선점·SSRF·보호경로 검증이 추가 적용된다.
 - **어드민 등록** (`POST /api/v1/admin/clients`): econo-passport `@PassportAuth(requiredRoles = {ADMIN, SUPER_ADMIN})`로 인증·인가. 헤더 누락·invalid → 401, 역할 부족 → 403. `owner_id=NULL`, `client_secret_hash=NULL`.
 - 두 경로 모두 SAS에 `authorization_code + PKCE`, `ClientAuthenticationMethod.NONE` 클라이언트로 등록한다.
 - `clientSecret`은 셀프 등록 시 발급·보관(service_client.client_secret_hash BCrypt 해시)하지만, 현재 이를 소비하는 in-scope 엔드포인트가 없다. 향후 redirect-uri 셀프관리 도입 시 활성화 예정.
+- `service_route.owner_id`: 셀프 등록 라우트는 `memberId`, 어드민 등록 라우트는 `NULL` (V11 마이그레이션 — `service_client.owner_id` V7 패턴과 동일, FK 없음).
 
 ## 에러 코드 체계
 
@@ -473,6 +478,8 @@ api-gateway 라우팅은 두 계층으로 구성된다.
 | 409 CONFLICT | ROUTE_PATH_CONFLICT | pathPrefix 중복 등록 (`RoutePathConflictException`) — DB UNIQUE 제약 사전 검증 |
 | 400 BAD_REQUEST | ROUTE_UPSTREAM_INVALID | upstreamUrl SSRF 검증 실패 — 비허용 스킴, private IP, 빈 호스트 (`RouteUpstreamInvalidException`) |
 | 403 FORBIDDEN | ROUTE_PROTECTED | 보호 경로(`ProtectedPathPolicy`) 가로채기·삭제 시도 (`RouteProtectedException`) |
+| 400 BAD_REQUEST | ROUTE_NAMESPACE_INVALID | pathPrefix가 `/api/{namespace}` 포맷을 따르지 않음 (`RouteNamespaceInvalidException`) — 셀프 등록 전용 |
+| 403 FORBIDDEN | ROUTE_NAMESPACE_TAKEN | 네임스페이스를 다른 ownerId 회원이 선점 (`RouteNamespaceTakenException`) — 셀프 등록 전용 |
 
 ### auth-api — 셀프 등록 API (ClientController)
 

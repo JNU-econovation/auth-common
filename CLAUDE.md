@@ -59,6 +59,7 @@
 - `0015` — DB 마이그레이션을 모듈 밖으로 전역화하고 flyway 컨테이너로 적용
 - `0016` — 동적 DB 기반 Gateway 라우팅 재도입 (ADR-0005 supersede)
 - `0017` — 게이트웨이 tokenless passthrough — 미토큰 라우팅 허용, 인증 강제를 다운스트림으로 이전 (ADR-0002 보완)
+- `0018` — 게이트웨이 라우트 셀프 등록을 클라이언트 셀프 등록에 흡수 (`POST /api/v1/clients`에 라우트 선택 필드 + 네임스페이스 선점 + service_route.owner_id)
 - `role-management.md` — 역할 관리 결정 노트
 
 > ADR 번호 0006·0008은 결번. ADR-0005(정적 라우팅)는 ADR-0016(동적 라우팅 재도입)으로 supersede됨. 현재 결정: 정적 보호 라우트(`GatewayRoutingConfig`) + 동적 서비스 라우트(`service_route` 테이블) 공존. 상세: `docs/DYNAMIC_ROUTING.md`
