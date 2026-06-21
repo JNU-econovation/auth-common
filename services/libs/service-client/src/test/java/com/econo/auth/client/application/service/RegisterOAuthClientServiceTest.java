@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 import com.econo.auth.client.application.domain.ServiceClient;
+import com.econo.auth.client.application.domain.ServiceRoute;
 import com.econo.auth.client.application.repository.SasClientRegistrar;
 import com.econo.auth.client.application.repository.ServiceClientRepository;
+import com.econo.auth.client.application.repository.ServiceRouteRepository;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.RegisterOAuthClientCommand;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.RegisterOAuthClientResult;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.SelfRegisterOAuthClientCommand;
@@ -14,6 +16,11 @@ import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.Self
 import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNamespaceInvalidException;
+import com.econo.auth.client.exception.RouteNamespaceTakenException;
+import com.econo.auth.client.exception.RoutePathConflictException;
+import com.econo.auth.client.exception.RouteUpstreamInvalidException;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +39,9 @@ class RegisterOAuthClientServiceTest {
 	@Mock private SasClientRegistrar sasClientRegistrar;
 	@Mock private ServiceClientRepository serviceClientRepository;
 	@Mock private PasswordEncoder passwordEncoder;
+	@Mock private ServiceRouteRepository serviceRouteRepository;
+	@Mock private GatewayRefreshClient gatewayRefreshClient;
+	@Mock private RouteValidator routeValidator;
 
 	private RegisterOAuthClientService service;
 
@@ -39,7 +49,13 @@ class RegisterOAuthClientServiceTest {
 	void setUp() {
 		service =
 				new RegisterOAuthClientService(
-						sasClientRegistrar, serviceClientRepository, passwordEncoder);
+						sasClientRegistrar,
+						serviceClientRepository,
+						passwordEncoder,
+						serviceRouteRepository,
+						gatewayRefreshClient,
+						routeValidator,
+						new RouteNamespaceExtractor());
 	}
 
 	// ──────────────────────────────────────────────────────────
@@ -139,7 +155,8 @@ class RegisterOAuthClientServiceTest {
 			// given
 			Long ownerId = 123L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("내앱", Set.of("https://my-app.com/callback"), ownerId);
+					new SelfRegisterOAuthClientCommand(
+							"내앱", Set.of("https://my-app.com/callback"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(0L);
 			given(serviceClientRepository.existsByClientName("내앱")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$hashedSecret");
@@ -158,7 +175,8 @@ class RegisterOAuthClientServiceTest {
 			// given
 			Long ownerId = 42L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("앱이름", Set.of("https://example.com/cb"), ownerId);
+					new SelfRegisterOAuthClientCommand(
+							"앱이름", Set.of("https://example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(2L);
 			given(serviceClientRepository.existsByClientName("앱이름")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$fakeHashValue");
@@ -177,7 +195,7 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 99L;
 			SelfRegisterOAuthClientCommand command =
 					new SelfRegisterOAuthClientCommand(
-							"소유자앱", Set.of("https://owner.example.com/cb"), ownerId);
+							"소유자앱", Set.of("https://owner.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(0L);
 			given(serviceClientRepository.existsByClientName("소유자앱")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$ownerHash");
@@ -200,7 +218,8 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 77L;
 			String expectedHash = "$2a$12$specificBCryptHash";
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("해시앱", Set.of("https://hash.example.com/cb"), ownerId);
+					new SelfRegisterOAuthClientCommand(
+							"해시앱", Set.of("https://hash.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(1L);
 			given(serviceClientRepository.existsByClientName("해시앱")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn(expectedHash);
@@ -223,7 +242,7 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 11L;
 			SelfRegisterOAuthClientCommand command =
 					new SelfRegisterOAuthClientCommand(
-							"SAS호출앱", Set.of("https://sas.example.com/cb"), ownerId);
+							"SAS호출앱", Set.of("https://sas.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(0L);
 			given(serviceClientRepository.existsByClientName("SAS호출앱")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$hash");
@@ -245,7 +264,7 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 55L;
 			SelfRegisterOAuthClientCommand command =
 					new SelfRegisterOAuthClientCommand(
-							"다섯번째앱", Set.of("https://five.example.com/cb"), ownerId);
+							"다섯번째앱", Set.of("https://five.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(4L);
 			given(serviceClientRepository.existsByClientName("다섯번째앱")).willReturn(false);
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$hashFive");
@@ -269,7 +288,8 @@ class RegisterOAuthClientServiceTest {
 			// given
 			Long ownerId = 123L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("초과앱", Set.of("https://over.example.com/cb"), ownerId);
+					new SelfRegisterOAuthClientCommand(
+							"초과앱", Set.of("https://over.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(5L);
 
 			// when / then
@@ -286,7 +306,7 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 456L;
 			SelfRegisterOAuthClientCommand command =
 					new SelfRegisterOAuthClientCommand(
-							"초초과앱", Set.of("https://over2.example.com/cb"), ownerId);
+							"초초과앱", Set.of("https://over2.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(6L);
 
 			// when / then
@@ -309,9 +329,11 @@ class RegisterOAuthClientServiceTest {
 			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$hashB");
 
 			SelfRegisterOAuthClientCommand commandA =
-					new SelfRegisterOAuthClientCommand("ownerA앱", Set.of("https://a.example.com/cb"), ownerA);
+					new SelfRegisterOAuthClientCommand(
+							"ownerA앱", Set.of("https://a.example.com/cb"), ownerA, null, null);
 			SelfRegisterOAuthClientCommand commandB =
-					new SelfRegisterOAuthClientCommand("ownerB앱", Set.of("https://b.example.com/cb"), ownerB);
+					new SelfRegisterOAuthClientCommand(
+							"ownerB앱", Set.of("https://b.example.com/cb"), ownerB, null, null);
 
 			// when / then
 			assertThatThrownBy(() -> service.selfRegister(commandA))
@@ -334,7 +356,7 @@ class RegisterOAuthClientServiceTest {
 			// given — 입력값 검증이 DB 조회보다 앞에 있으므로 countByOwnerId stubbing 불필요
 			Long ownerId = 1L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("앱이름", null, ownerId);
+					new SelfRegisterOAuthClientCommand("앱이름", null, ownerId, null, null);
 
 			// when / then
 			assertThatThrownBy(() -> service.selfRegister(command))
@@ -348,7 +370,7 @@ class RegisterOAuthClientServiceTest {
 			// given — 입력값 검증이 DB 조회보다 앞에 있으므로 countByOwnerId stubbing 불필요
 			Long ownerId = 2L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand("앱이름", Set.of(), ownerId);
+					new SelfRegisterOAuthClientCommand("앱이름", Set.of(), ownerId, null, null);
 
 			// when / then
 			assertThatThrownBy(() -> service.selfRegister(command))
@@ -362,7 +384,7 @@ class RegisterOAuthClientServiceTest {
 			Long ownerId = 3L;
 			SelfRegisterOAuthClientCommand command =
 					new SelfRegisterOAuthClientCommand(
-							"중복이름앱", Set.of("https://dup.example.com/cb"), ownerId);
+							"중복이름앱", Set.of("https://dup.example.com/cb"), ownerId, null, null);
 			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(0L);
 			given(serviceClientRepository.existsByClientName("중복이름앱")).willReturn(true);
 
@@ -378,11 +400,282 @@ class RegisterOAuthClientServiceTest {
 			// given — 입력값 검증이 DB 조회보다 앞에 있으므로 countByOwnerId stubbing 불필요
 			Long ownerId = 4L;
 			SelfRegisterOAuthClientCommand command =
-					new SelfRegisterOAuthClientCommand(null, Set.of("https://ex.com/cb"), ownerId);
+					new SelfRegisterOAuthClientCommand(
+							null, Set.of("https://ex.com/cb"), ownerId, null, null);
 
 			// when / then
 			assertThatThrownBy(() -> service.selfRegister(command))
 					.isInstanceOf(IllegalArgumentException.class);
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// 셀프 등록 — 라우트 분기
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("selfRegister — 라우트 분기")
+	class SelfRegisterWithRouteTest {
+
+		/** 공통 setup 헬퍼 — 클라이언트 등록 자체는 성공하는 상태 */
+		private void stubClientRegistrationSuccess(Long ownerId, String clientName) {
+			given(serviceClientRepository.countByOwnerId(ownerId)).willReturn(0L);
+			given(serviceClientRepository.existsByClientName(clientName)).willReturn(false);
+			given(passwordEncoder.encode(anyString())).willReturn("$2a$12$hash");
+		}
+
+		@Test
+		@DisplayName("라우트 필드 null → 라우트 저장 미호출")
+		void selfRegister_withNullRouteFields_doesNotSaveRoute() {
+			// given
+			Long ownerId = 10L;
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"라우트없는앱", Set.of("https://noroute.example.com/cb"), ownerId, null, null);
+			stubClientRegistrationSuccess(ownerId, "라우트없는앱");
+
+			// when
+			service.selfRegister(command);
+
+			// then
+			then(serviceRouteRepository).should(never()).save(any(ServiceRoute.class));
+			then(gatewayRefreshClient).should(never()).triggerRefresh();
+		}
+
+		@Test
+		@DisplayName("둘 다 있음 → 클라이언트 + 라우트 저장 1회씩 호출")
+		void selfRegister_withBothRouteFields_savesClientAndRoute() {
+			// given
+			Long ownerId = 20L;
+			String pathPrefix = "/api/my/**";
+			String upstreamUrl = "https://my.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"라우트포함앱",
+							Set.of("https://my.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "라우트포함앱");
+			given(serviceRouteRepository.findNamespaceOwner("my")).willReturn(Optional.empty());
+			willDoNothing().given(routeValidator).validateUpstreamUrl(upstreamUrl);
+			willDoNothing().given(routeValidator).validatePathPrefix(pathPrefix);
+			ServiceRoute savedRoute = ServiceRoute.create(pathPrefix, upstreamUrl, true, ownerId);
+			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(savedRoute);
+
+			// when
+			service.selfRegister(command);
+
+			// then
+			then(serviceClientRepository).should(times(1)).save(any(ServiceClient.class));
+			then(serviceRouteRepository).should(times(1)).save(any(ServiceRoute.class));
+		}
+
+		@Test
+		@DisplayName("라우트 저장 시 Result에 라우트 필드 포함")
+		void selfRegister_withBothRouteFields_returnsRouteInfoInResult() {
+			// given
+			Long ownerId = 21L;
+			String pathPrefix = "/api/result/**";
+			String upstreamUrl = "https://result.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"결과앱",
+							Set.of("https://result.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "결과앱");
+			given(serviceRouteRepository.findNamespaceOwner("result")).willReturn(Optional.empty());
+			willDoNothing().given(routeValidator).validateUpstreamUrl(upstreamUrl);
+			willDoNothing().given(routeValidator).validatePathPrefix(pathPrefix);
+			ServiceRoute savedRoute = ServiceRoute.create(pathPrefix, upstreamUrl, true, ownerId);
+			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(savedRoute);
+
+			// when
+			SelfRegisterOAuthClientResult result = service.selfRegister(command);
+
+			// then
+			assertThat(result.routeId()).isNotBlank();
+			assertThat(result.pathPrefix()).isEqualTo(pathPrefix);
+			assertThat(result.upstreamUrl()).isEqualTo(upstreamUrl);
+			assertThat(result.enabled()).isTrue();
+		}
+
+		@Test
+		@DisplayName("저장된 ServiceRoute에 ownerId가 포함됨")
+		void selfRegister_withBothRouteFields_savesRouteWithOwnerId() {
+			// given
+			Long ownerId = 22L;
+			String pathPrefix = "/api/owner/**";
+			String upstreamUrl = "https://owner.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"오너앱",
+							Set.of("https://owner.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "오너앱");
+			given(serviceRouteRepository.findNamespaceOwner("owner")).willReturn(Optional.empty());
+			willDoNothing().given(routeValidator).validateUpstreamUrl(upstreamUrl);
+			willDoNothing().given(routeValidator).validatePathPrefix(pathPrefix);
+			ArgumentCaptor<ServiceRoute> captor = ArgumentCaptor.forClass(ServiceRoute.class);
+			ServiceRoute savedRoute = ServiceRoute.create(pathPrefix, upstreamUrl, true, ownerId);
+			given(serviceRouteRepository.save(captor.capture())).willReturn(savedRoute);
+
+			// when
+			service.selfRegister(command);
+
+			// then
+			ServiceRoute captured = captor.getValue();
+			assertThat(captured.ownerId()).isEqualTo(ownerId);
+		}
+
+		@Test
+		@DisplayName("네임스페이스 검증 실패 → RouteNamespaceInvalidException 전파")
+		void selfRegister_whenNamespaceInvalid_throwsAndRollback() {
+			// given — pathPrefix가 /api/ 형식이 아닌 경우 RouteNamespaceExtractor가 예외를 던짐
+			Long ownerId = 30L;
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"네임스페이스위반앱",
+							Set.of("https://ns.example.com/callback"),
+							ownerId,
+							"/not-api/x/**",
+							"https://ns.example.com");
+			stubClientRegistrationSuccess(ownerId, "네임스페이스위반앱");
+
+			// when / then
+			assertThatThrownBy(() -> service.selfRegister(command))
+					.isInstanceOf(RouteNamespaceInvalidException.class);
+		}
+
+		@Test
+		@DisplayName("타 owner 네임스페이스 → RouteNamespaceTakenException")
+		void selfRegister_whenNamespaceTaken_throwsRouteNamespaceTakenException() {
+			// given
+			Long ownerId = 40L;
+			Long otherOwnerId = 999L;
+			String pathPrefix = "/api/eeos/**";
+			String upstreamUrl = "https://eeos.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"선점충돌앱",
+							Set.of("https://eeos.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "선점충돌앱");
+			given(serviceRouteRepository.findNamespaceOwner("eeos"))
+					.willReturn(Optional.of(otherOwnerId));
+
+			// when / then
+			assertThatThrownBy(() -> service.selfRegister(command))
+					.isInstanceOf(RouteNamespaceTakenException.class);
+		}
+
+		@Test
+		@DisplayName("라우트 저장 실패 → 예외 전파")
+		void selfRegister_whenRouteStoreFails_propagatesException() {
+			// given
+			Long ownerId = 50L;
+			String pathPrefix = "/api/fail/**";
+			String upstreamUrl = "https://fail.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"저장실패앱",
+							Set.of("https://fail.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "저장실패앱");
+			given(serviceRouteRepository.findNamespaceOwner("fail")).willReturn(Optional.empty());
+			given(serviceRouteRepository.save(any(ServiceRoute.class)))
+					.willThrow(new RuntimeException("DB error"));
+
+			// when / then
+			assertThatThrownBy(() -> service.selfRegister(command))
+					.isInstanceOf(RuntimeException.class)
+					.hasMessageContaining("DB error");
+		}
+
+		@Test
+		@DisplayName("라우트 저장 후 refresh 트리거 — 트랜잭션 비활성 환경에서 즉시 호출")
+		void selfRegister_withBothRouteFields_triggersRefreshAfterCommit() {
+			// given — 단위 테스트 환경에서는 TransactionSynchronizationManager 비활성
+			//         → doTriggerRefresh() 즉시 호출됨
+			Long ownerId = 60L;
+			String pathPrefix = "/api/refresh/**";
+			String upstreamUrl = "https://refresh.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"리프레시앱",
+							Set.of("https://refresh.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "리프레시앱");
+			given(serviceRouteRepository.findNamespaceOwner("refresh")).willReturn(Optional.empty());
+			willDoNothing().given(routeValidator).validateUpstreamUrl(upstreamUrl);
+			willDoNothing().given(routeValidator).validatePathPrefix(pathPrefix);
+			ServiceRoute savedRoute = ServiceRoute.create(pathPrefix, upstreamUrl, true, ownerId);
+			given(serviceRouteRepository.save(any(ServiceRoute.class))).willReturn(savedRoute);
+
+			// when
+			service.selfRegister(command);
+
+			// then
+			then(gatewayRefreshClient).should(times(1)).triggerRefresh();
+		}
+
+		@Test
+		@DisplayName("upstreamUrl SSRF 검증 실패 → RouteUpstreamInvalidException 전파")
+		void selfRegister_whenUpstreamInvalid_throwsRouteUpstreamInvalidException() {
+			// given
+			Long ownerId = 70L;
+			String pathPrefix = "/api/ssrf/**";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"SSRF앱",
+							Set.of("https://ssrf.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							"http://192.168.1.1/admin");
+			stubClientRegistrationSuccess(ownerId, "SSRF앱");
+			given(serviceRouteRepository.findNamespaceOwner("ssrf")).willReturn(Optional.empty());
+			willThrow(new RouteUpstreamInvalidException("private IP"))
+					.given(routeValidator)
+					.validateUpstreamUrl("http://192.168.1.1/admin");
+
+			// when / then
+			assertThatThrownBy(() -> service.selfRegister(command))
+					.isInstanceOf(RouteUpstreamInvalidException.class);
+		}
+
+		@Test
+		@DisplayName("pathPrefix 중복 → RoutePathConflictException 전파")
+		void selfRegister_whenPathConflict_throwsRoutePathConflictException() {
+			// given
+			Long ownerId = 80L;
+			String pathPrefix = "/api/dup/**";
+			String upstreamUrl = "https://dup.example.com";
+			SelfRegisterOAuthClientCommand command =
+					new SelfRegisterOAuthClientCommand(
+							"경로중복앱",
+							Set.of("https://dup.example.com/callback"),
+							ownerId,
+							pathPrefix,
+							upstreamUrl);
+			stubClientRegistrationSuccess(ownerId, "경로중복앱");
+			given(serviceRouteRepository.findNamespaceOwner("dup")).willReturn(Optional.empty());
+			willThrow(new RoutePathConflictException(pathPrefix))
+					.given(routeValidator)
+					.validatePathPrefix(pathPrefix);
+
+			// when / then
+			assertThatThrownBy(() -> service.selfRegister(command))
+					.isInstanceOf(RoutePathConflictException.class);
 		}
 	}
 }
