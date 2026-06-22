@@ -23,7 +23,12 @@ api-gateway는 **정적 보호 라우트**와 **동적 서비스 라우트**를 
 
 ### 동적 서비스 라우트 (service_route 테이블)
 
-보호 경로 외의 신규 서비스는 Admin API(`POST /api/v1/admin/routes`)로 등록한다. 등록 즉시 api-gateway의 인메모리 캐시(`DynamicRouteDefinitionRepository`)가 갱신되고 `RefreshRoutesEvent`가 발행된다.
+보호 경로 외의 신규 서비스 라우트는 두 경로로 등록한다.
+
+- **어드민 등록** (`POST /api/v1/admin/routes`): ADMIN / SUPER_ADMIN 역할 필요. `owner_id=NULL`로 저장.
+- **회원 셀프 등록** (`POST /api/v1/clients` 흡수): 인증된 에코노 회원이 클라이언트 등록 시 `pathPrefix`·`upstreamUrl`을 함께 제공하면 동일 트랜잭션에서 라우트가 생성된다. `owner_id=memberId`로 저장. 네임스페이스(`/api/{namespace}`) 포맷 및 선점 여부를 추가로 검증한다. 상세: [docs/CLIENT_REGISTRATION.md](./CLIENT_REGISTRATION.md)
+
+두 경로 모두 등록 즉시 api-gateway의 인메모리 캐시(`DynamicRouteDefinitionRepository`)가 갱신되고 `RefreshRoutesEvent`가 발행된다.
 
 **경로 치환(rewrite) 모델**: `pathPrefix`는 `upstreamUrl`로 치환된다. 즉 `pathPrefix` 뒤의 나머지 경로를 `upstreamUrl`(경로 포함)에 그대로 이어붙여 전달한다. 등록자는 "이 prefix는 이 base URL로 간다"만 생각하면 된다.
 
@@ -37,7 +42,9 @@ api-gateway는 **정적 보호 라우트**와 **동적 서비스 라우트**를 
 
 ---
 
-## 라우트 등록 (Admin API)
+## 라우트 등록
+
+### Admin API
 
 `ADMIN` 또는 `SUPER_ADMIN` 역할의 Passport가 필요하다. Gateway가 Bearer JWT를 검증하고 `X-User-Passport` 헤더를 자동 주입한다.
 
@@ -63,6 +70,17 @@ curl -X POST https://gateway/api/v1/admin/routes \
 
 등록 후: `GET https://gateway/api/v2/my-service/anything` → `http://my-service:8080/api/v2/my-service/anything`
 
+### 회원 셀프 등록 (클라이언트 등록에 흡수)
+
+인증된 에코노 회원이 `POST /api/v1/clients` 요청 시 `pathPrefix`와 `upstreamUrl`을 함께 제공하면 클라이언트와 라우트를 동일 트랜잭션에서 원자적으로 생성한다. `@PassportAuth`(역할 제약 없음, memberId 필수).
+
+셀프 등록 라우트에는 아래 추가 제약이 적용된다.
+
+- **네임스페이스 포맷**: `pathPrefix`는 `/api/{namespace}/...` 형태여야 한다. 두 번째 세그먼트(예: `/api/eeos/**`의 `eeos`)가 네임스페이스다. 포맷 불일치 시 400 `ROUTE_NAMESPACE_INVALID`.
+- **네임스페이스 선점**: 같은 네임스페이스를 다른 회원이 이미 소유하고 있으면 403 `ROUTE_NAMESPACE_TAKEN`. 같은 회원이면 허용된다.
+- 어드민 등록 라우트(`owner_id=NULL`)가 점유한 네임스페이스도 셀프 등록이 허용된다(어드민 라우트 선점은 `findNamespaceOwner`가 non-null ownerId만 반환하므로 충돌 없음).
+- SSRF 검증 및 보호 경로 규칙은 어드민 등록과 동일하게 적용된다.
+
 ---
 
 ## 라우트 관리 API
@@ -75,7 +93,7 @@ curl -X POST https://gateway/api/v1/admin/routes \
 | `PUT` | `/api/v1/admin/routes/{routeId}` | 라우트 수정 | ADMIN / SUPER_ADMIN |
 | `DELETE` | `/api/v1/admin/routes/{routeId}` | 라우트 삭제 | ADMIN / SUPER_ADMIN |
 
-**에러 코드:**
+**어드민 API 에러 코드:**
 
 | HTTP | 에러 코드 | 발생 조건 |
 |------|-----------|-----------|
@@ -85,6 +103,18 @@ curl -X POST https://gateway/api/v1/admin/routes \
 | 409 | `ROUTE_PATH_CONFLICT` | pathPrefix 중복 |
 
 > 컨트롤러: `services/apis/auth-api/src/main/java/com/econo/auth/api/presentation/controller/AdminRouteController.java`
+
+**회원 셀프 등록 추가 에러 코드** (`POST /api/v1/clients` 라우트 생성 시):
+
+| HTTP | 에러 코드 | 발생 조건 |
+|------|-----------|-----------|
+| 400 | `ROUTE_NAMESPACE_INVALID` | pathPrefix가 `/api/{namespace}` 형태가 아님 |
+| 400 | `ROUTE_UPSTREAM_INVALID` | upstreamUrl SSRF 검증 실패 |
+| 403 | `ROUTE_NAMESPACE_TAKEN` | 네임스페이스를 다른 회원이 이미 선점 |
+| 403 | `ROUTE_PROTECTED` | pathPrefix가 보호 경로 패턴과 충돌 |
+| 409 | `ROUTE_PATH_CONFLICT` | pathPrefix 중복 |
+
+> 셀프 등록 전체 에러 코드: [docs/CLIENT_REGISTRATION.md](./CLIENT_REGISTRATION.md)
 
 ---
 

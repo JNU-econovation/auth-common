@@ -4,6 +4,8 @@ import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNamespaceInvalidException;
+import com.econo.auth.client.exception.RouteNamespaceTakenException;
 import com.econo.auth.client.exception.RouteNotFoundException;
 import com.econo.auth.client.exception.RoutePathConflictException;
 import com.econo.auth.client.exception.RouteProtectedException;
@@ -249,6 +251,30 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiError> handleRouteProtected(RouteProtectedException ex) {
 		return ResponseEntity.status(HttpStatus.FORBIDDEN)
 				.body(new ApiError("ROUTE_PROTECTED", ex.getMessage()));
+	}
+
+	/**
+	 * 네임스페이스 선점 예외 처리 — 403 ROUTE_NAMESPACE_TAKEN
+	 *
+	 * @param ex 예외
+	 * @return 403 ROUTE_NAMESPACE_TAKEN
+	 */
+	@ExceptionHandler(RouteNamespaceTakenException.class)
+	public ResponseEntity<ApiError> handleRouteNamespaceTaken(RouteNamespaceTakenException ex) {
+		return ResponseEntity.status(HttpStatus.FORBIDDEN)
+				.body(new ApiError("ROUTE_NAMESPACE_TAKEN", ex.getMessage()));
+	}
+
+	/**
+	 * 네임스페이스 포맷 위반 예외 처리 — 400 ROUTE_NAMESPACE_INVALID
+	 *
+	 * @param ex 예외
+	 * @return 400 ROUTE_NAMESPACE_INVALID
+	 */
+	@ExceptionHandler(RouteNamespaceInvalidException.class)
+	public ResponseEntity<ApiError> handleRouteNamespaceInvalid(RouteNamespaceInvalidException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiError("ROUTE_NAMESPACE_INVALID", ex.getMessage()));
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package com.econo.auth.api.presentation.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -12,6 +13,11 @@ import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.Self
 import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNamespaceInvalidException;
+import com.econo.auth.client.exception.RouteNamespaceTakenException;
+import com.econo.auth.client.exception.RoutePathConflictException;
+import com.econo.auth.client.exception.RouteProtectedException;
+import com.econo.auth.client.exception.RouteUpstreamInvalidException;
 import com.econo.common.auth.config.AuthAutoConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -76,7 +82,9 @@ class ClientControllerTest {
 			String expectedClientId = "client-uuid-self-001";
 			String expectedSecret = "plain-secret-abc";
 			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
-					.willReturn(new SelfRegisterOAuthClientResult(expectedClientId, expectedSecret));
+					.willReturn(
+							new SelfRegisterOAuthClientResult(
+									expectedClientId, expectedSecret, null, null, null, null));
 
 			mockMvc
 					.perform(
@@ -99,7 +107,9 @@ class ClientControllerTest {
 		@DisplayName("ADMIN 역할도 셀프 등록 엔드포인트 사용 가능 → 201")
 		void selfRegister_withAdminRole_returns201() throws Exception {
 			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
-					.willReturn(new SelfRegisterOAuthClientResult("client-admin-self", "admin-secret"));
+					.willReturn(
+							new SelfRegisterOAuthClientResult(
+									"client-admin-self", "admin-secret", null, null, null, null));
 
 			mockMvc
 					.perform(
@@ -122,7 +132,9 @@ class ClientControllerTest {
 		@DisplayName("응답 body에 clientSecret 필드가 반드시 존재함 (1회 노출)")
 		void selfRegister_responseContainsClientSecret() throws Exception {
 			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
-					.willReturn(new SelfRegisterOAuthClientResult("some-client-id", "one-time-secret"));
+					.willReturn(
+							new SelfRegisterOAuthClientResult(
+									"some-client-id", "one-time-secret", null, null, null, null));
 
 			mockMvc
 					.perform(
@@ -322,6 +334,260 @@ class ClientControllerTest {
 																						"""))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// 라우트 흡수 등록 케이스
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("POST /api/v1/clients — 라우트 흡수 등록")
+	class RegisterRouteAbsorptionTest {
+
+		@Test
+		@DisplayName("라우트 필드 둘 다 있는 요청 → 201 + 라우트 필드 포함")
+		void selfRegister_withBothRouteFields_returns201WithRouteFields() throws Exception {
+			// given
+			String routeId = "route-uuid-001";
+			String pathPrefix = "/api/my/**";
+			String upstreamUrl = "https://my.example.com";
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willReturn(
+							new SelfRegisterOAuthClientResult(
+									"client-uuid-route",
+									"plain-secret-route",
+									routeId,
+									pathPrefix,
+									upstreamUrl,
+									true));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "라우트포함앱",
+																								"redirectUris": ["https://my.example.com/callback"],
+																								"pathPrefix": "/api/my/**",
+																								"upstreamUrl": "https://my.example.com"
+																						}
+																						"""))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.routeId").value(routeId))
+					.andExpect(jsonPath("$.pathPrefix").value(pathPrefix))
+					.andExpect(jsonPath("$.upstreamUrl").value(upstreamUrl))
+					.andExpect(jsonPath("$.enabled").value(true));
+		}
+
+		@Test
+		@DisplayName("라우트 필드 없는 요청 → 201 + 라우트 필드 null")
+		void selfRegister_withoutRouteFields_returns201WithNullRouteFields() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willReturn(
+							new SelfRegisterOAuthClientResult(
+									"client-uuid-noroute", "plain-secret-noroute", null, null, null, null));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "라우트없는앱",
+																								"redirectUris": ["https://noroute.example.com/callback"]
+																						}
+																						"""))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.routeId").value(nullValue()))
+					.andExpect(jsonPath("$.pathPrefix").value(nullValue()))
+					.andExpect(jsonPath("$.upstreamUrl").value(nullValue()))
+					.andExpect(jsonPath("$.enabled").value(nullValue()));
+		}
+
+		@Test
+		@DisplayName("pathPrefix만 있고 upstreamUrl 없음 → 400 VALIDATION_FAILED")
+		void selfRegister_withOnlyPathPrefix_returns400ValidationFailed() throws Exception {
+			// given — @AssertTrue isRouteFieldsConsistent() 실패 → MethodArgumentNotValidException
+			// (서비스 레이어 미진입, stub 불필요)
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "한필드앱",
+																								"redirectUris": ["https://onefield.example.com/callback"],
+																								"pathPrefix": "/api/my/**"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+		}
+
+		@Test
+		@DisplayName("upstreamUrl만 있고 pathPrefix 없음 → 400 VALIDATION_FAILED")
+		void selfRegister_withOnlyUpstreamUrl_returns400ValidationFailed() throws Exception {
+			// given — @AssertTrue isRouteFieldsConsistent() 실패 → MethodArgumentNotValidException
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "한필드앱2",
+																								"redirectUris": ["https://onefield2.example.com/callback"],
+																								"upstreamUrl": "https://my.example.com"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+		}
+
+		@Test
+		@DisplayName("네임스페이스 포맷 위반 → 400 ROUTE_NAMESPACE_INVALID")
+		void selfRegister_whenNamespaceInvalid_returns400() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willThrow(new RouteNamespaceInvalidException("/not-api/x"));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "네임스페이스위반앱",
+																								"redirectUris": ["https://ns.example.com/callback"],
+																								"pathPrefix": "/not-api/x/**",
+																								"upstreamUrl": "https://upstream.example.com"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_NAMESPACE_INVALID"));
+		}
+
+		@Test
+		@DisplayName("네임스페이스 선점 → 403 ROUTE_NAMESPACE_TAKEN")
+		void selfRegister_whenNamespaceTaken_returns403() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willThrow(new RouteNamespaceTakenException("eeos"));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "선점충돌앱",
+																								"redirectUris": ["https://taken.example.com/callback"],
+																								"pathPrefix": "/api/eeos/**",
+																								"upstreamUrl": "https://eeos.example.com"
+																						}
+																						"""))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_NAMESPACE_TAKEN"));
+		}
+
+		@Test
+		@DisplayName("pathPrefix 중복 → 409 ROUTE_PATH_CONFLICT")
+		void selfRegister_whenPathConflict_returns409() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willThrow(new RoutePathConflictException("/api/my/**"));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "경로중복앱",
+																								"redirectUris": ["https://conflict.example.com/callback"],
+																								"pathPrefix": "/api/my/**",
+																								"upstreamUrl": "https://my.example.com"
+																						}
+																						"""))
+					.andExpect(status().isConflict())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_PATH_CONFLICT"));
+		}
+
+		@Test
+		@DisplayName("SSRF URL → 400 ROUTE_UPSTREAM_INVALID")
+		void selfRegister_whenUpstreamInvalid_returns400() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willThrow(new RouteUpstreamInvalidException("private IP"));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "SSRF앱",
+																								"redirectUris": ["https://ssrf.example.com/callback"],
+																								"pathPrefix": "/api/ssrf/**",
+																								"upstreamUrl": "http://192.168.1.1/admin"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_UPSTREAM_INVALID"));
+		}
+
+		@Test
+		@DisplayName("보호 경로 충돌 → 403 ROUTE_PROTECTED")
+		void selfRegister_whenRouteProtected_returns403() throws Exception {
+			// given
+			given(registerOAuthClientUseCase.selfRegister(any(SelfRegisterOAuthClientCommand.class)))
+					.willThrow(new RouteProtectedException("/api/v1/auth/**"));
+
+			// when / then
+			mockMvc
+					.perform(
+							post("/api/v1/clients")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "보호경로앱",
+																								"redirectUris": ["https://protected.example.com/callback"],
+																								"pathPrefix": "/api/v1/auth/**",
+																								"upstreamUrl": "https://protected.example.com"
+																						}
+																						"""))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_PROTECTED"));
 		}
 	}
 }

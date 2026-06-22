@@ -4,6 +4,7 @@ import com.econo.auth.client.application.domain.ServiceRoute;
 import com.econo.auth.client.application.repository.ServiceRouteRepository;
 import com.econo.auth.client.persistence.entity.ServiceRouteJpaEntity;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -110,6 +111,22 @@ public class ServiceRouteRepositoryAdapter implements ServiceRouteRepository {
 		return serviceRouteJpaRepository.findAllByEnabled(true).stream()
 				.map(ServiceRouteJpaEntity::toDomain)
 				.toList();
+	}
+
+	/**
+	 * 네임스페이스 선점 owner 조회
+	 *
+	 * <p>어드민 라우트(owner_id=NULL)와 셀프 라우트가 공존하는 경우 NULL(어드민 라우트)을 제외한 첫 번째 non-null ownerId를 반환한다.
+	 *
+	 * @param namespace 네임스페이스 문자열
+	 * @return 선점한 ownerId (없으면 empty)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<Long> findNamespaceOwner(String namespace) {
+		return serviceRouteJpaRepository.findOwnerIdsByNamespace(namespace).stream()
+				.filter(Objects::nonNull)
+				.findFirst();
 	}
 
 	/** 기존 엔티티에 수정 내용을 반영한 새 엔티티 생성 (JPA merge를 위해 기존 id 사용) */
