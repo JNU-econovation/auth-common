@@ -31,8 +31,6 @@ public class ServiceRouteRepositoryAdapter implements ServiceRouteRepository {
 				serviceRouteJpaRepository.findByRouteId(route.routeId());
 		if (existing.isPresent()) {
 			ServiceRouteJpaEntity entity = existing.get();
-			ServiceRouteJpaEntity updated = ServiceRouteJpaEntity.from(route);
-			// 수정 시 기존 엔티티를 merge하기 위해 id를 이용
 			return serviceRouteJpaRepository.save(mergeEntity(entity, route)).toDomain();
 		}
 		ServiceRouteJpaEntity entity = ServiceRouteJpaEntity.from(route);
@@ -127,6 +125,45 @@ public class ServiceRouteRepositoryAdapter implements ServiceRouteRepository {
 		return serviceRouteJpaRepository.findOwnerIdsByNamespace(namespace).stream()
 				.filter(Objects::nonNull)
 				.findFirst();
+	}
+
+	/**
+	 * registeredClientId로 라우트 단건 조회
+	 *
+	 * @param registeredClientId 연관 클라이언트 ID
+	 * @return Optional ServiceRoute
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ServiceRoute> findByRegisteredClientId(String registeredClientId) {
+		return serviceRouteJpaRepository
+				.findByRegisteredClientId(registeredClientId)
+				.map(ServiceRouteJpaEntity::toDomain);
+	}
+
+	/**
+	 * registeredClientId 배치 조회 — N+1 방지
+	 *
+	 * @param registeredClientIds 조회 대상 clientId 목록
+	 * @return 연관 라우트 목록
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public List<ServiceRoute> findByRegisteredClientIdIn(List<String> registeredClientIds) {
+		return serviceRouteJpaRepository.findByRegisteredClientIdIn(registeredClientIds).stream()
+				.map(ServiceRouteJpaEntity::toDomain)
+				.toList();
+	}
+
+	/**
+	 * registeredClientId로 연결 라우트 hard delete
+	 *
+	 * @param registeredClientId 삭제 대상 클라이언트 ID
+	 */
+	@Override
+	@Transactional
+	public void deleteByRegisteredClientId(String registeredClientId) {
+		serviceRouteJpaRepository.deleteAllByRegisteredClientId(registeredClientId);
 	}
 
 	/** 기존 엔티티에 수정 내용을 반영한 새 엔티티 생성 (JPA merge를 위해 기존 id 사용) */

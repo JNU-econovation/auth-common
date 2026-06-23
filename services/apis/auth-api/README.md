@@ -153,26 +153,34 @@ api-gateway가 JWT 서명 검증에 사용하는 공개키. 직접 호출 불필
 
 ## OAuth 클라이언트 관리
 
-클라이언트 등록 경로는 두 가지다. 두 경로 모두 econo-passport 라이브러리(`@PassportAuth`, `PassportArgumentResolver`)가 `X-User-Passport` 헤더를 파싱·검증한다.
+클라이언트 등록·관리 경로. 모든 경로에서 econo-passport 라이브러리(`@PassportAuth`, `PassportArgumentResolver`)가 `X-User-Passport` 헤더를 파싱·검증한다.
 
 | 경로 | 엔드포인트 | 인증 |
 |------|-----------|------|
 | **셀프 등록** | `POST /api/v1/clients` | X-User-Passport (Gateway 주입, memberId 필수) — ADMIN 역할 불필요 |
+| **셀프 목록 조회** | `GET /api/v1/clients` | X-User-Passport (memberId 필수) |
+| **셀프 단건 조회** | `GET /api/v1/clients/{clientId}` | X-User-Passport (memberId 필수, 타인·미존재 → 404) |
+| **셀프 수정** | `PUT /api/v1/clients/{clientId}` | X-User-Passport (memberId 필수, 타인·미존재 → 404) |
+| **셀프 삭제** | `DELETE /api/v1/clients/{clientId}` | X-User-Passport (memberId 필수, 타인·미존재 → 404) |
 | **어드민 등록** | `POST /api/v1/admin/clients` | X-User-Passport ADMIN 또는 SUPER_ADMIN role 필수 |
 
-**에러 코드 요약 (셀프 등록 — 라우트 포함 시 추가):**
+**에러 코드 요약 (셀프 등록·관리):**
 
-| HTTP | 코드 | 발생 조건 |
-|------|------|-----------|
-| 400 | `AUTH_BAD_REQUEST` | `X-User-Passport` Base64/JSON 파싱 불가 |
-| 400 | `VALIDATION_FAILED` | `clientName` 빈값, 또는 `pathPrefix`·`upstreamUrl` 중 하나만 제공 (`fieldErrors.field=routeFields`) |
-| 400 | `ROUTE_NAMESPACE_INVALID` | `pathPrefix`가 `/api/{namespace}` 형태가 아님 |
-| 400 | `ROUTE_UPSTREAM_INVALID` | `upstreamUrl` SSRF 검증 실패 |
-| 401 | `AUTH_UNAUTHORIZED` | `X-User-Passport` 헤더 누락 또는 invalid passport |
-| 403 | `FORBIDDEN` | 어드민 경로에서 ADMIN/SUPER_ADMIN 역할 부족 |
-| 403 | `ROUTE_NAMESPACE_TAKEN` | 네임스페이스를 다른 회원이 이미 선점 |
-| 403 | `ROUTE_PROTECTED` | `pathPrefix`가 보호 경로 패턴과 충돌 |
-| 409 | `ROUTE_PATH_CONFLICT` | `pathPrefix` 중복 |
+| HTTP | 코드 | 발생 엔드포인트 | 발생 조건 |
+|------|------|----------------|-----------|
+| 400 | `AUTH_BAD_REQUEST` | 전체 | `X-User-Passport` Base64/JSON 파싱 불가 |
+| 400 | `VALIDATION_FAILED` | POST, PUT | `clientName` 빈값, 또는 `pathPrefix`·`upstreamUrl` 중 하나만 제공 |
+| 400 | `ROUTE_NAMESPACE_INVALID` | POST, PUT | `pathPrefix`가 `/api/{namespace}` 형태가 아님 |
+| 400 | `ROUTE_UPSTREAM_INVALID` | POST, PUT | `upstreamUrl` SSRF 검증 실패 |
+| 400 | `ROUTE_NAMESPACE_CHANGE_DENIED` | PUT | `pathPrefix`의 네임스페이스가 기존 라우트와 다름 |
+| 401 | `AUTH_UNAUTHORIZED` | 전체 | `X-User-Passport` 헤더 누락 또는 invalid passport |
+| 403 | `FORBIDDEN` | 어드민 경로 | ADMIN/SUPER_ADMIN 역할 부족 |
+| 403 | `ROUTE_NAMESPACE_TAKEN` | POST, PUT | 네임스페이스를 다른 회원이 이미 선점 |
+| 403 | `ROUTE_PROTECTED` | POST, PUT | `pathPrefix`가 보호 경로 패턴과 충돌 |
+| 404 | `CLIENT_NOT_FOUND` | GET 단건, PUT, DELETE | clientId 미존재 또는 타인 소유 (존재 은닉) |
+| 409 | `DUPLICATE_CLIENT_NAME` | POST, PUT | `clientName` 중복 |
+| 409 | `ROUTE_PATH_CONFLICT` | POST, PUT | `pathPrefix` 중복 |
+| 422 | `CLIENT_LIMIT_EXCEEDED` | POST | 회원당 최대 5개 한도 초과 |
 
 > 전체 에러 코드 및 비즈니스 규칙: [docs/CLIENT_REGISTRATION.md](../../docs/CLIENT_REGISTRATION.md)
 
@@ -198,7 +206,28 @@ curl -X POST http://localhost:8081/api/v1/clients \
     "upstreamUrl": "http://eeos-service:8080"
   }'
 # → 201 {"clientId": "...", "clientSecret": "...", "routeId": "...", "pathPrefix": "/api/eeos", "upstreamUrl": "http://eeos-service:8080", "enabled": true}
-# 회원당 최대 5개. 초과 시 422 CLIENT_LIMIT_EXCEEDED. clientSecret은 1회만 노출.
+# clientSecret은 1회만 노출.
+
+# 내 클라이언트 목록 조회
+curl http://localhost:8081/api/v1/clients \
+  -H "X-User-Passport: <passport>"
+# → 200 {"clients": [...]}
+
+# 단건 조회 (타인·미존재 → 404 CLIENT_NOT_FOUND)
+curl http://localhost:8081/api/v1/clients/{clientId} \
+  -H "X-User-Passport: <passport>"
+
+# 수정 (라우트 삭제 의도 시 pathPrefix·upstreamUrl 생략)
+curl -X PUT http://localhost:8081/api/v1/clients/{clientId} \
+  -H "Content-Type: application/json" \
+  -H "X-User-Passport: <passport>" \
+  -d '{"clientName": "EEOS 웹 v2", "redirectUris": ["https://app.econovation.kr/callback"]}'
+# → 200 수정 후 상태 (clientSecret 미포함)
+
+# 삭제 (service_client + SAS + 라우트 캐스케이드)
+curl -X DELETE http://localhost:8081/api/v1/clients/{clientId} \
+  -H "X-User-Passport: <passport>"
+# → 204 No Content
 
 # 어드민 등록 (ADMIN 또는 SUPER_ADMIN role 필요)
 curl -X POST http://localhost:8081/api/v1/admin/clients \

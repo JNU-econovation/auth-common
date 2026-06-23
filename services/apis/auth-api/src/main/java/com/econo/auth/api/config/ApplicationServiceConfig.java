@@ -2,9 +2,11 @@ package com.econo.auth.api.config;
 
 import com.econo.auth.api.application.service.RouteBootstrapService;
 import com.econo.auth.client.application.repository.SasClientRegistrar;
+import com.econo.auth.client.application.repository.SasRedirectUriManager;
 import com.econo.auth.client.application.repository.ServiceClientRepository;
 import com.econo.auth.client.application.repository.ServiceRouteRepository;
 import com.econo.auth.client.application.service.GatewayRefreshClient;
+import com.econo.auth.client.application.service.ManageOwnClientService;
 import com.econo.auth.client.application.service.ManageRouteService;
 import com.econo.auth.client.application.service.ProtectedPathPolicy;
 import com.econo.auth.client.application.service.RegisterOAuthClientService;
@@ -121,6 +123,37 @@ public class ApplicationServiceConfig {
 				serviceClientRepository,
 				passwordEncoder,
 				serviceRouteRepository,
+				gatewayRefreshClient,
+				routeValidator,
+				new RouteNamespaceExtractor());
+	}
+
+	/**
+	 * ManageOwnClientService 빈 등록 — 셀프 클라이언트 관리 유스케이스
+	 *
+	 * <p>@Service 자동 스캔 대신 수동 등록 — GatewayRefreshClient(auth-api 소속 빈)를 명시적으로 주입하기 위함.
+	 *
+	 * @param serviceClientRepository ServiceClient 저장소 포트
+	 * @param serviceRouteRepository ServiceRoute 저장소 포트
+	 * @param sasClientRegistrar SAS 클라이언트 등록 포트
+	 * @param sasRedirectUriManager SAS redirectUri 관리 포트
+	 * @param gatewayRefreshClient Gateway refresh 트리거 포트
+	 * @param routeValidator 라우트 검증기
+	 * @return ManageOwnClientService 인스턴스
+	 */
+	@Bean
+	public ManageOwnClientService manageOwnClientService(
+			ServiceClientRepository serviceClientRepository,
+			ServiceRouteRepository serviceRouteRepository,
+			SasClientRegistrar sasClientRegistrar,
+			SasRedirectUriManager sasRedirectUriManager,
+			GatewayRefreshClient gatewayRefreshClient,
+			RouteValidator routeValidator) {
+		return new ManageOwnClientService(
+				serviceClientRepository,
+				serviceRouteRepository,
+				sasClientRegistrar,
+				sasRedirectUriManager,
 				gatewayRefreshClient,
 				routeValidator,
 				new RouteNamespaceExtractor());

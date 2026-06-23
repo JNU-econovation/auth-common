@@ -154,7 +154,7 @@ public class RegisterOAuthClientService implements RegisterOAuthClientUseCase {
 			// ⑤ 라우트 저장 (동일 @Transactional 경계 — 클라이언트 저장과 원자성 보장)
 			ServiceRoute saved =
 					serviceRouteRepository.save(
-							ServiceRoute.create(pathPrefix, upstreamUrl, true, command.ownerId()));
+							ServiceRoute.create(pathPrefix, upstreamUrl, true, command.ownerId(), clientId));
 
 			// ⑥ 게이트웨이 refresh 트리거 — afterCommit에서 실행 (커밋 전 호출 방지)
 			triggerRefresh();

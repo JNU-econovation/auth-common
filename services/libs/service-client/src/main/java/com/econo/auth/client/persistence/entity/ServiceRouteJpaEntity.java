@@ -66,7 +66,7 @@ public class ServiceRouteJpaEntity {
 		entity.pathPrefix = route.pathPrefix();
 		entity.upstreamUrl = route.upstreamUrl();
 		entity.enabled = route.enabled();
-		entity.registeredClientId = null;
+		entity.registeredClientId = route.registeredClientId();
 		entity.ownerId = route.ownerId();
 		return entity;
 	}
@@ -85,7 +85,7 @@ public class ServiceRouteJpaEntity {
 		entity.pathPrefix = route.pathPrefix();
 		entity.upstreamUrl = route.upstreamUrl();
 		entity.enabled = route.enabled();
-		entity.registeredClientId = null;
+		entity.registeredClientId = route.registeredClientId();
 		entity.ownerId = route.ownerId();
 		return entity;
 	}
@@ -97,6 +97,13 @@ public class ServiceRouteJpaEntity {
 	 */
 	public ServiceRoute toDomain() {
 		return new ServiceRoute(
-				routeId, pathPrefix, upstreamUrl, enabled, createdAt, updatedAt, ownerId);
+				routeId,
+				pathPrefix,
+				upstreamUrl,
+				enabled,
+				createdAt,
+				updatedAt,
+				ownerId,
+				registeredClientId);
 	}
 }

@@ -13,7 +13,7 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 | Gradle 의존 경로 | `implementation(project(":services:libs:service-client"))` |
 | 주요 연관 모듈 | `common-infra` (JpaAuditing 공유), `auth-api` (소비자) |
 | AutoConfiguration | `com.econo.auth.client.config.ServiceClientAutoConfiguration` |
-| API 엔드포인트 | 해당 없음 — libs 모듈. 소비자: `ClientController` (`POST /api/v1/clients`), `AdminClientController` (`/api/v1/admin/clients`), `AdminRouteController` (`/api/v1/admin/routes`) |
+| API 엔드포인트 | 해당 없음 — libs 모듈. 소비자: `ClientController` (`POST /api/v1/clients`, `GET /api/v1/clients`, `GET /api/v1/clients/{clientId}`, `PUT /api/v1/clients/{clientId}`, `DELETE /api/v1/clients/{clientId}`), `AdminClientController` (`/api/v1/admin/clients`), `AdminRouteController` (`/api/v1/admin/routes`) |
 
 ---
 
@@ -41,8 +41,17 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 - `pathPrefix`가 보호 경로 패턴과 일치하면 `RouteProtectedException`(403 `ROUTE_PROTECTED`)을 던진다. 판정은 `ProtectedPathPolicy` 포트로 추상화하며, 보호 경로 값은 배포 환경에 종속되므로 소비자 앱(auth-api)이 `ProtectedPathPolicyImpl`로 제공한다.
 - `pathPrefix` 중복은 DB UNIQUE 제약(`uq_service_route_path_prefix`) 사전 검증으로 `RoutePathConflictException`(409 `ROUTE_PATH_CONFLICT`)을 먼저 던진다.
 - 라우트 저장 성공 후 `GatewayRefreshClient.triggerRefresh()`로 api-gateway에 refresh를 전파한다. 셀프 등록 시에는 `TransactionSynchronizationManager.afterCommit` 콜백으로 커밋 후 호출한다. refresh 실패 시 라우트는 DB에 유지되며 경고 로그만 남긴다 (최종 일관성).
-- `registered_client_id`는 V9 마이그레이션 이후 nullable이다. 라우트와 OAuth 클라이언트는 독립적으로 관리된다.
+- `registered_client_id`는 V9 마이그레이션 이후 nullable이다. 라우트와 OAuth 클라이언트는 독립적으로 관리된다. 단, 셀프 등록 라우트부터는 `registered_client_id`를 채워서 저장하며(백필 전략 B), 셀프 관리 API(`ManageOwnClientService`)는 이 필드를 기준으로 클라이언트↔라우트를 연관한다(`owner_id`는 회원의 여러 클라이언트 라우트가 섞여 식별 불가라 사용하지 않음).
 - `listEnabledRoutes()`는 `enabled=true`인 라우트만 반환하며, api-gateway 초기 로드 엔드포인트(`InternalRouteController`)가 호출한다.
+
+### 셀프 클라이언트 관리 (`ManageOwnClientService`)
+
+- 목록·단건 조회(`listMyClients`, `getMyClient`)는 `@Transactional(readOnly = true)`, 수정·삭제(`updateMyClient`, `deleteMyClient`)는 단일 `@Transactional` 경계 내 처리.
+- 소유권 검증은 `serviceClientRepository.findByClientIdAndOwnerId(clientId, ownerId)`로 수행한다. empty이면 `InvalidClientException`(404 `CLIENT_NOT_FOUND`)을 던져 존재 자체를 은닉한다.
+- 목록 조회 시 `serviceRouteRepository.findByRegisteredClientIdIn`으로 IN-query 1회 처리하여 N+1을 방지한다.
+- ⚠️ **네임스페이스 불변**: PUT 수정 시 기존 라우트가 있고 요청 `pathPrefix`의 네임스페이스(두 번째 세그먼트)가 다르면 `RouteNamespaceChangeException`(400 `ROUTE_NAMESPACE_CHANGE_DENIED`)을 던진다. 다른 네임스페이스로 이동하려면 기존 클라이언트 삭제 후 재등록해야 한다.
+- ⚠️ **DELETE 삭제 순서**: ① 소유권 검증(실패 시 404 `CLIENT_NOT_FOUND`) → ② 라우트 존재 확인 + 있으면 `service_route` 삭제 + afterCommit refresh 등록 → ③ `service_client` 삭제 → ④ SAS `oauth2_registered_client` 삭제(`SasClientRegistrarAdapter.unregisterClient`가 `JdbcTemplate`으로 직접 DELETE — `RegisteredClientRepository`에 delete 인터페이스 없음, SAS 1.x 의존성).
+- 라우트 변동(신규 생성·수정·삭제) 시 `TransactionSynchronizationManager.afterCommit`으로 게이트웨이 refresh를 등록한다. refresh 실패는 경고 로그만 남기고 진행한다.
 
 ### AutoConfiguration 스캔 범위
 
@@ -58,9 +67,12 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 | 라우트 도메인 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/domain/ServiceRoute.java` |
 | 클라이언트+라우트 셀프 등록 유스케이스 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/usecase/RegisterOAuthClientUseCase.java` |
 | 클라이언트+라우트 셀프 등록 서비스 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/RegisterOAuthClientService.java` |
+| 셀프 클라이언트 관리 유스케이스 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/usecase/ManageOwnClientUseCase.java` |
+| 셀프 클라이언트 관리 서비스 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/ManageOwnClientService.java` |
 | 라우트 어드민 CRUD 유스케이스 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/usecase/ManageRouteUseCase.java` |
 | 라우트 어드민 CRUD 서비스 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/ManageRouteService.java` |
 | 라우트 아웃바운드 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/repository/ServiceRouteRepository.java` |
+| SAS redirectUri 아웃바운드 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/repository/SasRedirectUriManager.java` |
 | 네임스페이스 추출·검증 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/RouteNamespaceExtractor.java` |
 | 라우트 검증 (SSRF·보호경로·중복) | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/RouteValidator.java` |
 | 보호 경로 판정 포트 | `services/libs/service-client/src/main/java/com/econo/auth/client/application/service/ProtectedPathPolicy.java` (구현체: auth-api `ProtectedPathPolicyImpl`) |
@@ -94,6 +106,7 @@ ServiceClient·ServiceRoute 도메인, 헥사고날 구조(포트/어댑터), Sp
 | `RouteProtectedException` | 403 | ROUTE_PROTECTED | 보호 경로 패턴 가로채기·삭제 시도 |
 | `RouteNamespaceInvalidException` | 400 | ROUTE_NAMESPACE_INVALID | pathPrefix가 `/api/{namespace}` 형태가 아님 (셀프 등록 전용) |
 | `RouteNamespaceTakenException` | 403 | ROUTE_NAMESPACE_TAKEN | 네임스페이스를 다른 ownerId 회원이 선점 (셀프 등록 전용) |
+| `RouteNamespaceChangeException` | 400 | ROUTE_NAMESPACE_CHANGE_DENIED | PUT 수정 시 pathPrefix의 네임스페이스(두 번째 세그먼트)가 기존 라우트와 다름 |
 
 > 표의 HTTP 매핑은 `GlobalExceptionHandler`(`services/apis/auth-api/src/main/java/com/econo/auth/api/exception/GlobalExceptionHandler.java`)가 명시적 `ResponseEntity`로 반환하는 실제 상태 코드다.
 

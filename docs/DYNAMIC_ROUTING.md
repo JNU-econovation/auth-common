@@ -30,6 +30,12 @@ api-gateway는 **정적 보호 라우트**와 **동적 서비스 라우트**를 
 
 두 경로 모두 등록 즉시 api-gateway의 인메모리 캐시(`DynamicRouteDefinitionRepository`)가 갱신되고 `RefreshRoutesEvent`가 발행된다.
 
+**셀프 등록 라우트의 수명 주기**: 회원이 `PUT /api/v1/clients/{clientId}`로 클라이언트를 수정하거나 `DELETE /api/v1/clients/{clientId}`로 클라이언트를 삭제하면 연결 라우트도 변경·삭제된다.
+
+- `PUT` 수정 시: 요청 바디에 라우트 필드(`pathPrefix`·`upstreamUrl`)가 생략되면 기존 라우트가 삭제된다. 둘 다 제공되면 라우트가 upsert된다. 네임스페이스(두 번째 세그먼트)는 변경 불가 — 400 `ROUTE_NAMESPACE_CHANGE_DENIED`.
+- `DELETE` 삭제 시: 연결 라우트가 있으면 클라이언트 삭제와 함께 캐스케이드 삭제된다.
+- 두 경우 모두 `afterCommit`에 게이트웨이 refresh가 등록된다.
+
 **경로 치환(rewrite) 모델**: `pathPrefix`는 `upstreamUrl`로 치환된다. 즉 `pathPrefix` 뒤의 나머지 경로를 `upstreamUrl`(경로 포함)에 그대로 이어붙여 전달한다. 등록자는 "이 prefix는 이 base URL로 간다"만 생각하면 된다.
 
 | 등록 | 요청 | 업스트림 |

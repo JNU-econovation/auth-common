@@ -26,7 +26,7 @@
 - `clientSecret`은 **등록 응답에서 단 1회만 평문으로 노출**된다. 분실 시 재등록 필요.
 - `clientSecret`은 `service_client.client_secret_hash`에 BCrypt(cost=12) 해시로 저장된다. SAS `oauth2_registered_client`에는 저장하지 않는다. 현재 `clientSecret`을 소비하는 in-scope 엔드포인트는 없다 — 향후 redirect-uri 셀프관리 등에서 사용 예정인 선발급·보관 성격.
 - `ownerId`(소유자 회원 ID)가 `service_client.owner_id`에 저장된다.
-- **1 클라이언트 = 최대 1 라우트.** 라우트 조회/수정/삭제 별도 엔드포인트는 없다(추후 클라이언트 목록/상세 조회 API에서 제공 예정).
+- **1 클라이언트 = 최대 1 라우트.** 라우트는 `PUT /api/v1/clients/{clientId}` 수정 또는 `DELETE /api/v1/clients/{clientId}` 삭제로 관리한다([셀프 관리 API](#셀프-관리-api) 참조).
 - **원자성**: 라우트 검증 실패 시 클라이언트도 롤백된다(동일 `@Transactional` 경계).
 
 ### 요청
@@ -108,6 +108,161 @@ curl -X POST http://auth-api:8081/api/v1/clients \
 **네임스페이스 규칙**: `pathPrefix`의 두 번째 세그먼트가 네임스페이스다. 예: `/api/eeos/**` → 네임스페이스 `eeos`. 같은 네임스페이스에 속하는 라우트가 이미 다른 회원 소유로 존재하면 403 `ROUTE_NAMESPACE_TAKEN`.
 
 > SSRF 방지·보호 경로 목록 상세: [docs/DYNAMIC_ROUTING.md](./DYNAMIC_ROUTING.md)
+
+---
+
+## 셀프 관리 API
+
+등록한 클라이언트(+연결 라우트)를 소유자 본인이 직접 조회·수정·삭제한다. `clientSecret`은 어떤 응답에도 포함하지 않는다(등록 시 1회 노출 후 재조회 불가).
+
+> 이 기능은 ADR-0018(게이트웨이 라우트 셀프 등록을 클라이언트 등록에 흡수)의 후속 구현이다.
+
+| 엔드포인트 | 설명 | 응답 |
+|-----------|------|------|
+| `GET /api/v1/clients` | 내 클라이언트 목록 (연결 라우트 포함) | 200 OK |
+| `GET /api/v1/clients/{clientId}` | 단건 상세 (타인·미존재 → 404 존재 은닉) | 200 OK |
+| `PUT /api/v1/clients/{clientId}` | 전체 표현 교체 수정 | 200 OK |
+| `DELETE /api/v1/clients/{clientId}` | 하드 삭제 (service_client + SAS + 라우트 캐스케이드) | 204 No Content |
+
+### GET /api/v1/clients — 목록 조회
+
+```bash
+curl http://auth-api:8081/api/v1/clients \
+  -H "X-User-Passport: <Gateway-주입-헤더>"
+```
+
+```json
+{
+  "clients": [
+    {
+      "clientId": "550e8400-e29b-41d4-a716-446655440000",
+      "clientName": "EEOS 웹앱",
+      "redirectUris": ["https://app.econovation.kr/callback"],
+      "route": {
+        "routeId": "a316bc69-1234-5678-abcd-ef0123456789",
+        "pathPrefix": "/api/eeos",
+        "upstreamUrl": "http://eeos-service:8080",
+        "enabled": true
+      }
+    },
+    {
+      "clientId": "661f9511-f30c-52e5-b827-557766551111",
+      "clientName": "EEOS 앱",
+      "redirectUris": ["eeos://callback"],
+      "route": null
+    }
+  ]
+}
+```
+
+- 라우트가 없는 클라이언트는 `"route": null`.
+- 빈 목록이면 `"clients": []`. 페이지네이션 없음(회원당 최대 5개).
+
+### GET /api/v1/clients/{clientId} — 단건 상세
+
+```bash
+curl http://auth-api:8081/api/v1/clients/550e8400-e29b-41d4-a716-446655440000 \
+  -H "X-User-Passport: <Gateway-주입-헤더>"
+```
+
+```json
+{
+  "clientId": "550e8400-e29b-41d4-a716-446655440000",
+  "clientName": "EEOS 웹앱",
+  "redirectUris": ["https://app.econovation.kr/callback"],
+  "route": {
+    "routeId": "a316bc69-1234-5678-abcd-ef0123456789",
+    "pathPrefix": "/api/eeos",
+    "upstreamUrl": "http://eeos-service:8080",
+    "enabled": true
+  }
+}
+```
+
+타인 소유이거나 미존재 시 404 `CLIENT_NOT_FOUND`(존재 은닉).
+
+### PUT /api/v1/clients/{clientId} — 수정
+
+**전체 표현(full representation) 교체.** 백엔드가 현재 상태와 diff하여 변경분만 반영한다.
+
+| 필드 | 타입 | 필수 여부 | 설명 |
+|------|------|-----------|------|
+| `clientName` | String | 필수 | 빈 문자열 불가 |
+| `redirectUris` | Set\<String\> | 필수 | 비어 있으면 400 |
+| `pathPrefix` | String | 선택 | `upstreamUrl`과 반드시 쌍으로 제공. 생략 시 기존 라우트 삭제 |
+| `upstreamUrl` | String | 선택 | `pathPrefix`와 반드시 쌍. SSRF 검증 대상 |
+
+```bash
+# 라우트 upstreamUrl 변경
+curl -X PUT http://auth-api:8081/api/v1/clients/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -H "X-User-Passport: <Gateway-주입-헤더>" \
+  -d '{
+    "clientName": "EEOS 웹앱 v2",
+    "redirectUris": ["https://app.econovation.kr/callback"],
+    "pathPrefix": "/api/eeos",
+    "upstreamUrl": "http://eeos-service-v2:8080"
+  }'
+
+# 기존 라우트 삭제 (pathPrefix·upstreamUrl 생략)
+curl -X PUT http://auth-api:8081/api/v1/clients/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -H "X-User-Passport: <Gateway-주입-헤더>" \
+  -d '{
+    "clientName": "EEOS 웹앱 v2",
+    "redirectUris": ["https://app.econovation.kr/callback"]
+  }'
+```
+
+**라우트 diff 처리 규칙:**
+
+| 기존 라우트 | 요청 라우트 필드 | 처리 |
+|------------|-----------------|------|
+| 없음 | 없음 | no-op |
+| 없음 | 있음 | 신규 생성 (네임스페이스·SSRF·보호경로·중복 검증) |
+| 있음 | 없음 | 라우트 삭제 + 게이트웨이 refresh |
+| 있음 | 있음 | 네임스페이스 불변 검증 후 변경분 update + refresh |
+
+⚠️ **네임스페이스 불변**: `pathPrefix`의 두 번째 세그먼트(`/api/{namespace}`)는 수정할 수 없다. 변경 시도 시 400 `ROUTE_NAMESPACE_CHANGE_DENIED`. 다른 네임스페이스를 사용하려면 기존 클라이언트를 삭제하고 새로 등록한다.
+
+응답은 GET 단건 조회와 동일한 구조로 수정 후 상태를 반환한다.
+
+### DELETE /api/v1/clients/{clientId} — 삭제
+
+```bash
+curl -X DELETE http://auth-api:8081/api/v1/clients/550e8400-e29b-41d4-a716-446655440000 \
+  -H "X-User-Passport: <Gateway-주입-헤더>"
+# → 204 No Content
+```
+
+**삭제 순서 (단일 트랜잭션):**
+
+1. 소유권 검증 — 실패 시 404 `CLIENT_NOT_FOUND`
+2. 연결 라우트 존재 시 `service_route` 삭제 + afterCommit 게이트웨이 refresh
+3. `service_client` 삭제
+4. SAS `oauth2_registered_client` 삭제 (`JdbcTemplate` 직접 DELETE — SAS `RegisteredClientRepository`에 delete 없음)
+
+멱등성 없음: 이미 삭제된 clientId 재요청 시 404 반환.
+
+### 셀프 관리 에러 코드
+
+| HTTP | 코드 | 발생 엔드포인트 | 발생 조건 |
+|------|------|----------------|-----------|
+| 400 | `AUTH_BAD_REQUEST` | 전체 | `X-User-Passport` Base64/JSON 파싱 불가 |
+| 400 | `VALIDATION_FAILED` | POST, PUT | `clientName` 빈값, 또는 `pathPrefix`·`upstreamUrl` 중 하나만 제공 |
+| 400 | `REDIRECT_URI_REQUIRED` | POST, PUT | `redirectUris` null 또는 비어있음 |
+| 400 | `INVALID_ARGUMENT` | POST, PUT | `clientName` null 또는 blank (`RegisterOAuthClientService.selfRegister`·`ManageOwnClientService.updateMyClient` 서비스 계층 방어선, 웹 레이어 우회 시) |
+| 400 | `ROUTE_NAMESPACE_INVALID` | POST, PUT | `pathPrefix`가 `/api/{namespace}` 형태가 아님 |
+| 400 | `ROUTE_UPSTREAM_INVALID` | POST, PUT | `upstreamUrl` SSRF 검증 실패 |
+| 400 | `ROUTE_NAMESPACE_CHANGE_DENIED` | PUT | `pathPrefix`의 네임스페이스가 기존 라우트와 다름 |
+| 401 | `AUTH_UNAUTHORIZED` | 전체 | `X-User-Passport` 헤더 누락 또는 invalid passport |
+| 403 | `ROUTE_NAMESPACE_TAKEN` | POST, PUT | 네임스페이스를 다른 회원이 이미 선점 (신규 라우트 추가 시) |
+| 403 | `ROUTE_PROTECTED` | POST, PUT | `pathPrefix`가 보호 경로 패턴과 충돌 |
+| 404 | `CLIENT_NOT_FOUND` | GET 단건, PUT, DELETE | clientId 미존재 또는 타인 소유 (존재 은닉) |
+| 409 | `DUPLICATE_CLIENT_NAME` | POST, PUT | `clientName` 중복 |
+| 409 | `ROUTE_PATH_CONFLICT` | POST, PUT | `pathPrefix` 중복 (다른 클라이언트와 충돌) |
+
+> 라우트 관련 검증 규칙 상세: [docs/DYNAMIC_ROUTING.md](./DYNAMIC_ROUTING.md)
 
 ---
 

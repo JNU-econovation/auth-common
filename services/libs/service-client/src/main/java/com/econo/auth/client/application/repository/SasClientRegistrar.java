@@ -18,4 +18,22 @@ public interface SasClientRegistrar {
 	 */
 	void registerAuthorizationCodeClient(
 			String clientId, String clientName, Set<String> redirectUris);
+
+	/**
+	 * SAS oauth2_registered_client 하드 삭제
+	 *
+	 * <p>SAS {@code RegisteredClientRepository}는 표준 delete 메서드를 제공하지 않는다. 구현체는 JdbcTemplate으로 직접
+	 * DELETE 쿼리를 실행한다 (SAS 1.x 테이블명 의존성 수반).
+	 *
+	 * @param clientId 삭제할 클라이언트 ID
+	 */
+	void unregisterClient(String clientId);
+
+	/**
+	 * SAS oauth2_registered_client 클라이언트 이름 수정
+	 *
+	 * @param clientId 수정할 클라이언트 ID
+	 * @param newName 새 클라이언트 이름
+	 */
+	void updateClientName(String clientId, String newName);
 }
