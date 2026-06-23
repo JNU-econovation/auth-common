@@ -70,4 +70,27 @@ public interface ServiceRouteRepository {
 	 * @return 선점한 ownerId (없으면 empty)
 	 */
 	Optional<Long> findNamespaceOwner(String namespace);
+
+	/**
+	 * registeredClientId로 라우트 단건 조회 (클라이언트당 라우트 최대 1개 전제 — 상세/수정용)
+	 *
+	 * @param registeredClientId service_client.registered_client_id (= 라우트의 소유 클라이언트)
+	 * @return 연관 라우트 (없으면 empty)
+	 */
+	Optional<ServiceRoute> findByRegisteredClientId(String registeredClientId);
+
+	/**
+	 * registeredClientId 배치 조회 — N+1 방지, listMyClients용
+	 *
+	 * @param registeredClientIds 조회 대상 clientId 목록
+	 * @return 연관 라우트 목록 (registeredClientId가 일치하는 것만)
+	 */
+	List<ServiceRoute> findByRegisteredClientIdIn(List<String> registeredClientIds);
+
+	/**
+	 * registeredClientId로 연결 라우트 hard delete (클라이언트 삭제·라우트 제거 캐스케이드)
+	 *
+	 * @param registeredClientId 삭제 대상 클라이언트 ID
+	 */
+	void deleteByRegisteredClientId(String registeredClientId);
 }

@@ -253,6 +253,208 @@ class ServiceRouteRepositoryAdapterTest {
 	}
 
 	// ──────────────────────────────────────────────────────────
+	// registeredClientId 기반 조회 — client-self-management 신규 포트
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("findByRegisteredClientId — 클라이언트별 라우트 단건 조회")
+	class FindByRegisteredClientIdTest {
+
+		@Test
+		@DisplayName("registeredClientId로 저장된 라우트 단건 조회 성공")
+		void findByRegisteredClientId_withSavedRoute_returnsPresent() {
+			// given
+			Long ownerId = 50L;
+			String registeredClientId = "rc-find-by-id";
+			ServiceRoute route =
+					ServiceRoute.create(
+							"/api/selfns", "http://self-service:8080", true, ownerId, registeredClientId);
+			adapter.save(route);
+
+			// when
+			Optional<ServiceRoute> result = adapter.findByRegisteredClientId(registeredClientId);
+
+			// then
+			assertThat(result).isPresent();
+			assertThat(result.get().pathPrefix()).isEqualTo("/api/selfns");
+		}
+
+		@Test
+		@DisplayName("registeredClientId가 없는 라우트는 조회되지 않음 — Optional.empty()")
+		void findByRegisteredClientId_withNullRegisteredClientId_returnsEmpty() {
+			// given — 어드민 라우트: registeredClientId=null
+			ServiceRoute adminRoute =
+					ServiceRoute.create("/api/adminroute", "http://admin-service:8080", true);
+			adapter.save(adminRoute);
+
+			// when
+			Optional<ServiceRoute> result = adapter.findByRegisteredClientId("rc-not-exist");
+
+			// then
+			assertThat(result).isEmpty();
+		}
+
+		@Test
+		@DisplayName("존재하지 않는 registeredClientId 조회 시 Optional.empty()")
+		void findByRegisteredClientId_withUnknownId_returnsEmpty() {
+			// when
+			Optional<ServiceRoute> result = adapter.findByRegisteredClientId("rc-ghost-uuid");
+
+			// then
+			assertThat(result).isEmpty();
+		}
+	}
+
+	@Nested
+	@DisplayName("findByRegisteredClientIdIn — N+1 방지 배치 조회")
+	class FindByRegisteredClientIdInTest {
+
+		@Test
+		@DisplayName("registeredClientId 목록으로 라우트 배치 조회 성공")
+		void findByRegisteredClientIdIn_withMultipleIds_returnsMatchingRoutes() {
+			// given
+			Long ownerId = 60L;
+			String clientId1 = "rc-batch-1";
+			String clientId2 = "rc-batch-2";
+			adapter.save(
+					ServiceRoute.create("/api/batchns1", "http://batch1:8080", true, ownerId, clientId1));
+			adapter.save(
+					ServiceRoute.create("/api/batchns2", "http://batch2:8080", true, ownerId, clientId2));
+
+			// when
+			List<ServiceRoute> results =
+					adapter.findByRegisteredClientIdIn(List.of(clientId1, clientId2));
+
+			// then
+			assertThat(results).hasSize(2);
+			assertThat(results)
+					.extracting(ServiceRoute::pathPrefix)
+					.containsExactlyInAnyOrder("/api/batchns1", "/api/batchns2");
+		}
+
+		@Test
+		@DisplayName("registeredClientId 목록 중 일부만 존재해도 존재하는 것만 반환")
+		void findByRegisteredClientIdIn_withPartialMatch_returnsOnlyMatching() {
+			// given
+			Long ownerId = 61L;
+			String existingClientId = "rc-partial-exist";
+			String nonExistingClientId = "rc-partial-nonexist";
+			adapter.save(
+					ServiceRoute.create(
+							"/api/partialns", "http://partial:8080", true, ownerId, existingClientId));
+
+			// when
+			List<ServiceRoute> results =
+					adapter.findByRegisteredClientIdIn(List.of(existingClientId, nonExistingClientId));
+
+			// then
+			assertThat(results).hasSize(1);
+			assertThat(results.get(0).pathPrefix()).isEqualTo("/api/partialns");
+		}
+
+		@Test
+		@DisplayName("빈 목록으로 조회 시 빈 결과 반환")
+		void findByRegisteredClientIdIn_withEmptyList_returnsEmptyList() {
+			// when
+			List<ServiceRoute> results = adapter.findByRegisteredClientIdIn(List.of());
+
+			// then
+			assertThat(results).isEmpty();
+		}
+	}
+
+	@Nested
+	@DisplayName("deleteByRegisteredClientId — 클라이언트 삭제 캐스케이드")
+	class DeleteByRegisteredClientIdTest {
+
+		@Test
+		@DisplayName("registeredClientId로 라우트 삭제 후 조회 시 Optional.empty()")
+		void deleteByRegisteredClientId_afterDelete_cannotBeFound() {
+			// given
+			Long ownerId = 70L;
+			String clientId = "rc-to-cascade-delete";
+			adapter.save(
+					ServiceRoute.create("/api/cascadedel", "http://cascade:8080", true, ownerId, clientId));
+			assertThat(adapter.findByRegisteredClientId(clientId)).isPresent();
+
+			// when
+			adapter.deleteByRegisteredClientId(clientId);
+
+			// then
+			assertThat(adapter.findByRegisteredClientId(clientId)).isEmpty();
+		}
+
+		@Test
+		@DisplayName("다른 registeredClientId를 가진 라우트는 삭제되지 않음")
+		void deleteByRegisteredClientId_doesNotDeleteOtherRoutes() {
+			// given
+			Long ownerId = 71L;
+			String clientIdToDelete = "rc-delete-target";
+			String clientIdToKeep = "rc-keep";
+			adapter.save(
+					ServiceRoute.create(
+							"/api/deletens", "http://delete:8080", true, ownerId, clientIdToDelete));
+			adapter.save(
+					ServiceRoute.create("/api/keepns", "http://keep:8080", true, ownerId, clientIdToKeep));
+
+			// when
+			adapter.deleteByRegisteredClientId(clientIdToDelete);
+
+			// then
+			assertThat(adapter.findByRegisteredClientId(clientIdToDelete)).isEmpty();
+			assertThat(adapter.findByRegisteredClientId(clientIdToKeep)).isPresent();
+		}
+
+		@Test
+		@DisplayName("존재하지 않는 registeredClientId로 삭제 시 예외 없이 완료")
+		void deleteByRegisteredClientId_withNonExistentId_completesWithoutException() {
+			// when / then — 예외 없이 완료
+			adapter.deleteByRegisteredClientId("rc-ghost-for-delete");
+		}
+	}
+
+	@Nested
+	@DisplayName("ServiceRouteJpaEntity round-trip — registeredClientId 보존 검증")
+	class RegisteredClientIdRoundTripTest {
+
+		@Test
+		@DisplayName("5-인자 create 팩토리로 생성된 라우트를 저장하면 registeredClientId가 그대로 복원됨")
+		void save_andFind_preservesRegisteredClientId() {
+			// given
+			Long ownerId = 80L;
+			String registeredClientId = "rc-roundtrip-test";
+			ServiceRoute route =
+					ServiceRoute.create(
+							"/api/roundtripns", "http://roundtrip:8080", true, ownerId, registeredClientId);
+
+			// when
+			ServiceRoute saved = adapter.save(route);
+			Optional<ServiceRoute> found = adapter.findByRegisteredClientId(registeredClientId);
+
+			// then
+			assertThat(found).isPresent();
+			assertThat(found.get().registeredClientId()).isEqualTo(registeredClientId);
+			assertThat(found.get().ownerId()).isEqualTo(ownerId);
+		}
+
+		@Test
+		@DisplayName("어드민 라우트(3-인자 create)는 registeredClientId가 null로 저장됨")
+		void save_adminRoute_registeredClientIdIsNull() {
+			// given — 어드민 경로: registeredClientId = null
+			ServiceRoute adminRoute =
+					ServiceRoute.create("/api/adminnullns", "http://adminnull:8080", true);
+
+			// when
+			ServiceRoute saved = adapter.save(adminRoute);
+			Optional<ServiceRoute> found = adapter.findById(saved.routeId());
+
+			// then
+			assertThat(found).isPresent();
+			assertThat(found.get().registeredClientId()).isNull();
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
 	// V11 마이그레이션 검증 — owner_id 셀프 등록 쿼리 메서드
 	// ──────────────────────────────────────────────────────────
 

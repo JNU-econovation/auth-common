@@ -75,4 +75,29 @@ public interface ServiceRouteJpaRepository extends JpaRepository<ServiceRouteJpa
 					+ " CONCAT('/api/', :namespace, '/%') OR e.pathPrefix = CONCAT('/api/', :namespace)"
 					+ " OR e.pathPrefix = CONCAT('/api/', :namespace, '/**')")
 	List<Long> findOwnerIdsByNamespace(@Param("namespace") String namespace);
+
+	/**
+	 * registeredClientId로 라우트 단건 조회 (클라이언트당 라우트 1개 전제 — 상세/수정용)
+	 *
+	 * @param registeredClientId 연관 클라이언트 ID
+	 * @return Optional ServiceRouteJpaEntity
+	 */
+	Optional<ServiceRouteJpaEntity> findByRegisteredClientId(String registeredClientId);
+
+	/**
+	 * registeredClientId 배치 조회 — N+1 방지, listMyClients용
+	 *
+	 * @param registeredClientIds 조회 대상 clientId 목록
+	 * @return 연관 라우트 목록
+	 */
+	List<ServiceRouteJpaEntity> findByRegisteredClientIdIn(List<String> registeredClientIds);
+
+	/**
+	 * registeredClientId로 라우트 hard delete (클라이언트 삭제 시 캐스케이드용 — JPQL)
+	 *
+	 * @param registeredClientId 삭제 대상 클라이언트 ID
+	 */
+	@Modifying
+	@Query("DELETE FROM ServiceRouteJpaEntity e WHERE e.registeredClientId = :registeredClientId")
+	void deleteAllByRegisteredClientId(@Param("registeredClientId") String registeredClientId);
 }

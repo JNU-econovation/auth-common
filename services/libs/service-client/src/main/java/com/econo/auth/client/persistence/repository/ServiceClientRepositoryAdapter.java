@@ -3,6 +3,8 @@ package com.econo.auth.client.persistence.repository;
 import com.econo.auth.client.application.domain.ServiceClient;
 import com.econo.auth.client.application.repository.ServiceClientRepository;
 import com.econo.auth.client.persistence.entity.ServiceClientJpaEntity;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +30,7 @@ public class ServiceClientRepositoryAdapter implements ServiceClientRepository {
 
 	@Override
 	@Transactional(readOnly = true)
-	public java.util.List<String> findAllRegisteredClientIds() {
+	public List<String> findAllRegisteredClientIds() {
 		return serviceClientJpaRepository.findAllRegisteredClientIds();
 	}
 
@@ -36,5 +38,33 @@ public class ServiceClientRepositoryAdapter implements ServiceClientRepository {
 	@Transactional(readOnly = true)
 	public long countByOwnerId(Long ownerId) {
 		return serviceClientJpaRepository.countByOwnerId(ownerId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ServiceClient> findByOwnerId(Long ownerId) {
+		return serviceClientJpaRepository.findByOwnerId(ownerId).stream()
+				.map(ServiceClientJpaEntity::toDomain)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ServiceClient> findByClientIdAndOwnerId(String clientId, Long ownerId) {
+		return serviceClientJpaRepository
+				.findByRegisteredClientIdAndOwnerId(clientId, ownerId)
+				.map(ServiceClientJpaEntity::toDomain);
+	}
+
+	@Override
+	@Transactional
+	public void deleteByClientId(String clientId) {
+		serviceClientJpaRepository.deleteByRegisteredClientId(clientId);
+	}
+
+	@Override
+	@Transactional
+	public void updateClientName(String clientId, String newName) {
+		serviceClientJpaRepository.updateClientNameByRegisteredClientId(clientId, newName);
 	}
 }
