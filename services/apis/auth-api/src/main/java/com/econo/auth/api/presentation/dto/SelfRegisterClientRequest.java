@@ -23,6 +23,7 @@ public record SelfRegisterClientRequest(
 	 *
 	 * @return 두 필드 모두 있거나 모두 없으면 true, 아니면 false
 	 */
+	@Schema(hidden = true)
 	@AssertTrue(message = "pathPrefix와 upstreamUrl은 둘 다 있거나 둘 다 없어야 합니다.")
 	public boolean isRouteFields() {
 		boolean hasPrefix = pathPrefix != null && !pathPrefix.isBlank();
