@@ -4,6 +4,7 @@ import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
 import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNamespaceChangeException;
 import com.econo.auth.client.exception.RouteNamespaceInvalidException;
 import com.econo.auth.client.exception.RouteNamespaceTakenException;
 import com.econo.auth.client.exception.RouteNotFoundException;
@@ -275,6 +276,20 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiError> handleRouteNamespaceInvalid(RouteNamespaceInvalidException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 				.body(new ApiError("ROUTE_NAMESPACE_INVALID", ex.getMessage()));
+	}
+
+	/**
+	 * 네임스페이스 변경 시도 예외 처리 — 400 ROUTE_NAMESPACE_CHANGE_DENIED
+	 *
+	 * <p>PUT 수정 시 pathPrefix의 네임스페이스가 기존과 달라졌을 때 발생한다. 네임스페이스 변경은 새 등록에 해당하므로 허용하지 않는다.
+	 *
+	 * @param ex 예외
+	 * @return 400 ROUTE_NAMESPACE_CHANGE_DENIED
+	 */
+	@ExceptionHandler(RouteNamespaceChangeException.class)
+	public ResponseEntity<ApiError> handleRouteNamespaceChange(RouteNamespaceChangeException ex) {
+		return ResponseEntity.badRequest()
+				.body(new ApiError("ROUTE_NAMESPACE_CHANGE_DENIED", ex.getMessage()));
 	}
 
 	/**

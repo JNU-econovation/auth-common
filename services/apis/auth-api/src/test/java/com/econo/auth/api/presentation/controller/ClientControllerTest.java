@@ -7,12 +7,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.econo.auth.api.config.security.SecurityConfig;
+import com.econo.auth.client.application.usecase.ManageOwnClientUseCase;
+import com.econo.auth.client.application.usecase.ManageOwnClientUseCase.DeleteMyClientCommand;
+import com.econo.auth.client.application.usecase.ManageOwnClientUseCase.MyClientResult;
+import com.econo.auth.client.application.usecase.ManageOwnClientUseCase.UpdateMyClientCommand;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.SelfRegisterOAuthClientCommand;
 import com.econo.auth.client.application.usecase.RegisterOAuthClientUseCase.SelfRegisterOAuthClientResult;
 import com.econo.auth.client.exception.ClientLimitExceededException;
 import com.econo.auth.client.exception.DuplicateClientNameException;
+import com.econo.auth.client.exception.InvalidClientException;
 import com.econo.auth.client.exception.RedirectUriRequiredException;
+import com.econo.auth.client.exception.RouteNamespaceChangeException;
 import com.econo.auth.client.exception.RouteNamespaceInvalidException;
 import com.econo.auth.client.exception.RouteNamespaceTakenException;
 import com.econo.auth.client.exception.RoutePathConflictException;
@@ -21,6 +27,8 @@ import com.econo.auth.client.exception.RouteUpstreamInvalidException;
 import com.econo.common.auth.config.AuthAutoConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,6 +61,7 @@ class ClientControllerTest {
 	@Autowired private MockMvc mockMvc;
 
 	@MockBean private RegisterOAuthClientUseCase registerOAuthClientUseCase;
+	@MockBean private ManageOwnClientUseCase manageOwnClientUseCase;
 
 	/** 일반 회원(USER 역할) Passport — memberId=10 */
 	private static final String USER_PASSPORT =
@@ -588,6 +597,509 @@ class ClientControllerTest {
 																						"""))
 					.andExpect(status().isForbidden())
 					.andExpect(jsonPath("$.errorCode").value("ROUTE_PROTECTED"));
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// GET /api/v1/clients — 내 클라이언트 목록
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("GET /api/v1/clients — 내 클라이언트 목록 조회")
+	class ListMyClientsTest {
+
+		@Test
+		@DisplayName("인증된 회원으로 목록 조회 성공 → 200 + clients 배열 반환")
+		void listMyClients_withAuthenticatedUser_returns200WithClientsList() throws Exception {
+			// given
+			MyClientResult result1 =
+					new MyClientResult(
+							"client-uuid-1",
+							"EEOS 웹앱",
+							Set.of("https://app.econovation.kr/callback"),
+							"route-uuid-1",
+							"/api/eeos",
+							"http://eeos-service:8080",
+							true);
+			MyClientResult result2 =
+					new MyClientResult(
+							"client-uuid-2", "EEOS 앱", Set.of("eeos://callback"), null, null, null, null);
+
+			given(manageOwnClientUseCase.listMyClients(10L)).willReturn(List.of(result1, result2));
+
+			// when / then
+			mockMvc
+					.perform(get("/api/v1/clients").header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clients").isArray())
+					.andExpect(jsonPath("$.clients.length()").value(2))
+					.andExpect(jsonPath("$.clients[0].clientId").value("client-uuid-1"))
+					.andExpect(jsonPath("$.clients[0].clientName").value("EEOS 웹앱"))
+					.andExpect(jsonPath("$.clients[0].route.routeId").value("route-uuid-1"));
+		}
+
+		@Test
+		@DisplayName("클라이언트 없으면 200 + clients 빈 배열 반환")
+		void listMyClients_withNoClients_returns200WithEmptyList() throws Exception {
+			// given
+			given(manageOwnClientUseCase.listMyClients(10L)).willReturn(List.of());
+
+			// when / then
+			mockMvc
+					.perform(get("/api/v1/clients").header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clients").isArray())
+					.andExpect(jsonPath("$.clients.length()").value(0));
+		}
+
+		@Test
+		@DisplayName("응답에 clientSecret 필드가 없음 (절대 포함 금지)")
+		void listMyClients_responseDoesNotContainClientSecret() throws Exception {
+			// given
+			MyClientResult result =
+					new MyClientResult(
+							"client-uuid-nosecret",
+							"시크릿없는앱",
+							Set.of("https://nosecret.example.com/cb"),
+							null,
+							null,
+							null,
+							null);
+			given(manageOwnClientUseCase.listMyClients(10L)).willReturn(List.of(result));
+
+			// when / then
+			mockMvc
+					.perform(get("/api/v1/clients").header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clients[0].clientSecret").doesNotExist());
+		}
+
+		@Test
+		@DisplayName("X-User-Passport 헤더 없이 목록 요청 시 401 반환")
+		void listMyClients_withoutPassportHeader_returns401() throws Exception {
+			// when / then
+			mockMvc.perform(get("/api/v1/clients")).andExpect(status().isUnauthorized());
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// GET /api/v1/clients/{clientId} — 단건 상세 조회
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("GET /api/v1/clients/{clientId} — 단건 상세 조회")
+	class GetMyClientTest {
+
+		@Test
+		@DisplayName("소유한 클라이언트 상세 조회 성공 → 200 + clientId + route 포함")
+		void getMyClient_withOwnedClient_returns200WithDetail() throws Exception {
+			// given
+			String clientId = "client-uuid-detail";
+			MyClientResult result =
+					new MyClientResult(
+							clientId,
+							"EEOS 웹앱",
+							Set.of("https://app.econovation.kr/callback"),
+							"route-uuid-1",
+							"/api/eeos",
+							"http://eeos-service:8080",
+							true);
+			given(manageOwnClientUseCase.getMyClient(clientId, 10L)).willReturn(result);
+
+			// when / then
+			mockMvc
+					.perform(
+							get("/api/v1/clients/{clientId}", clientId).header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clientId").value(clientId))
+					.andExpect(jsonPath("$.clientName").value("EEOS 웹앱"))
+					.andExpect(jsonPath("$.route.pathPrefix").value("/api/eeos"))
+					.andExpect(jsonPath("$.route.enabled").value(true));
+		}
+
+		@Test
+		@DisplayName("타인 소유 클라이언트 조회 → 404 CLIENT_NOT_FOUND (존재 은닉)")
+		void getMyClient_withOtherOwnersClient_returns404ClientNotFound() throws Exception {
+			// given
+			String otherClientId = "client-uuid-other";
+			given(manageOwnClientUseCase.getMyClient(otherClientId, 10L))
+					.willThrow(new InvalidClientException());
+
+			// when / then
+			mockMvc
+					.perform(
+							get("/api/v1/clients/{clientId}", otherClientId)
+									.header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isNotFound())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+		}
+
+		@Test
+		@DisplayName("존재하지 않는 clientId 조회 → 404 CLIENT_NOT_FOUND")
+		void getMyClient_withNonExistentClientId_returns404() throws Exception {
+			// given
+			String nonExistentId = "non-existent-client";
+			given(manageOwnClientUseCase.getMyClient(nonExistentId, 10L))
+					.willThrow(new InvalidClientException());
+
+			// when / then
+			mockMvc
+					.perform(
+							get("/api/v1/clients/{clientId}", nonExistentId)
+									.header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isNotFound())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+		}
+
+		@Test
+		@DisplayName("상세 응답에 clientSecret 필드가 없음 (절대 포함 금지)")
+		void getMyClient_responseDoesNotContainClientSecret() throws Exception {
+			// given
+			String clientId = "client-uuid-nosecret";
+			MyClientResult result =
+					new MyClientResult(
+							clientId,
+							"시크릿없는앱",
+							Set.of("https://nosecret.example.com/cb"),
+							null,
+							null,
+							null,
+							null);
+			given(manageOwnClientUseCase.getMyClient(clientId, 10L)).willReturn(result);
+
+			// when / then
+			mockMvc
+					.perform(
+							get("/api/v1/clients/{clientId}", clientId).header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clientSecret").doesNotExist());
+		}
+
+		@Test
+		@DisplayName("X-User-Passport 헤더 없이 상세 조회 시 401 반환")
+		void getMyClient_withoutPassportHeader_returns401() throws Exception {
+			// when / then
+			mockMvc
+					.perform(get("/api/v1/clients/{clientId}", "any-client-id"))
+					.andExpect(status().isUnauthorized());
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// PUT /api/v1/clients/{clientId} — 수정
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("PUT /api/v1/clients/{clientId} — 클라이언트 수정")
+	class UpdateMyClientTest {
+
+		@Test
+		@DisplayName("정상 수정 요청 → 200 + 수정된 클라이언트 정보 반환")
+		void updateMyClient_withValidRequest_returns200WithUpdatedClient() throws Exception {
+			// given
+			String clientId = "client-uuid-update";
+			MyClientResult updatedResult =
+					new MyClientResult(
+							clientId,
+							"EEOS 웹앱 v2",
+							Set.of("https://app.econovation.kr/callback", "https://dev.econovation.kr/callback"),
+							"route-uuid-1",
+							"/api/eeos",
+							"http://eeos-service-v2:8080",
+							true);
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willReturn(updatedResult);
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", clientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "EEOS 웹앱 v2",
+																								"redirectUris": ["https://app.econovation.kr/callback", "https://dev.econovation.kr/callback"],
+																								"pathPrefix": "/api/eeos",
+																								"upstreamUrl": "http://eeos-service-v2:8080"
+																						}
+																						"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clientId").value(clientId))
+					.andExpect(jsonPath("$.clientName").value("EEOS 웹앱 v2"))
+					.andExpect(jsonPath("$.route.upstreamUrl").value("http://eeos-service-v2:8080"));
+		}
+
+		@Test
+		@DisplayName("PUT 수정 응답에 clientSecret 필드가 없음 (절대 포함 금지)")
+		void updateMyClient_responseDoesNotContainClientSecret() throws Exception {
+			// given
+			String clientId = "client-uuid-put-nosecret";
+			MyClientResult result =
+					new MyClientResult(
+							clientId,
+							"시크릿없는앱",
+							Set.of("https://nosecret.example.com/cb"),
+							null,
+							null,
+							null,
+							null);
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willReturn(result);
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", clientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "시크릿없는앱",
+																								"redirectUris": ["https://nosecret.example.com/cb"]
+																						}
+																						"""))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.clientSecret").doesNotExist());
+		}
+
+		@Test
+		@DisplayName("타인 소유 클라이언트 수정 시도 → 404 CLIENT_NOT_FOUND")
+		void updateMyClient_withOtherOwnersClient_returns404ClientNotFound() throws Exception {
+			// given
+			String otherClientId = "client-uuid-other";
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willThrow(new InvalidClientException());
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", otherClientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "남의앱",
+																								"redirectUris": ["https://other.example.com/cb"]
+																						}
+																						"""))
+					.andExpect(status().isNotFound())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+		}
+
+		@Test
+		@DisplayName("네임스페이스 변경 시도 → 400 ROUTE_NAMESPACE_CHANGE_DENIED")
+		void updateMyClient_whenNamespaceChanged_returns400RouteNamespaceChangeDenied()
+				throws Exception {
+			// given
+			String clientId = "client-uuid-namespace";
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willThrow(RouteNamespaceChangeException.denied("eeos", "eeos-v2"));
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", clientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "EEOS 웹앱",
+																								"redirectUris": ["https://app.econovation.kr/callback"],
+																								"pathPrefix": "/api/eeos-v2",
+																								"upstreamUrl": "http://eeos-v2:8080"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_NAMESPACE_CHANGE_DENIED"));
+		}
+
+		@Test
+		@DisplayName("clientName 빈 문자열 → 400 VALIDATION_FAILED")
+		void updateMyClient_withBlankClientName_returns400ValidationFailed() throws Exception {
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", "client-uuid-blank")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "",
+																								"redirectUris": ["https://blank.example.com/cb"]
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+		}
+
+		@Test
+		@DisplayName("pathPrefix만 있고 upstreamUrl 없음 → 400 VALIDATION_FAILED")
+		void updateMyClient_withOnlyPathPrefix_returns400ValidationFailed() throws Exception {
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", "client-uuid-halfroute")
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "반쪽라우트앱",
+																								"redirectUris": ["https://half.example.com/cb"],
+																								"pathPrefix": "/api/halfroute"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+		}
+
+		@Test
+		@DisplayName("SSRF upstreamUrl → 400 ROUTE_UPSTREAM_INVALID")
+		void updateMyClient_whenUpstreamInvalid_returns400RouteUpstreamInvalid() throws Exception {
+			// given
+			String clientId = "client-uuid-ssrf";
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willThrow(new RouteUpstreamInvalidException("private IP"));
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", clientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "SSRF앱",
+																								"redirectUris": ["https://ssrf.example.com/cb"],
+																								"pathPrefix": "/api/ssrf",
+																								"upstreamUrl": "http://192.168.1.1/admin"
+																						}
+																						"""))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_UPSTREAM_INVALID"));
+		}
+
+		@Test
+		@DisplayName("보호 경로 pathPrefix → 403 ROUTE_PROTECTED")
+		void updateMyClient_whenRouteProtected_returns403RouteProtected() throws Exception {
+			// given
+			String clientId = "client-uuid-protected";
+			given(manageOwnClientUseCase.updateMyClient(any(UpdateMyClientCommand.class)))
+					.willThrow(new RouteProtectedException("/api/v1/auth/**"));
+
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", clientId)
+									.contentType(MediaType.APPLICATION_JSON)
+									.header("X-User-Passport", USER_PASSPORT)
+									.content(
+											"""
+																						{
+																								"clientName": "보호경로앱",
+																								"redirectUris": ["https://protected.example.com/cb"],
+																								"pathPrefix": "/api/v1/auth",
+																								"upstreamUrl": "https://protected.example.com"
+																						}
+																						"""))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.errorCode").value("ROUTE_PROTECTED"));
+		}
+
+		@Test
+		@DisplayName("X-User-Passport 헤더 없이 수정 요청 시 401 반환")
+		void updateMyClient_withoutPassportHeader_returns401() throws Exception {
+			// when / then
+			mockMvc
+					.perform(
+							put("/api/v1/clients/{clientId}", "any-client-id")
+									.contentType(MediaType.APPLICATION_JSON)
+									.content(
+											"""
+																						{
+																								"clientName": "비인증앱",
+																								"redirectUris": ["https://unauth.example.com/cb"]
+																						}
+																						"""))
+					.andExpect(status().isUnauthorized());
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────
+	// DELETE /api/v1/clients/{clientId} — 하드 삭제
+	// ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("DELETE /api/v1/clients/{clientId} — 클라이언트 하드 삭제")
+	class DeleteMyClientTest {
+
+		@Test
+		@DisplayName("소유한 클라이언트 삭제 성공 → 204 No Content")
+		void deleteMyClient_withOwnedClient_returns204() throws Exception {
+			// given
+			String clientId = "client-uuid-delete";
+			willDoNothing()
+					.given(manageOwnClientUseCase)
+					.deleteMyClient(any(DeleteMyClientCommand.class));
+
+			// when / then
+			mockMvc
+					.perform(
+							delete("/api/v1/clients/{clientId}", clientId)
+									.header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isNoContent());
+		}
+
+		@Test
+		@DisplayName("타인 소유 클라이언트 삭제 시도 → 404 CLIENT_NOT_FOUND (존재 은닉)")
+		void deleteMyClient_withOtherOwnersClient_returns404ClientNotFound() throws Exception {
+			// given
+			String otherClientId = "client-uuid-other-delete";
+			willThrow(new InvalidClientException())
+					.given(manageOwnClientUseCase)
+					.deleteMyClient(any(DeleteMyClientCommand.class));
+
+			// when / then
+			mockMvc
+					.perform(
+							delete("/api/v1/clients/{clientId}", otherClientId)
+									.header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isNotFound())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+		}
+
+		@Test
+		@DisplayName("존재하지 않는 clientId 삭제 → 404 CLIENT_NOT_FOUND (존재 은닉)")
+		void deleteMyClient_withNonExistentClientId_returns404() throws Exception {
+			// given
+			String nonExistentId = "non-existent-for-delete";
+			willThrow(new InvalidClientException())
+					.given(manageOwnClientUseCase)
+					.deleteMyClient(any(DeleteMyClientCommand.class));
+
+			// when / then
+			mockMvc
+					.perform(
+							delete("/api/v1/clients/{clientId}", nonExistentId)
+									.header("X-User-Passport", USER_PASSPORT))
+					.andExpect(status().isNotFound())
+					.andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+		}
+
+		@Test
+		@DisplayName("X-User-Passport 헤더 없이 삭제 요청 시 401 반환")
+		void deleteMyClient_withoutPassportHeader_returns401() throws Exception {
+			// when / then
+			mockMvc
+					.perform(delete("/api/v1/clients/{clientId}", "any-client-id"))
+					.andExpect(status().isUnauthorized());
 		}
 	}
 }
