@@ -91,7 +91,7 @@ public interface ClientApiDocs {
 	@Operation(
 			summary = "내 클라이언트 단건 상세 조회",
 			description =
-					"인증된 회원이 자신이 소유한 OAuth 클라이언트 단건을 조회한다." + " 타인 소유 또는 미존재 clientId는 404로 존재 은닉 처리한다.",
+					"인증된 회원이 자신이 소유한 OAuth 클라이언트 단건을 조회한다." + " 타인 소유 또는 미존재 clientId는 404로 숨김 처리 한다.",
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
 		@ApiResponse(
@@ -104,7 +104,7 @@ public interface ClientApiDocs {
 				content = @Content),
 		@ApiResponse(
 				responseCode = "404",
-				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (존재 은닉)",
+				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (숨김)",
 				content = @Content)
 	})
 	ResponseEntity<MyClientItemResponse> getMyClient(Passport passport, String clientId);
@@ -147,7 +147,7 @@ public interface ClientApiDocs {
 				content = @Content),
 		@ApiResponse(
 				responseCode = "404",
-				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (존재 은닉)",
+				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (숨김)",
 				content = @Content),
 		@ApiResponse(
 				responseCode = "409",
@@ -162,11 +162,11 @@ public interface ClientApiDocs {
 			Passport passport, String clientId, @Valid UpdateMyClientRequest request);
 
 	@Operation(
-			summary = "내 클라이언트 하드 삭제",
+			summary = "내 클라이언트 Hard 삭제",
 			description =
-					"인증된 회원이 자신이 소유한 OAuth 클라이언트를 하드 삭제한다."
+					"인증된 회원이 자신이 소유한 OAuth 클라이언트를 Hard 삭제한다."
 							+ " service_client, SAS oauth2_registered_client, 연결 service_route가 단일 트랜잭션에서 캐스케이드 삭제된다."
-							+ " 타인 소유 또는 미존재 clientId는 404로 존재 은닉 처리한다.",
+							+ " 타인 소유 또는 미존재 clientId는 404로 숨김 처리 한다.",
 			security = @SecurityRequirement(name = "cookieAuth"))
 	@ApiResponses({
 		@ApiResponse(responseCode = "204", description = "삭제 성공", content = @Content),
@@ -176,7 +176,7 @@ public interface ClientApiDocs {
 				content = @Content),
 		@ApiResponse(
 				responseCode = "404",
-				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (존재 은닉)",
+				description = "CLIENT_NOT_FOUND — clientId 미존재 또는 타인 소유 (숨김)",
 				content = @Content)
 	})
 	ResponseEntity<Void> deleteMyClient(Passport passport, String clientId);
